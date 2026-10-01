@@ -14,9 +14,22 @@
 #
 # Guards (ALL must pass):
 #   1. on a user/* branch
-#   2. no uncommitted TRACKED changes
+#   2. nothing staged, and no uncommitted TRACKED change in a file the merge
+#      touches. A dirty file the merge does not touch is no reason to skip:
+#      work/log.md is dirty for most of every working day, and treating that as
+#      a stop kept the job from ever running on the days it was needed.
 #   3. git merge-tree predicts 0 conflicts (read from its EXIT CODE — never
-#      from its localized output; see the note at the guard itself)
+#      from its localized output; see the note at the guard itself) — OR every
+#      predicted conflict is one scripts/upstream-resolve.py proves a machine
+#      may take upstream's side of: the local version of the file is one
+#      upstream itself already had, and upstream has not reverted anything
+#      since. Any other conflict still stops the job, file by file, with the
+#      reason and the local commits behind it.
+#
+# Before the resolver, ONE conflict froze this job for good: nothing ever
+# resolved it, so every later morning skipped again. Measured 2026-10-01: 84
+# commits behind, 10 conflicting files, 3 of them promoted fixes upstream had
+# merely followed up on.
 #
 # After a successful merge it also FAST-FORWARDS the mirror's core branch, so the
 # private origin keeps a copy of the CORE history this job just merged. Without
@@ -116,13 +129,44 @@ risk=$(python3 scripts/bridge-divergence-check.py --upstream "$UPSTREAM_REF" --j
        | python3 -c 'import sys,json;print(len(json.load(sys.stdin).get("conflict_risk",[])))' 2>/dev/null)
 is_int "$risk" || risk="?"
 
+# resolve_plan — ask scripts/upstream-resolve.py which conflicts may take theirs.
+# Sets take_theirs (paths, newline-separated) and held (one "path (reason)" per
+# unresolved file, '; '-joined). Any failure sets reason instead: fail closed.
+take_theirs=""; held=""
+resolve_plan() {
+  local plan
+  plan=$(python3 scripts/upstream-resolve.py --theirs "$UPSTREAM_REF" 2>/tmp/ob-autoupdate-resolve.log) \
+    || { reason="conflict resolver failed (see /tmp/ob-autoupdate-resolve.log), failing closed"; return; }
+  take_theirs=$(printf '%s' "$plan" | python3 -c 'import sys,json
+for t in json.load(sys.stdin)["take_theirs"]: print(t["path"])') \
+    || { reason="conflict resolver output unreadable, failing closed"; return; }
+  held=$(printf '%s' "$plan" | python3 -c 'import sys,json
+u=json.load(sys.stdin)["unresolved"]
+def one(x):
+    shas = ", ".join(c.split()[0] for c in x.get("local_commits") or [])
+    return "%s (%s%s)" % (x["path"], x["reason"], ": " + shas if shas else "")
+print("; ".join(one(x) for x in u))') \
+    || { reason="conflict resolver output unreadable, failing closed"; return; }
+}
+
 # ---- GUARDS (fail closed) ----
 reason=""
 branch=$(git branch --show-current 2>/dev/null || echo "")
 case "$branch" in user/*) ;; *) reason="not on a user/* branch (on '${branch:-detached}')";; esac
 
-if [ -z "$reason" ] && ! { git diff --quiet && git diff --cached --quiet; }; then
-  reason="working tree has uncommitted tracked changes"
+if [ -z "$reason" ] && ! git diff --cached --quiet; then
+  reason="the index has staged changes"
+fi
+if [ -z "$reason" ] && ! git diff --quiet; then
+  # Only a dirty file the merge would touch stops it. git itself refuses such a
+  # merge too, but refusing here keeps the report precise and the tree untouched.
+  base=$(git merge-base HEAD "$UPSTREAM_REF" 2>/dev/null) \
+    || reason="cannot find the merge base with \`$UPSTREAM_REF\` (failing closed)"
+  if [ -z "$reason" ]; then
+    overlap=$(comm -12 <(git diff --name-only | sort -u) \
+                       <(git diff --name-only "$base" "$UPSTREAM_REF" | sort -u) | tr '\n' ' ' | sed 's/ $//')
+    [ -n "$overlap" ] && reason="uncommitted changes in files the merge touches: $overlap"
+  fi
 fi
 
 if [ -z "$reason" ]; then
@@ -134,13 +178,13 @@ if [ -z "$reason" ]; then
   # gate that exists to fail closed reported "safe" and the merge went ahead
   # and failed. That is exactly what happened on 2026-09-07 (.gitignore).
   # LC_ALL=C is belt-and-braces: it pins any output we or a human read.
-  mt=$(LC_ALL=C git merge-tree --write-tree HEAD "$UPSTREAM_REF" 2>/dev/null)
+  LC_ALL=C git merge-tree --write-tree HEAD "$UPSTREAM_REF" >/dev/null 2>&1
   mt_rc=$?
   case "$mt_rc" in
     0) : ;;                                                    # provably clean
-    1) files=$(printf '%s\n' "$mt" | sed -n 's/^[0-7]\{6\} [0-9a-f]\{40\} [123]\t//p' \
-               | sort -u | tr '\n' ' ' | sed 's/ $//')
-       reason="merge conflict(s) predicted${files:+ in: $files}" ;;
+    1) resolve_plan          # sets take_theirs / held, or reason on any doubt
+       [ -z "$reason" ] && [ -n "$held" ] \
+         && reason="conflict(s) a machine must not decide — $held" ;;
     *) reason="merge-tree could not verify safety (exit $mt_rc, failing closed)" ;;
   esac
 fi
@@ -148,18 +192,50 @@ fi
 if [ -n "$reason" ]; then
   report "- ⚠ auto-update SKIPPED: $reason" \
          "- $behind commit(s) behind \`$UPSTREAM_REF\` · sentinel conflict-risk: $risk" \
-         "- resolve/\`/promote\` diverged CORE files, then merge manually"
+         "${held:+- each held file: \`/promote\` the local change, or drop it in favour of upstream; the next run merges the rest}"
   notify "⚠ open-bridge auto-update SKIPPED: $reason ($behind behind). Manual merge needed."
   echo "autoupdate: skipped — $reason"; exit 0
 fi
 
 # ---- SAFE → auto-merge (skip the local pre-commit hook for the headless merge) ----
 before=$(git rev-parse --short HEAD)
+
+# resolve_merge — finish a merge that stopped on exactly the planned conflicts by
+# taking upstream's side of each. Anything else unmerged, or any step failing,
+# returns non-zero and the caller aborts the merge.
+resolve_merge() {
+  local unmerged planned p
+  unmerged=$(git diff --name-only --diff-filter=U | sort -u)
+  planned=$(printf '%s\n' "$take_theirs" | sed '/^$/d' | sort -u)
+  [ -n "$unmerged" ] && [ "$unmerged" = "$planned" ] || return 1
+  while IFS= read -r p; do
+    if git cat-file -e "$UPSTREAM_REF:$p" 2>/dev/null; then
+      git checkout --theirs -- "$p" && git add -- "$p" || return 1
+    else
+      git rm -q -- "$p" || return 1
+    fi
+  done <<< "$planned"
+  [ -z "$(git diff --name-only --diff-filter=U)" ] || return 1
+  git -c core.hooksPath=/dev/null commit -q --no-edit \
+    -m "Merge $UPSTREAM_REF into $branch (auto-update)" \
+    -m "Conflicts resolved to upstream by scripts/upstream-resolve.py (local version already seen upstream):" \
+    -m "$(printf '%s\n' "$planned" | sed 's/^/  /')"
+}
+
+merged=0
 if git -c core.hooksPath=/dev/null merge --no-edit "$UPSTREAM_REF" >/tmp/ob-autoupdate-merge.log 2>&1; then
+  merged=1
+elif [ -n "$take_theirs" ] && resolve_merge >>/tmp/ob-autoupdate-merge.log 2>&1; then
+  merged=1
+fi
+
+if [ "$merged" = 1 ]; then
   after=$(git rev-parse --short HEAD)
   mirror_line=$(mirror_core_branch)
+  resolved_line=""
+  [ -n "$take_theirs" ] && resolved_line="- auto-resolved to upstream: $(printf '%s' "$take_theirs" | tr '\n' ' ')"
   report "- ✅ auto-updated \`$before\` → \`$after\` ($behind commit(s) merged from \`$UPSTREAM_REF\`)" \
-         "$mirror_line"
+         ${resolved_line:+"$resolved_line"} "$mirror_line"
   notify "✅ open-bridge auto-updated: $behind commit(s) merged ($before→$after)"
   echo "autoupdate: merged $behind commit(s) ($before→$after)"
   echo "autoupdate: mirror — ${mirror_line#- }"

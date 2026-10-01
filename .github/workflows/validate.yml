@@ -314,6 +314,14 @@ jobs:
       - name: Run archive-plan contract
         run: python3 -m pytest scripts/tests/test_archive_buckets.py -q
 
+      # The daily upstream auto-update. It used to stop at the first predicted
+      # conflict and, since nothing resolved one, every morning after. These run
+      # the real script against throwaway repos: a promoted-then-followed-up file
+      # takes upstream, a revert or a never-promoted edit is held, one held file
+      # holds the run with the branch untouched, a dirty log does not block.
+      - name: Run upstream auto-update contract
+        run: python3 -m pytest scripts/tests/test_upstream_autoupdate.py -q
+
   # The workload skill carries three suites of its own, and each answers a
   # different question. The skill writes unit files onto machines: a contract it
   # can break unnoticed is the one contract that ends up on a service manager.
