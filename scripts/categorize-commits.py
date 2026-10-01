@@ -452,6 +452,11 @@ SCRIPTS_CORE_ALLOWLIST = frozenset({
     # than as an error. validate.yml runs its contract.
     "scripts/archive-buckets.py",
     "scripts/tests/test_archive_buckets.py",
+    # Registered with the auto-update's conflict resolver: which predicted
+    # conflicts the daily merge may take upstream's side of, decided by content.
+    # validate.yml runs its contract against the real script.
+    "scripts/upstream-resolve.py",
+    "scripts/tests/test_upstream_autoupdate.py",
 })
 
 
