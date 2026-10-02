@@ -79,6 +79,16 @@ The same applies when you *touch* an existing issue for this project: if it is
 not on the board, add it. Periodically verify the whole set with the coverage
 audit (*Board Hygiene* below) — orphaned issues are a silent failure mode.
 
+**Hint: does the issue also need a Bridge task?** The board is not always the
+end of the job. When the issue comes out of a Bridge session, decide with
+`protocols/standing-orders/board-task-criteria.md` before you report done. An
+issue that hands work to someone else, or that you will follow up on in a later
+session, is usually a Class A task: it also gets `work/tasks/<slug>/STATUS.md`
+with a `sync.github` block naming the issue and the board, and the generated
+board is rebuilt. Many issues do not qualify (a report filed once and not
+followed up stays a log row), so this is a decision, not a step. This skill does
+not create the task itself.
+
 ## Field Updates
 
 ### Approach: `gh project item-edit` (preferred)
