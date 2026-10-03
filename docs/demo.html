@@ -69,35 +69,14 @@
 
 <link rel="stylesheet" href="assets/brand.css">
 <style>
-/* ─── Brand tokens from DESIGN.md (design-to-css.py). Do not hand-edit. ─── */
+/* Brand colour tokens come from assets/brand.css (BKS palette block); only
+   what the terminal stage needs on its own stays here. */
 :root{
-  --ink:#111827; --muted:#6B7280;
-  --surface:#FFFFFF; --surface-subtle:#F9FAFB; --surface-muted:#F3F4F6;
-  --on-primary:#FFFFFF; --on-surface:#374151;
-  --line:#E5E7EB; --line-subtle:#F3F4F6;
-  --accent-from:#667EEA; --accent-to:#764BA2; --accent:#6366F1; --accent-secondary:#8B5CF6;
-  --ok:#10B981; --info:#3B82F6;
-  --font-sans:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,"Helvetica Neue",Arial,sans-serif;
   --font-mono:"SF Mono",Monaco,"Cascadia Code","Roboto Mono",Consolas,"Liberation Mono",monospace;
   --radius-sm:4px; --radius-md:8px; --radius-lg:12px; --radius-xl:16px; --radius-full:9999px;
+  --warn:#B4762A; --danger:#A33B36;
 }
-html.dark{
-  --surface:#111827; --surface-subtle:#1F2937; --surface-muted:#374151;
-  --on-surface:#D1D5DB; --line:#374151; --accent-from:#A78BFA; --accent-to:#818CF8;
-}
-:root{
-  --accent-text:#4F46E5; --accent-soft:rgba(99,102,241,.08);
-  --ok-text:#047857; --warn:#B45309; --danger:#B91C1C;
-  --code-bg:#F8FAFC;
-  --shadow-soft:0 4px 6px -1px rgba(0,0,0,.05),0 2px 4px -1px rgba(0,0,0,.03);
-  --shadow-hover:0 20px 25px -5px rgba(0,0,0,.10),0 10px 10px -5px rgba(0,0,0,.04);
-}
-html.dark{
-  --ink:#F3F4F6; --muted:#9CA3AF; --accent-text:#A78BFA; --accent-soft:rgba(167,139,250,.14);
-  --ok-text:#34D399; --warn:#FBBF24; --danger:#F87171; --code-bg:#0A0C12;
-  --shadow-soft:0 4px 6px -1px rgba(0,0,0,.3),0 2px 4px -1px rgba(0,0,0,.15);
-  --shadow-hover:0 24px 30px -8px rgba(0,0,0,.5),0 10px 12px -6px rgba(0,0,0,.3);
-}
+html.dark{ --warn:#D29E56; --danger:#CE6964; }
 
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}

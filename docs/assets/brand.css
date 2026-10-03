@@ -84,6 +84,55 @@ html.dark{
   --shadow-soft:0 4px 6px -1px rgba(0,0,0,.2),0 2px 4px -1px rgba(0,0,0,.1);
   --shadow-hover:0 20px 25px -5px rgba(0,0,0,.3),0 10px 10px -5px rgba(0,0,0,.1);
 }
+/* ============================================================================
+   BKS palette, layered over the tokens above (feat/site-command-bridge).
+   Values from bks-web DESIGN.md (colors / colorsDark). Depth comes from surface
+   and hairline, so the accent gradient collapses to one colour and shadows go
+   flat. Delete this block to return to the violet tokens above; DESIGN.md of
+   this repo is untouched on purpose (it is the CORE default for every fork).
+   Fonts are self-hosted (OFL), no network request.
+   ============================================================================ */
+@font-face{font-family:"Inter";src:url("fonts/inter-latin-wght.woff2") format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
+@font-face{font-family:"Playfair Display";src:url("fonts/playfair-display-latin-500.woff2") format("woff2");font-weight:500;font-style:normal;font-display:swap}
+:root{
+  --ink:#0F2A4A; --muted:#475569;
+  --surface:#FAF7F3; --surface-subtle:#FFFFFF; --surface-muted:#F1F5F9;
+  --on-surface:#1A2433;
+  --line:#E2E8F0; --line-subtle:#F1F5F9;
+  --accent-from:#2D5B8F; --accent-to:#2D5B8F;
+  --accent:#2D5B8F; --accent-secondary:#5FA0D9;
+  --ok:#2D7A5F; --info:#2D5B8F;
+  --accent-text:#2D5B8F; --accent-soft:#E6F0FA;
+  --ok-text:#2D7A5F; --info-text:#2D5B8F; --attention-text:#2D5B8F;
+  --code-bg:#F1F5F9;
+  --feature-indigo-from:#2D5B8F; --feature-indigo-to:#2D5B8F;
+  --shadow-soft:none; --shadow-hover:none;
+  --font-display:"Playfair Display",Georgia,"Times New Roman",serif;
+  /* the scroll stage reads these */
+  --stage-surface:#FAF7F3; --stage-raised:#FFFFFF; --stage-line:#94A3B8; --stage-link:#2D5B8F;
+  --stage-hi:#5FA0D9; --stage-core:#E6F0FA; --stage-dust:#E2E8F0;
+}
+html.dark{
+  --ink:#E7EAEE; --muted:#A8B1BD;
+  --surface:#101419; --surface-subtle:#191E24; --surface-muted:#20252C;
+  --on-surface:#E7EAEE;
+  --line:#333E4C; --line-subtle:#20252C;
+  --accent-from:#5FA0D9; --accent-to:#5FA0D9;
+  --accent:#5690D2; --accent-secondary:#5FA0D9;
+  --ok:#43A37B; --info:#5690D2;
+  --accent-text:#5FA0D9; --accent-soft:#182A40;
+  --ok-text:#43A37B; --info-text:#5FA0D9; --attention-text:#5FA0D9;
+  --code-bg:#191E24;
+  --feature-indigo-from:#5690D2; --feature-indigo-to:#5690D2;
+  --shadow-soft:none; --shadow-hover:none;
+  --stage-surface:#101419; --stage-raised:#191E24; --stage-line:#345373; --stage-link:#5690D2;
+  --stage-hi:#5FA0D9; --stage-core:#182A40; --stage-dust:#333E4C;
+}
+/* Display type in Playfair. !important because each page declares its own
+   heading weights inline after this file; this is the one brand layer. */
+h1,h2,.display,.h1,.h2{font-family:var(--font-display)!important;font-weight:500!important;letter-spacing:-.01em}
+.wordmark{font-family:var(--font-display)}
+
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{

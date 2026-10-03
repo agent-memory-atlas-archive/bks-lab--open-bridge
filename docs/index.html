@@ -541,6 +541,81 @@ html.dark .path-prompts code{background:var(--code-bg)}
   .reveal,.reset-line{opacity:1!important;transform:none!important}
 }
 </style>
+<style>
+/* ---- #story: the command-bridge stage (assets/story.js) ---- */
+.story{position:relative}
+.story-stage{--hdr:0px;position:relative;height:calc(100vh - var(--hdr));height:calc(100svh - var(--hdr));overflow:hidden;background:var(--stage-surface,var(--surface))}
+#story-gl{position:absolute;inset:0;width:100%;height:100%;display:block}
+#story-labels{position:absolute;inset:0;pointer-events:none}
+#story-labels .lb{position:absolute;left:0;top:0;white-space:nowrap;will-change:transform,opacity;opacity:0}
+.story .st{display:flex;align-items:center;gap:9px;padding:7px 12px 7px 10px;border:1px solid var(--line);border-radius:8px;background:color-mix(in srgb,var(--surface-subtle) 92%,transparent);list-style:none}
+.story .st b{width:7px;height:7px;border-radius:9999px;background:var(--accent);flex:none}
+.story .st span{font:600 13px/1.2 var(--font-sans);color:var(--ink)}
+.story .st small{display:block;font:400 11px/1.3 var(--font-sans);color:var(--muted)}
+.story .st small span{font:inherit;color:inherit}
+.story .st.agent{border-color:var(--stage-link);background:color-mix(in srgb,var(--accent-soft) 94%,transparent)}
+.story .st.agent b{background:var(--stage-hi)}
+.story .st.core{border-color:var(--stage-link)}
+.story .fl{font:500 12px/1 var(--font-mono);color:var(--muted);padding:6px 10px;border:1px dashed var(--line);border-radius:6px;background:color-mix(in srgb,var(--surface) 85%,transparent)}
+.story .dir{font:500 12px/1 var(--font-mono);color:var(--accent-text)}
+.story .hubl{text-align:center}
+.story .hubl>span{display:block;font:500 20px/1.1 var(--font-display);color:var(--ink)}
+.story .hubl small{display:block;margin-top:4px;font:600 10px/1 var(--font-sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.story .log{width:300px;border:1px solid var(--line);border-radius:8px;background:var(--surface-subtle);padding:10px 12px;font:500 11px/1.55 var(--font-mono);color:var(--muted);white-space:normal}
+.story .log .h{letter-spacing:.06em;margin-bottom:4px}
+.story .log .r{opacity:0}.story .log em{color:var(--accent-text);font-style:normal}
+.story-caps{position:absolute;left:0;right:0;bottom:2%;height:54%;text-align:center;padding:0 24px;pointer-events:none}
+.story .cap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;visibility:hidden}
+.story .cap:first-child{visibility:visible}
+.story .cap .eyebrow{margin:0 0 12px;color:var(--accent-text);font-size:12px;max-width:none}
+.story .cap h1,.story .cap h2{color:var(--ink);line-height:1.1;max-width:22em;margin:0}
+.story .cap h1{font-size:clamp(26px,2.9vw,42px)}
+.story .text-gradient{background:none;-webkit-text-fill-color:currentColor;color:var(--accent-text)}
+.story .cap h2{font-size:clamp(25px,3vw,40px);line-height:1.14}
+.story .cap p{color:var(--muted);max-width:52em;margin:12px auto 0;font-size:16px;line-height:1.55}
+.story .cap .story-sub{color:var(--on-surface)}
+.story .cap .cta-row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:20px;pointer-events:auto}
+.story .cap .beta-line{margin-top:12px;font-size:13.5px;color:var(--muted);pointer-events:auto}
+.story .story-tags{margin-top:14px}
+.story .story-tags i{font:500 12px/1 var(--font-mono);font-style:normal;color:var(--muted);border:1px solid var(--line);border-radius:9999px;padding:7px 12px}
+.story .story-tags i{display:inline-block;margin:0 4px}
+.story .cap code{font-family:var(--font-mono);font-size:.9em}
+.story .sw-mask{padding-bottom:.22em;margin-bottom:-.22em}
+.story-steps{position:absolute;right:24px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:12px}
+.story-steps b{width:28px;height:28px;border-radius:9999px;border:1px solid var(--line);color:var(--muted);font:600 11px/26px var(--font-sans);text-align:center;transition:all .3s}
+.story-steps b.on{border-color:var(--accent);color:var(--ink);background:var(--accent-soft)}
+.story-list{display:none}
+html.story-static .story-stage{height:auto;overflow:visible}
+html.story-static #story-gl,html.story-static #story-labels,html.story-static .story-steps{display:none}
+html.story-static .story-caps{position:relative;height:auto;bottom:auto;padding:64px 24px 24px}
+html.story-static .story .cap{position:relative;inset:auto;visibility:visible;margin-bottom:44px}
+html.story-static .story-list{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:860px;margin:0 auto;padding:0 24px 72px}
+.proof-beta{text-align:center;margin:0 auto 40px;color:var(--muted);font-size:14px}
+.proof-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
+.proof-grid .hero-term{margin:0;max-width:none}
+.proof-grid .hero-term,.proof-grid .hero-visual{grid-column:auto!important;grid-row:auto!important;margin:0!important}
+.proof-grid .hero-visual{max-width:520px;justify-self:center;width:100%}
+@media (min-width:901px) and (max-height:800px){
+  .story .cap:first-child .eyebrow{display:none}
+  .story .cap p{font-size:14.5px;margin-top:8px}
+  .story .cap .cta-row{margin-top:14px}
+  .story-caps{height:56%}
+  .story .st small{display:none}
+}
+@media (max-width:900px){
+  .story-steps{display:none}
+  .story-caps{height:58%;bottom:2%;padding:0 16px}
+  .story .cap p{font-size:14.5px;margin-top:10px}
+  .story .cap:first-child .eyebrow{display:none}
+  .story .cap h1{font-size:26px}.story .cap h2{font-size:24px}
+  .story .cap .cta-row{margin-top:14px;gap:8px}
+  .story .st small{display:none}.story .st{padding:5px 9px}.story .st span{font-size:11.5px}
+  .story .log{width:190px;font-size:9.5px;padding:8px 10px}
+  .story .cap .cta-row .btn{padding:10px 14px}
+  .story .cap .beta-line{display:none}
+  .proof-grid{grid-template-columns:1fr}
+}
+</style>
 </head>
 <body>
 
@@ -599,44 +674,82 @@ html.dark .path-prompts code{background:var(--code-bg)}
 
 <main id="top">
 
-<!-- ======================= HERO (copy on top · constellation full-width below) ======================= -->
-<section class="hero">
-  <div class="hero-grid container">
-    <div class="hero-copy">
-      <div class="hero-lead">
-      <p class="eyebrow"><span data-lang="en">Markdown and YAML in git, read by Claude Code, Codex and Copilot CLI</span><span data-lang="de">Markdown und YAML in Git, gelesen von Claude Code, Codex und Copilot CLI</span></p>
-
-      <h1 class="display" data-lang="en">Stop re-explaining your project to your AI agent. It&nbsp;<span class="text-gradient">already knows</span> your&nbsp;repos.</h1>
-      <h1 class="display" data-lang="de">Erklär deinem KI-Agenten nicht jedes Mal alles neu. Er <span class="text-gradient">kennt</span> deine Repos <span class="text-gradient">schon</span>.</h1>
-
-      <p class="hero-sub"><span data-lang="en">Your repos, clients, conventions and last week's decisions, kept as plain markdown and YAML in git. Your coding agent reads them at the start of every session, so context compounds instead of resetting. Any model, any frontend.</span><span data-lang="de">Deine Repos, Kunden, Konventionen und die Entscheidungen von letzter Woche, als Plain-Markdown und YAML in Git. Dein Coding-Agent liest sie zu Beginn jeder Session wieder ein, damit Kontext wächst, statt sich zurückzusetzen. Egal welches Modell, egal welches Frontend.</span></p>
-
-      <p class="honesty-strip">
-        <span data-lang="en">Public<span class="sep">·</span>MIT<span class="sep">·</span>clone &amp; read it yourself<span class="sep">·</span><b><a href="#honesty">runs our company daily</a></b></span>
-        <span data-lang="de">Public<span class="sep">·</span>MIT<span class="sep">·</span>selbst klonen &amp; lesen<span class="sep">·</span><b><a href="#honesty">betreibt täglich unsere Firma</a></b></span>
-      </p>
-
-      <div class="cta-row">
+<!-- ======================= STORY: the command bridge (assets/story.js) =======================
+     A pinned stage tells what open-bridge is in six scenes, driven by scroll.
+     Reduced motion or no WebGL: html.story-static stacks the captions and shows
+     the station list instead of the scene. -->
+<section id="story" class="story" aria-label="open-bridge">
+  <div class="story-stage" id="story-stage">
+    <canvas id="story-gl" aria-hidden="true"></canvas>
+    <div id="story-labels" aria-hidden="true"></div>
+    <div class="story-steps" aria-hidden="true"><b class="on">01</b><b>02</b><b>03</b><b>04</b><b>05</b><b>06</b></div>
+    <div class="story-caps">
+      <div class="cap">
+        <p class="eyebrow"><span data-lang="en">Markdown and YAML in git, read by Claude Code, Codex and Copilot CLI</span><span data-lang="de">Markdown und YAML in Git, gelesen von Claude Code, Codex und Copilot CLI</span></p>
+        <h1 class="display" data-lang="en">Stop re-explaining your project to your AI agent. It&nbsp;<span class="text-gradient">already knows</span> your&nbsp;repos.</h1>
+        <h1 class="display" data-lang="de">Erklär deinem KI-Agenten nicht jedes Mal alles neu. Er <span class="text-gradient">kennt</span> deine Repos <span class="text-gradient">schon</span>.</h1>
+        <p class="cap-rest story-sub"><span data-lang="en">Your repos, clients, conventions and last week's decisions, kept as plain markdown and YAML in git. Your coding agent reads them at the start of every session, so context compounds instead of resetting.</span><span data-lang="de">Deine Repos, Kunden, Konventionen und die Entscheidungen von letzter Woche, als Plain-Markdown und YAML in Git. Dein Coding-Agent liest sie zu Beginn jeder Session wieder ein, damit Kontext wächst, statt sich zurückzusetzen.</span></p>
+        <div class="cap-rest cta-row">
         <button class="btn btn-primary js-setup-cta" id="hero-setup" type="button">
           <span data-lang="en">Set it up: copy the prompt</span><span data-lang="de">Einrichten: Prompt kopieren</span>
           <span class="arrow">→</span>
         </button>
-        <a class="btn btn-secondary" href="#get-started">
-          <span data-lang="en">Set up your own</span><span data-lang="de">Eigene Bridge einrichten</span>
-        </a>
+        <a class="btn btn-secondary" href="#get-started"><span data-lang="en">Set up your own</span><span data-lang="de">Eigene Bridge einrichten</span></a>
+        </div>
+        
       </div>
+      <div class="cap">
+        <p class="eyebrow"><span data-lang="en">01 · The cold-start problem</span><span data-lang="de">01 · Das Kaltstart-Problem</span></p>
+        <h2 data-lang="en">Every session starts from scratch.</h2><h2 data-lang="de">Jede Session beginnt bei null.</h2>
+        <p class="cap-rest"><span data-lang="en">Re-explain your conventions to the agent, again. Load the wrong client's context and only notice halfway through. No record of what you decided last week.</span><span data-lang="de">Dem Agenten deine Konventionen wieder neu erklären. Den falschen Kunden-Kontext laden und es erst auf halbem Weg merken. Kein Protokoll dessen, was du letzte Woche entschieden hast.</span></p>
+      </div>
+      <div class="cap">
+        <p class="eyebrow"><span data-lang="en">02 · The substrate</span><span data-lang="de">02 · Das Substrat</span></p>
+        <h2 data-lang="en">Plain text in git. Clone it and look.</h2><h2 data-lang="de">Plain Text in Git: Klone es und schau rein.</h2>
+        <p class="cap-rest"><span data-lang="en">identity holds who you are and who you send to, workflow holds what happens when, infra holds where things run, work holds the task board and the log.</span><span data-lang="de">identity hält, wer du bist und an wen du sendest, workflow, was wann passiert, infra, wo was läuft, work das Aufgabenbrett und das Protokoll.</span></p>
+        <div class="cap-rest story-tags"><span data-lang="en"><i>no database</i><i>no SaaS</i><i>no daemon</i></span><span data-lang="de"><i>keine Datenbank</i><i>kein SaaS</i><i>kein Daemon</i></span></div>
+      </div>
+      <div class="cap">
+        <p class="eyebrow"><span data-lang="en">03 · The command bridge</span><span data-lang="de">03 · Die Kommandobrücke</span></p>
+        <h2 data-lang="en">From here your agent reaches every repo, every board, every channel.</h2><h2 data-lang="de">Von hier aus erreicht dein Agent jedes Repo, jedes Board, jeden Kanal.</h2>
+        <p class="cap-rest"><span data-lang="en">Repos, boards, channels, machines and calendars are wired into the bridge. Secrets stay outside, referenced by URI only.</span><span data-lang="de">Repos, Boards, Kanäle, Maschinen und Kalender stehen als Verbindung in der Bridge. Geheimnisse bleiben draußen, nur als Verweis per URI.</span></p>
+      </div>
+      <div class="cap">
+        <p class="eyebrow"><span data-lang="en">04 · How it works</span><span data-lang="de">04 · So funktioniert es</span></p>
+        <h2 data-lang="en">At session start the agent reads the substrate, and the record compounds.</h2><h2 data-lang="de">Bei Session-Start liest der Agent das Substrat, und das Protokoll wächst.</h2>
+        <p class="cap-rest"><span data-lang="en">It reads before it answers and writes back what happened. Day two starts where day one stopped.</span><span data-lang="de">Der Agent liest es, bevor er antwortet, und schreibt zurück, was passiert ist. So beginnt Tag zwei dort, wo Tag eins aufhörte.</span></p>
+      </div>
+      <div class="cap">
+        <p class="eyebrow"><span data-lang="en">05 · The concept</span><span data-lang="de">05 · Das Konzept</span></p>
+        <h2 data-lang="en">A bridge. And you can run many, safely.</h2><h2 data-lang="de">Eine Bridge. Und du kannst viele betreiben, sicher.</h2>
+        <p class="cap-rest"><span data-lang="en">One per client or context, all on one shared CORE. <code>scope:core</code> goes upstream with <code>/bridge-promote</code>, <code>scope:user</code> stays local.</span><span data-lang="de">Eine pro Kunde oder Kontext, alle auf einem gemeinsamen CORE. <code>scope:core</code> geht mit <code>/bridge-promote</code> nach upstream, <code>scope:user</code> bleibt lokal.</span></p>
+      </div>
+    </div>
+    <ul class="story-list">
+      <li class="st agent"><b></b><span>Claude Code</span></li>
+      <li class="st agent"><b></b><span>Codex</span></li>
+      <li class="st agent"><b></b><span>Copilot CLI</span></li>
+      <li class="st"><b></b><span>Repos</span></li>
+      <li class="st"><b></b><span>Boards</span></li>
+      <li class="st"><b></b><span>Wiki</span></li>
+      <li class="st"><b></b><span><span data-lang="en">Channels</span><span data-lang="de">Kanäle</span></span></li>
+      <li class="st"><b></b><span><span data-lang="en">Calendar</span><span data-lang="de">Kalender</span></span></li>
+      <li class="st"><b></b><span><span data-lang="en">Machines</span><span data-lang="de">Maschinen</span></span></li>
+      <li class="st"><b></b><span>Backups</span></li>
+      <li class="st"><b></b><span>Secret stores</span></li>
+    </ul>
+  </div>
+</section>
 
-      <p class="beta-line">
+<!-- ======================= PROOF: the shipped demo workspace answering (was in the hero) ======================= -->
+<section class="alt" id="proof">
+  <div class="container">
+    <p class="beta-line proof-beta">
         <span data-lang="en"><a href="demo.html">▶ See it work (90 sec)</a><span class="sep">·</span><a href="https://github.com/bks-lab/open-bridge" target="_blank" rel="noopener">Read the code on GitHub</a><span class="sep">·</span>Newly public, hit a rough edge? <a href="https://github.com/bks-lab/open-bridge/issues" target="_blank" rel="noopener">Tell us</a>.</span>
         <span data-lang="de"><a href="demo.html">▶ Sieh es arbeiten (90 Sek.)</a><span class="sep">·</span><a href="https://github.com/bks-lab/open-bridge" target="_blank" rel="noopener">Lies den Code auf GitHub</a><span class="sep">·</span>Frisch öffentlich, irgendwo hakt es? <a href="https://github.com/bks-lab/open-bridge/issues" target="_blank" rel="noopener">Sag's uns</a>.</span>
       </p>
-      </div><!-- /.hero-lead -->
-
-      <!-- ===== HERO PROOF: the shipped-workspace answer sits beside the copy on
-           a desktop, so it is in the first screen; the ring of the same
-           workspace follows below it. One column on smaller screens. -->
-      <!-- The magic-moment exchange: real answers from the shipped demo
-           workspace (examples/agency/work/), not invented copy. -->
+  </div>
+  <div class="container proof-grid">
       <div class="hero-term">
         <div class="code-label"><span>examples/agency · <span data-lang="en">shipped demo workspace</span><span data-lang="de">mitgelieferter Demo-Workspace</span></span></div>
         <div class="code" data-lang="en"><span class="k">&gt; good morning</span>Morning. You're mid-incident on bigcorp: Stripe webhook retries are failing in prod (P1, opened yesterday). Root cause traced to the webhook secret; next step is the retry fix. startupxyz onboarding: email-verification wired, 6 tests green. Board: 2 doing · 1 review · cart-a11y waits on PR #214.</div>
@@ -647,12 +760,6 @@ html.dark .path-prompts code{background:var(--code-bg)}
         </p>
       </div>
 
-      <!-- ===== HERO RING: examples/agency, counted =====
-           The shipped demo workspace as a containment ring: 27 files in six folders
-           plus the root, and one dot per line of their 1162 lines, so density is the
-           real weight of a folder. Canvas; colour from page tokens; the scoped
-           <script> honours reduced-motion + theme/lang and settles after one pass.
-           The CORE/USER split is drawn in #concept, not here. -->
       <div class="hero-visual">
         <figure id="hero-net" aria-labelledby="hn-cap-text">
           <div class="hn-frame">
@@ -677,8 +784,6 @@ html.dark .path-prompts code{background:var(--code-bg)}
           </div>
         </figure>
       </div>
-
-    </div>
   </div>
 </section>
 
@@ -2655,6 +2760,10 @@ claude        <span class="cmt"># or: codex, copilot</span></div>
 })();
 </script>
 
+<script defer src="assets/vendor/gsap.min.js"></script>
+<script defer src="assets/vendor/ScrollTrigger.min.js"></script>
+<script defer src="assets/vendor/SplitText.min.js"></script>
+<script defer src="assets/story.js"></script>
 <script defer src="assets/agent-config.js"></script>
   <script defer src="assets/agent-widget.js"></script>
 </body>
