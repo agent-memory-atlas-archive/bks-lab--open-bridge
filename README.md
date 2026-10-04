@@ -81,6 +81,9 @@ And capabilities you switch on when you need them:
 |---|---|
 | [Org overlays](docs/org-overlays.md) | subscribe to your organisation's shared config by git URL, without a fork |
 | [Workloads](docs/workloads.md) | one file per scheduled job or daemon on your machines, checked against the live service manager |
+| [Inbox](docs/inbox.md) | everything that needs you waits in one place until the live source says it is done, and the briefing shows it first |
+| [Workplace](docs/workplace.md) | plan the day as workspaces with one agent tab per task, and steer the tabs from one place through a driver for your terminal tool |
+| [Always-on machine](docs/always-on-machine.md) | a machine that stays on runs your watchers and files what it finds into the inbox while your laptop sleeps |
 | [Secrets](docs/secrets.md) | reference URIs instead of values, and a skill that resolves them without printing them |
 | [Memory](docs/memory.md) | durable facts as one file each, versioned with the rest of the instance |
 | [Tracker sync](skills/tracker-sync/SKILL.md) | reconcile tasks with GitHub Project boards, gated, never automatic |

@@ -198,6 +198,12 @@ the list. Without the field every failure speaks at once.
 Do not declare more than the command delivers. A receipt field over a command
 that prints no receipt is exactly the green tick that checks nothing.
 
+`reports_to: inbox` is for a watcher or poller that notices something a person
+must act on. The run files it with `python3 scripts/inbox.py add --key <stable-key>`
+(the key makes a repeat one item) and a `closes_when` probe, or closes it with
+`inbox.py close` once the cause is gone. A green run files nothing. See
+`docs/workloads.md` § Where a finding lands.
+
 **`evidence` and `notify_on` are coupled, and the gate enforces it.** The guard
 writes the trace line only where `notify_on` asks about `missing` or `failure`.
 So a declaration naming `log-trace` or `delivery-receipt` with neither of those

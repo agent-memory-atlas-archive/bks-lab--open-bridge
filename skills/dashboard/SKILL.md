@@ -93,6 +93,7 @@ Dashboard (Global)
 ## Integration with Bridge
 
 - **/briefing** Stream B uses the same GitHub data — dashboard is the visual companion
+- What needs a person is the inbox (`scripts/inbox.py list`), shown first by /briefing, not a dashboard tile
 - **Project Registry** (`workflow/projects/*.yaml`) is the single source of truth for
   field values, status mappings, and health check URLs
 - **ecosystem.yaml** provides repo paths and org structure for auto-detection

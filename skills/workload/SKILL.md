@@ -48,6 +48,12 @@ With no `notify_via`, `--notify` sends nothing and says so, naming the key: an
 alarm path this skill invented would be a dependency the repository does not
 ship.
 
+## Reporting
+
+A watcher or poller that notices something a person must act on declares
+`reports_to: inbox` and files it with `inbox.py add --key <stable-key>` and a
+`closes_when` probe (`references/declare.md` § 7, `docs/workloads.md`).
+
 ## Commands
 
 ```

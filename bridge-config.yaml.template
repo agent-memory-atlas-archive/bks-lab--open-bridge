@@ -124,6 +124,37 @@ work:
     - { symbol: "📁", name: "Documents" }
     - { symbol: "🐛", name: "Bug / Incident" }
 
+# ─── Inbox ────────────────────────────────────────────────────────────
+# Everything that needs a person waits in work/inbox/ until it is done.
+# Optional: name the one machine that executes released items. Without it,
+# `inbox.py run` executes on whichever machine calls it. Model: docs/inbox.md
+# inbox:
+#   runner: homebox          # actor (--by / $BRIDGE_ACTOR / host name) that runs actions
+
+# ─── Workplace ────────────────────────────────────────────────────────
+# Plan the day as workspaces with one agent tab per task, and steer the tabs
+# from one place. The driver is the terminal tool's side; `none` plans only.
+# Model: docs/workplace.md
+# workplace:
+#   driver: none             # or {command: ["python3", "path/to/driver.py"]}
+#   workspaces:
+#     - {name: Bigcorp, contexts: [bigcorp]}
+#     - {name: Misc, default: true}
+#   limits: {max_workspaces: 4, max_tabs: 3, stale_days: 10, activity_days: 7}
+#   tab_names: {}            # task slug -> shorter tab title
+#   agent: {new: "claude -n {slug} {prompt}", resume: "claude --resume {session}"}
+
+# ─── Briefing advise thresholds ───────────────────────────────────────
+# What /briefing files into the inbox on its own (collisions, quiet tasks,
+# long blocks). Defaults shown. Model: skills/briefing/references/control.md
+# briefing:
+#   advise:
+#     stale_days: 7
+#     blocked_days: 14
+#     waiting_days: 2
+#     collision_minutes: 60
+#     customer_contexts: []
+
 # ─── Orchestrator ─────────────────────────────────────────────────────
 orchestrator:
   enabled: true

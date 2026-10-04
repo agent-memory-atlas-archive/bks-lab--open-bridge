@@ -68,6 +68,13 @@ once and making "needs a person" a filter
 root-owned unit that had been blinding the report for its own host
 ([#219](https://github.com/bks-lab/open-bridge/pull/219)).
 
+**One place for what needs you.** An inbox where findings, questions from
+agents and drafts wait until the live source says they are done, a ready-made
+owner approver for Bridge-Agents, a workplace that opens one agent tab per task
+through a driver, the briefing reading the inbox first, and an `arm`
+capability for the always-on machine that fills the inbox while you are away
+([#287](https://github.com/bks-lab/open-bridge/pull/287)).
+
 **New contributors.** [@avondiel-dev](https://github.com/avondiel-dev) landed
 the overlay auto-merge and auto-sync work above, and
 [@mkupermann](https://github.com/mkupermann) opened the Codex and Mistral

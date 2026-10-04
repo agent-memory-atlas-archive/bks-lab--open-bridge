@@ -505,7 +505,9 @@ What stays open after a unit of work (needs a person, waits on someone, must be
 checked later) is filed with `scripts/inbox.py add`, with a `closes_when` probe
 wherever the live source can tell, never left as a log sentence. Before
 reporting anything as open, run `inbox.py check` and read the inbox, not the
-log. Model: [`docs/inbox.md`](docs/inbox.md).
+log. Model: [`docs/inbox.md`](docs/inbox.md). The workplace
+(`scripts/workplace.py`, driver-based) opens one agent tab per task:
+[`docs/workplace.md`](docs/workplace.md).
 
 ### Task Sync Routing
 
@@ -547,7 +549,8 @@ Your physical and virtual machines live in `infra/remotes/*.yaml`. In Bridge
 context **"remote" means remote MACHINE, never `git remote`** — check
 `infra/remotes/` before asking "which PC?". The **`remote`** skill owns the
 directory and auto-loads on a machine name, "my PC / fleet status", "wake / WoL",
-"ssh to / RDP to". Schema: `infra/remotes/_template.yaml`.
+"ssh to / RDP to". Schema: `infra/remotes/_template.yaml`. Capability `arm`
+marks the always-on machine ([`docs/always-on-machine.md`](docs/always-on-machine.md)).
 ---
 
 ## Workloads — Declared Runs

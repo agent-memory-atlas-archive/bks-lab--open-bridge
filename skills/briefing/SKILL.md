@@ -1,7 +1,7 @@
 ---
 name: briefing
 description: >-
-  Daily briefing across everything: board, log, ecosystem activity, tracker fan-out, calendar, goals; writes the day block and regenerates board.md. Modes --quick and --html. Trigger: "/briefing", "briefing", "good morning", "daily standup", "checkin", "morning briefing".
+  Daily briefing across everything: reads the inbox first, lets you steer the day (approve, defer, drop, open agent tabs); board, log, trackers, calendar, goals. Modes --quick, --html. Trigger: "/briefing", "briefing", "good morning", "daily standup", "checkin", "what needs me", "waiting for you".
 metadata:
   scope: core
 ---
@@ -14,8 +14,8 @@ Daily and on-demand briefing. Read the referenced file ONLY when triggered.
 
 | Argument | Effect | Default |
 |----------|--------|---------|
-| `(none)` | Full briefing — all 4 streams + Phase 2 board.md sync | — |
-| `--quick` | Focus box + Stream A only; **skips** trackers, companion data, channels, Phase 2 | false |
+| `(none)` | Full briefing: Phase 0.5 inbox, all 4 streams + Phase 2 board.md sync | — |
+| `--quick` | Focus box + Stream A only (Phase 0.5 inbox still runs); **skips** trackers, companion data, channels, Phase 2 | false |
 | `--skip-trackers` | All streams except Stream B (offline-friendly); Phase 2 still runs | false |
 | `--commits YYYY-MM-DD` | Detailed commit analysis for one day (sessions, time est., types) — see `references/commit-analysis.md` | — |
 | `--html` | After terminal output, delegate to `/bridge-dashboard` to render the operational HTML dashboard | false |
