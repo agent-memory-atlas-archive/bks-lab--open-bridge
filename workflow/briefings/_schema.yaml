@@ -129,6 +129,10 @@ $defs:
       path:
         type: string
         description: "calendar ics: a local .ics file."
+      exclude_calendars:
+        type: array
+        items: {type: string}
+        description: "calendar icalbuddy: calendar names to leave out (holidays, birthdays)."
       # command (section kind, or calendar provider)
       argv:
         type: array
@@ -142,4 +146,6 @@ $defs:
       - if: {properties: {kind: {const: tracker}}}
         then: {required: [provider]}
       - if: {properties: {kind: {const: command}}}
+        then: {required: [argv]}
+      - if: {properties: {kind: {const: calendar}, provider: {const: command}}, required: [provider]}
         then: {required: [argv]}

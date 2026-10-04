@@ -137,7 +137,7 @@ def test_gitlab_normalizes_states_types_and_urls(tmp_path):
 def test_gitlab_argv_shape(tmp_path):
     run = FakeRun({("glab", "issue", "list"): "[]"})
     run_section(make_root(tmp_path), GL_SECTION, run=run)
-    argv = run.calls[0]
+    argv = [c for c in run.calls if c[:3] == ["glab", "issue", "list"]][0]
     assert argv[:3] == ["glab", "issue", "list"]
     assert argv[argv.index("--repo") + 1] == "example-org/acme-app"
     assert argv[argv.index("--assignee") + 1] == "@me"
@@ -150,7 +150,8 @@ def test_gitlab_loops_over_repos(tmp_path):
     run = FakeRun({("glab", "issue", "list"): "[]"})
     section = {**GL_SECTION, "query": {"repos": ["example-org/a", "example-org/b"]}}
     run_section(make_root(tmp_path), section, run=run)
-    assert [c[c.index("--repo") + 1] for c in run.calls] == ["example-org/a", "example-org/b"]
+    lists = [c for c in run.calls if c[:3] == ["glab", "issue", "list"]]
+    assert [c[c.index("--repo") + 1] for c in lists] == ["example-org/a", "example-org/b"]
 
 
 def test_gitlab_missing_repos_is_error_section(tmp_path):
@@ -395,3 +396,15 @@ def test_linear_missing_account_ref_and_token_ref(tmp_path):
     assert sec["status"] == "error" and "account_ref" in sec["reason"]
     sec = run_section(root, LIN_SECTION, http=FakeHttp({}), secret=fake_secret(LINEAR_REF))
     assert sec["status"] == "error" and "token_ref" in sec["reason"]
+
+
+def test_gitlab_marks_mine_by_my_login_not_by_the_query(tmp_path):
+    issues = [{"iid": 1, "title": "Bob's", "state": "opened", "assignees": [{"username": "bob"}],
+               "labels": [], "web_url": "https://gitlab.example.com/x/1", "updated_at": "2026-10-04T08:00:00Z"},
+              {"iid": 2, "title": "Mine", "state": "opened", "assignees": [{"username": "octo"}],
+               "labels": [], "web_url": "https://gitlab.example.com/x/2", "updated_at": "2026-10-04T08:00:00Z"}]
+    run = FakeRun({("glab", "api", "user"): '{"username": "octo"}',
+                   ("glab", "issue", "list"): json.dumps(issues)})
+    section = {**GL_SECTION, "query": {"repos": ["example-org/x"], "assignee": "bob"}}
+    items = {i["title"]: i["assigned_to_me"] for i in run_section(make_root(tmp_path), section, run=run)["items"]}
+    assert items == {"Bob's": False, "Mine": True}

@@ -80,7 +80,8 @@ def collect(section: dict, ctx) -> list:
     query = dict(section.get("query") or {})
     assignee = query.get("assignee", "@me")
     kinds = query.get("kinds") or ["issues", "prs"]
-    me = _me(ctx) if assignee == "@me" or query.get("review_requested") else assignee
+    # Always MY login: with `assignee: bob`, Bob's items are not mine.
+    me = _me(ctx)
     base = _flags(query)
     out: dict = {}
     for kind in kinds:
@@ -93,5 +94,5 @@ def collect(section: dict, ctx) -> list:
         argv = ["gh", "search", "prs", "--review-requested", "@me", *base, "--json", FIELDS + ",isDraft"]
         for raw in load_json(ctx.run(argv, timeout=ctx.timeout), "gh search prs --review-requested"):
             item = normalize(raw, is_pr=True, me=me, assignee_query=assignee, review=True)
-            out.setdefault(item["id"], item)
+            out[item["id"]] = item        # asked to review wins: it is the version that needs me
     return list(out.values())

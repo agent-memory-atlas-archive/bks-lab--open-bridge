@@ -187,6 +187,8 @@ person it is for (several are fine: morning, one per customer, weekly).
    with their `offer_on` phrases; when a user's words match one
    (`briefing.py offer "<text>"`), offer that profile by name.
 2. **Collect.** `python3 scripts/briefing.py collect [<id>] --json --file`.
+   `--quick` adds `--skip tracker --skip calendar`; `--skip-trackers` adds
+   `--skip tracker`. A skipped section is listed as skipped and closes nothing.
    It runs every section in the profile's order with a time limit, marks rows
    `new`/`changed` against the last run on this machine, and (`--file`) turns
    rows matching a section's `to_inbox` rules into inbox items. One failing

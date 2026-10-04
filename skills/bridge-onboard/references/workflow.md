@@ -464,7 +464,7 @@ On `[y]` or `[c]`:
     `work/log.md`, then run `python3 scripts/gen-board.py` so `board.md` Doing shows ≥ 1.
     Consent-free (derived from the user's own words, no scan) and `bridge_only` (no GitHub
     dependency).
-- **D1c — seed the person's briefing profile** (`workflow/briefings/morning.yaml`), so
+- **D1c: seed the person's briefing profile** (`workflow/briefings/morning.yaml`), so
   the first `/briefing` shows what THIS person tracks, not a generic default. Ask ONE
   line, pre-ticked from what discovery already knows (`gh auth status` green → GitHub;
   `glab`/`az` logged in → GitLab/Azure Boards):

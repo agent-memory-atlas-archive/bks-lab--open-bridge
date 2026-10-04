@@ -40,11 +40,15 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
+# Run as a script the engine is `__main__`; the providers look up SourceError
+# under `briefing`, so both names must reach the same module.
+sys.modules.setdefault("briefing", sys.modules[__name__])
 FAMILY = Path("workflow") / "briefings"
 SNAPSHOTS = Path(".bridge") / "briefings"
 KEY_PREFIX = "briefing:"
@@ -56,7 +60,7 @@ CALENDARS = ("auto", "icalbuddy", "ics", "command")
 STATES = ("new", "ready", "in_progress", "review", "done", "blocked", "removed")
 PROFILE_KEYS = {"schema_version", "scope", "id", "title", "for", "default", "offer_on", "timeout_sec", "sections"}
 SECTION_KEYS = {"kind", "id", "title", "max", "to_inbox", "provider", "query", "account_ref", "state_map",
-                "status", "contexts", "days", "path", "argv"}
+                "status", "contexts", "days", "path", "argv", "exclude_calendars"}
 # A profile is committed and often shared: a value under one of these names is
 # a credential, and credentials only ever travel as references (account_ref).
 SECRET_NAME = re.compile(r"(token|secret|password|passwd|api[_-]?key|private[_-]?key)", re.I)
@@ -106,7 +110,11 @@ def _inbox():
 def _providers():
     if str(ROOT / "scripts") not in sys.path:
         sys.path.insert(0, str(ROOT / "scripts"))
-    import lib.briefing_providers as providers  # noqa: E402  (path set above)
+    previous, sys.dont_write_bytecode = sys.dont_write_bytecode, True
+    try:
+        import lib.briefing_providers as providers  # noqa: E402  (path set above)
+    finally:
+        sys.dont_write_bytecode = previous
     return providers
 
 
@@ -161,14 +169,33 @@ class Context:
                  cfg: dict | None = None, timeout: int = DEFAULT_TIMEOUT):
         self.root = Path(root)
         self.now = now or dt.datetime.now()
-        self.run = run or _default_run
-        self.http = http or (lambda method, url, headers=None, body=None:
-                             _default_http(method, url, headers, body, timeout=self.timeout))
+        self._run = run or _default_run
+        self._http = http
         self._secret = secret or _default_secret
         self._revealed: list = []
         self.cfg = cfg if cfg is not None else read_config(self.root)
         self.timeout = timeout
         self.calendar: list | None = None   # events of the profile's calendar sections, for advise
+        self.deadline: float | None = None  # monotonic end of the running section
+
+    def remaining(self) -> float:
+        """Seconds left for the running section: its limit covers ALL its calls together."""
+        if self.deadline is None:
+            return float(self.timeout)
+        left = self.deadline - time.monotonic()
+        if left <= 0:
+            raise SourceError(f"section time limit of {self.timeout} s reached")
+        return min(float(self.timeout), left)
+
+    def run(self, argv, timeout=None, cwd=None) -> str:
+        limit = self.remaining()
+        return self._run(argv, timeout=min(float(timeout), limit) if timeout else limit, cwd=cwd)
+
+    def http(self, method: str, url: str, headers: dict | None = None, body=None):
+        limit = self.remaining()
+        if self._http is None:
+            return _default_http(method, url, headers, body, timeout=limit)
+        return self._http(method, url, headers, body)
 
     def secret(self, ref: str) -> str:
         value = self._secret(ref)
@@ -188,6 +215,8 @@ class Context:
         if not ref:
             raise SourceError("this provider needs account_ref (an identity/accounts/<id>.yaml)")
         path = (self.root / ref).resolve()
+        if not path.is_relative_to(self.root.resolve()):
+            raise SourceError(f"account_ref {ref} points outside this Bridge")
         if not path.is_file():
             raise SourceError(f"account_ref {ref} does not exist")
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
@@ -227,10 +256,18 @@ def builtin_profile(cfg: dict) -> dict:
     integrations = cfg.get("integrations") or {}
     if (integrations.get("github") or {}).get("enabled"):
         sections.append({"kind": "tracker", "id": "github", "title": "GitHub", "provider": "github-board"})
-    for name in ("gitlab", "ado"):
-        block = integrations.get(name) or {}
-        if block.get("enabled"):
-            sections.append({"kind": "tracker", "id": name, "provider": name, "query": dict(block.get("query") or {})})
+    # The keys trackers/gitlab.md and trackers/ado.md documented under integrations.<name>.
+    gitlab = integrations.get("gitlab") or {}
+    if gitlab.get("enabled") and gitlab.get("repos"):     # enabled without repos listed nothing before either
+        query = {"repos": list(gitlab["repos"])}
+        if gitlab.get("limit"):
+            query["limit"] = gitlab["limit"]
+        sections.append({"kind": "tracker", "id": "gitlab", "title": "GitLab", "provider": "gitlab", "query": query})
+    ado = integrations.get("ado") or {}
+    if ado.get("enabled"):
+        query = {k: v for k, v in (("organization", ado.get("org")), ("project", ado.get("project")),
+                                   ("wiql", (ado.get("queries") or {}).get("open"))) if v}
+        sections.append({"kind": "tracker", "id": "ado", "title": "Azure Boards", "provider": "ado", "query": query})
     sections += [{"kind": "calendar", "provider": "auto", "days": 1}, {"kind": "activity", "days": 7}]
     return {"schema_version": 1, "scope": "core", "id": "builtin", "title": "Briefing", "sections": sections,
             "_path": "(built-in)"}
@@ -284,6 +321,42 @@ def _secret_values(value, path="") -> list:
     return found
 
 
+ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+
+
+def _is_positive_int(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _is_str_list(value) -> bool:
+    return isinstance(value, list) and all(isinstance(v, str) for v in value)
+
+
+def _section_types(s: dict) -> list:
+    """Shapes the JSON schema promises, checked without a jsonschema dependency."""
+    out = []
+    if "id" in s and not (isinstance(s["id"], str) and ID_PATTERN.match(s["id"])):
+        out.append("id must be lowercase letters, digits and hyphens")
+    if "max" in s and not _is_positive_int(s["max"]):
+        out.append("max must be a positive integer")
+    if "days" in s and not (isinstance(s["days"], int) and not isinstance(s["days"], bool) and s["days"] >= 0):
+        out.append("days must be a whole number of days, 0 or more")
+    for key in ("contexts", "exclude_calendars", "argv"):
+        if key in s and not _is_str_list(s[key]):
+            out.append(f"{key} must be a list of text")
+    if "status" in s and not (_is_str_list(s["status"]) and set(s["status"]) <= {"backlog", "doing", "review", "done"}):
+        out.append("status must be a list of backlog, doing, review, done")
+    for key in ("query", "state_map"):
+        if key in s and not isinstance(s[key], dict):
+            out.append(f"{key} must be a mapping")
+    if "to_inbox" in s and not isinstance(s["to_inbox"], list):
+        out.append("to_inbox must be a list of rules")
+    for key in ("title", "provider", "account_ref", "path"):
+        if key in s and not isinstance(s[key], str):
+            out.append(f"{key} must be text")
+    return out
+
+
 def profile_problems(data, stem: str) -> list:
     if not isinstance(data, dict):
         return ["not a mapping"]
@@ -299,6 +372,15 @@ def profile_problems(data, stem: str) -> list:
         out.append("scope must be core, org, personal or user")
     if "id" in data and data["id"] != stem:
         out.append(f"id {data['id']!r} does not match the filename {stem!r}")
+    if "id" in data and not (isinstance(data["id"], str) and ID_PATTERN.match(data["id"])):
+        out.append("id must be lowercase letters, digits and hyphens")
+    if "timeout_sec" in data and not _is_positive_int(data["timeout_sec"]):
+        out.append("timeout_sec must be a positive integer")
+    if "offer_on" in data and not _is_str_list(data["offer_on"]):
+        out.append("offer_on must be a list of phrases")
+    for key in ("title", "for"):
+        if key in data and not isinstance(data[key], str):
+            out.append(f"{key} must be text")
     sections = data.get("sections")
     if "sections" in data and (not isinstance(sections, list) or not sections):
         out.append("sections must be a non-empty list")
@@ -319,6 +401,7 @@ def profile_problems(data, stem: str) -> list:
         seen.add(sid)
         for key in sorted(set(s) - SECTION_KEYS):
             out.append(f"{where}: unknown key {key}")
+        out += [f"{where}: {p}" for p in _section_types(s)]
         if kind == "tracker" and s.get("provider") not in TRACKERS:
             out.append(f"{where}: tracker provider must be one of {', '.join(TRACKERS)}")
         if kind == "calendar" and s.get("provider", "auto") not in CALENDARS:
@@ -326,10 +409,10 @@ def profile_problems(data, stem: str) -> list:
         if (kind == "command" or (kind == "calendar" and s.get("provider") == "command")) and \
                 not (isinstance(s.get("argv"), list) and s["argv"]):
             out.append(f"{where}: needs argv (a list)")
-        for state in (s.get("state_map") or {}).values():
+        for state in (s.get("state_map") if isinstance(s.get("state_map"), dict) else {}).values():
             if state not in STATES:
                 out.append(f"{where}: state_map value {state!r} is not one of {', '.join(STATES)}")
-        for r, rule in enumerate(s.get("to_inbox") or [], 1):
+        for r, rule in enumerate(s.get("to_inbox") if isinstance(s.get("to_inbox"), list) else [], 1):
             if not isinstance(rule, dict) or not isinstance(rule.get("when"), dict) or not rule["when"]:
                 out.append(f"{where}: to_inbox rule {r} needs a non-empty `when:` mapping")
             elif rule.get("urgency", "today") not in ("now", "today", "later") or \
@@ -417,7 +500,11 @@ def sec_tasks(section: dict, ctx: Context) -> list:
         if fm.get("status") not in wanted or (contexts and fm.get("context") not in contexts):
             continue
         slug = fm.get("slug") or status.parent.name
-        items.append({"id": slug, "title": fm.get("title") or slug, "state": fm.get("status"),
+        text = status.read_text(encoding="utf-8")
+        body = re.split(r"^---\s*$", text, maxsplit=2, flags=re.M)[-1]   # never a comment in the frontmatter
+        heading = re.search(r"^# (.+)$", body, flags=re.M)
+        title = fm.get("title") or (heading.group(1).strip() if heading else slug)
+        items.append({"id": slug, "title": title, "state": fm.get("status"),
                       "project": fm.get("context"), "blocked_by": fm.get("blocked_by"),
                       "changed_at": str(fm.get("last_updated") or ""), "url": str(status.relative_to(ctx.root))})
     return items
@@ -446,31 +533,51 @@ def sec_activity(section: dict, ctx: Context) -> list:
     return items
 
 
-ICAL_LINE = re.compile(r"^(\d{4}-\d{2}-\d{2})(?: at (\d{1,2}:\d{2})(?: - (\d{1,2}:\d{2}))?)?\s*\t(.+)$")
+# 2026-10-04 at 09:00 - 09:30 | 2026-10-04 at 23:00 - 2026-10-05 at 01:00 | 2026-10-04 - 2026-10-06 | 2026-10-04
+ICAL_LINE = re.compile(r"^(\d{4}-\d{2}-\d{2})(?: at (\d{1,2}:\d{2}))?"
+                       r"(?: - (?:(\d{4}-\d{2}-\d{2})(?: at )?)?(\d{1,2}:\d{2})?)?\s*\t(.+)$")
 
 
 def _icalbuddy(section: dict, ctx: Context) -> list:
     days = int(section.get("days", 1))
     # -nrd: absolute dates, never "today"/"tomorrow" (those cannot be parsed back)
     argv = ["icalBuddy", "-nrd", "-nc", "-b", "", "-ps", "|\t|", "-iep", "datetime,title", "-po", "datetime,title",
-            "-df", "%Y-%m-%d", "-tf", "%H:%M", f"eventsToday+{days}"]
+            "-df", "%Y-%m-%d", "-tf", "%H:%M"]
+    if section.get("exclude_calendars"):
+        argv += ["-ec", ",".join(str(c) for c in section["exclude_calendars"])]
+    argv.append(f"eventsToday+{days}")
     out = ctx.run(argv, timeout=ctx.timeout)
     events = []
     for line in out.splitlines():
         m = ICAL_LINE.match(line.strip("\n"))
         if not m:
             continue
-        day, start, end, title = m.groups()
-        events.append({"title": title.strip(), "start": f"{day}T{start:0>5}" if start else day,
-                       "end": f"{day}T{end:0>5}" if end else None})
+        day, start, end_day, end, title = m.groups()
+        stop = f"{end_day or day}T{end:0>5}" if end else end_day
+        events.append({"title": title.strip(), "start": f"{day}T{start:0>5}" if start else day, "end": stop})
     return events
 
 
-def _ics_date(value: str):
+def _ics_date(value: str, params: str = ""):
+    """ISO local time. UTC (`Z`) and `TZID=` values are converted to this machine's zone."""
     value = value.strip()
     if len(value) == 8:
         return dt.datetime.strptime(value, "%Y%m%d").date().isoformat()
-    return dt.datetime.strptime(value[:15], "%Y%m%dT%H%M%S").isoformat(timespec="minutes")
+    when = dt.datetime.strptime(value[:15], "%Y%m%dT%H%M%S")
+    zone = None
+    if value.endswith("Z"):
+        zone = dt.timezone.utc
+    else:
+        tzid = re.search(r"TZID=([^;:]+)", params)
+        if tzid:
+            try:
+                from zoneinfo import ZoneInfo
+                zone = ZoneInfo(tzid.group(1).strip('"'))
+            except Exception:  # noqa: BLE001 - an unknown zone name reads as local time
+                zone = None
+    if zone is not None:
+        when = when.replace(tzinfo=zone).astimezone().replace(tzinfo=None)
+    return when.isoformat(timespec="minutes")
 
 
 def _ics(section: dict, ctx: Context) -> list:
@@ -491,13 +598,13 @@ def _ics(section: dict, ctx: Context) -> list:
                                "end": current.get("end")})
             current = None
         elif current is not None and ":" in line:
-            name, value = line.split(":", 1)
-            name = name.split(";", 1)[0]
+            head, value = line.split(":", 1)
+            name, _, params = head.partition(";")
             if name == "SUMMARY":
                 current["title"] = value
             elif name in ("DTSTART", "DTEND"):
                 try:
-                    current["start" if name == "DTSTART" else "end"] = _ics_date(value)
+                    current["start" if name == "DTSTART" else "end"] = _ics_date(value, params)
                 except ValueError:
                     pass
     return sorted(events, key=lambda e: e["start"])
@@ -574,14 +681,25 @@ def _fingerprint(item: dict) -> str:
                        item.get("assignee")], ensure_ascii=False, default=str)
 
 
-def collect(root: Path, profile: dict, ctx: Context, previous: dict | None = None) -> dict:
-    ctx.timeout = int(profile.get("timeout_sec") or ctx.timeout)
-    sections = [dict(s) for s in profile.get("sections") or []]
+def _positive(value, default: int) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return default
+    return number if number > 0 else default
+
+
+def collect(root: Path, profile: dict, ctx: Context, previous: dict | None = None, skip=()) -> dict:
+    """Run every section. `skip` names kinds left out (the briefing's --quick and
+    --skip-trackers modes); a skipped section is listed as such and closes nothing."""
+    ctx.timeout = _positive(profile.get("timeout_sec"), ctx.timeout)
+    sections = [dict(s) for s in profile.get("sections") or [] if isinstance(s, dict)]
     # The advice checks look for calendar collisions wherever the calendar stands.
-    calendars = [s for s in sections if s.get("kind") == "calendar"]
+    calendars = [s for s in sections if s.get("kind") == "calendar" and "calendar" not in skip]
     if calendars and any(s.get("kind") == "advise" for s in sections):
         ctx.calendar = []
         for s in calendars:
+            ctx.deadline = time.monotonic() + ctx.timeout
             try:
                 ctx.calendar += calendar_events(s, ctx)
             except Exception:  # noqa: BLE001 - its own section reports the failure
@@ -594,7 +712,10 @@ def collect(root: Path, profile: dict, ctx: Context, previous: dict | None = Non
                  "status": "ok", "items": [], "total": 0}
         if s.get("provider"):
             entry["provider"] = s["provider"]
+        ctx.deadline = time.monotonic() + ctx.timeout
         try:
+            if s.get("kind") in skip:
+                raise Skip(f"left out in this mode (--skip {s.get('kind')})")
             fn = KINDS[s.get("kind")]
             items = fn(s, ctx)
         except Skip as exc:
@@ -606,6 +727,8 @@ def collect(root: Path, profile: dict, ctx: Context, previous: dict | None = Non
         except Exception as exc:  # noqa: BLE001 - one section never takes the briefing down
             entry.update(status="error", reason=ctx.redact(f"{exc.__class__.__name__}: {exc}"))
             items = []
+        finally:
+            ctx.deadline = None
         if "_plan" in s:
             entry["plan"] = s["_plan"]
         old = {i.get("id"): i.get("_fp") for i in (before.get(sid) or {}).get("items", [])}
@@ -618,7 +741,7 @@ def collect(root: Path, profile: dict, ctx: Context, previous: dict | None = Non
             item["changed"] = old_known and item["id"] in old and old[item["id"]] != fp
         entry["total"] = len(items)
         entry["all"] = items
-        entry["items"] = items[: int(s["max"])] if s.get("max") else items
+        entry["items"] = items[: _positive(s.get("max"), len(items) or 1)] if s.get("max") else items
         out.append(entry)
     return {"profile": profile.get("id"), "title": profile.get("title") or profile.get("id"),
             "collected_at": ctx.now.isoformat(timespec="minutes"), "sections": out}
@@ -634,12 +757,20 @@ def _public(result: dict) -> dict:
     return clean
 
 
-def save_snapshot(root: Path, result: dict) -> Path:
+def save_snapshot(root: Path, result: dict, previous: dict | None = None) -> Path:
+    """Remember what each section showed. A section that did not complete keeps its
+    last good entry: a failed lookup must not make tomorrow's rows look new."""
     path = root / SNAPSHOTS / f"{result['profile']}.last.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    snap = {**result, "sections": [{"id": s["id"], "status": s["status"],
-                                    "items": [{"id": i["id"], "_fp": i.get("_fp")} for i in s.get("all", s["items"])]}
-                                   for s in result["sections"]]}
+    before = {s.get("id"): s for s in (previous or {}).get("sections", [])}
+    sections = []
+    for s in result["sections"]:
+        if s["status"] != "ok" and s["id"] in before:
+            sections.append(before[s["id"]])
+            continue
+        sections.append({"id": s["id"], "status": s["status"],
+                         "items": [{"id": i["id"], "_fp": i.get("_fp")} for i in s.get("all", s["items"])]})
+    snap = {**{k: v for k, v in result.items() if k != "sections"}, "sections": sections}
     path.write_text(json.dumps(snap, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     return path
 
@@ -671,16 +802,17 @@ def file_to_inbox(box, profile: dict, result: dict) -> tuple:
 
     Only a section that completed may close: an errored or skipped section did not
     look, so it cannot know a row is gone (the advise `checks_run` rule)."""
-    sections = {section_id(s): s for s in profile.get("sections") or []}
+    sections = {section_id(s): s for s in profile.get("sections") or [] if isinstance(s, dict)}
     filed, wanted, closable = 0, set(), set()
     pid = profile.get("id")
+    own = f"{KEY_PREFIX}{pid}:"
     for entry in result["sections"]:
+        prefix = f"{own}{entry['id']}:"
+        if entry["status"] == "ok":
+            closable.add(prefix)      # also when its rules were removed: nothing is wanted any more
         rules = (sections.get(entry["id"]) or {}).get("to_inbox") or []
         if not rules:
             continue
-        prefix = f"{KEY_PREFIX}{pid}:{entry['id']}:"
-        if entry["status"] == "ok":
-            closable.add(prefix)
         for item in entry.get("all", entry["items"]):
             rule = next((r for r in rules if rule_matches(r["when"], item)), None)
             if rule is None:
@@ -698,13 +830,40 @@ def file_to_inbox(box, profile: dict, result: dict) -> tuple:
     closed = 0
     for item in box.open_items():
         key = str(item.key or "")
-        if any(key.startswith(p) for p in closable) and key not in wanted:
+        if not key.startswith(own) or key in wanted:
+            continue
+        if key[len(own):].split(":", 1)[0] not in sections:
+            box.close(item.id, note="its section was removed from the profile")
+            closed += 1
+        elif any(key.startswith(p) for p in closable):
             box.close(item.id, note="no longer in the briefing source")
             closed += 1
     return filed, closed
 
 
 # ---------------------------------------------------------------- render
+
+def _line(kind: str, i: dict) -> str:
+    mark = " (new)" if i.get("new") else " (changed)" if i.get("changed") else ""
+    title = str(i.get("title") or "")
+    if kind == "inbox":
+        return f"  {str(i.get('urgency') or ''):<6} {title[:90]}{mark}"
+    if kind == "calendar":
+        start = str(i.get("start") or "")
+        when = f"{start[8:10]}.{start[5:7]}" + (" " + start[11:16] if len(start) > 10 else " all day")
+        return f"  {when:<12} {title[:80]}"
+    if kind == "advise":
+        return f"  {str(i.get('check') or ''):<10} {title[:90]}{mark}"
+    if kind == "activity":
+        at = str(i.get("changed_at") or "")
+        return f"  {at[8:10]}.{at[5:7]} {at[11:16]:<6} {str(i.get('project') or '')[:18]:<18} " \
+               f"{title[:70]}"
+    if kind in ("tasks", "workplace"):
+        extra = f"  blocked: {str(i['blocked_by'])[:40]}" if i.get("blocked_by") else ""
+        return f"  {str(i.get('state') or ''):<7} {str(i['id'])[:34]:<34} {title[:50]}{extra}{mark}"
+    state = str(i.get("raw_state") or i.get("state") or "")
+    return f"  {str(i['id'])[:30]:<30} {title[:56]:<56} {state[:16]}{mark}".rstrip()
+
 
 def render(result: dict) -> str:
     out = [f"{result.get('title') or result['profile']}  ({result.get('collected_at', '')})"]
@@ -714,12 +873,7 @@ def render(result: dict) -> str:
         if s["status"] != "ok":
             out.append(f"  {s['status']}: {s.get('reason', '')}")
             continue
-        for i in s["items"]:
-            mark = "new" if i.get("new") else "changed" if i.get("changed") else ""
-            state = i.get("raw_state") or i.get("state") or ""
-            when = i.get("start") or ""
-            out.append(f"  {str(i['id'])[:28]:<28} {str(i.get('title') or '')[:52]:<52} "
-                       f"{str(state)[:14]:<14} {when} {mark}".rstrip())
+        out += [_line(str(s.get("kind")), i) for i in s["items"]]
     return "\n".join(out)
 
 
@@ -739,6 +893,8 @@ def main(argv=None) -> int:
         p.add_argument("id", nargs="?")
         p.add_argument("--file", action="store_true", help="file to_inbox rows as inbox items")
         p.add_argument("--no-save", action="store_true", help="do not update the last-run snapshot")
+        p.add_argument("--skip", action="append", default=[], choices=SECTION_KINDS, metavar="KIND",
+                       help="leave out sections of this kind (repeatable; --quick: tracker and calendar)")
         if name == "collect":
             p.add_argument("--json", action="store_true")
     sub.add_parser("validate")
@@ -790,13 +946,14 @@ def main(argv=None) -> int:
         return 0
 
     ctx = Context(root, cfg=cfg)
-    result = collect(root, profile, ctx, previous=load_snapshot(root, profile["id"]))
+    previous = load_snapshot(root, profile["id"])
+    result = collect(root, profile, ctx, previous=previous, skip=tuple(args.skip))
     if args.file:
         box = _inbox().Inbox(root / "work" / "inbox", actor="briefing")
         filed, closed = file_to_inbox(box, profile, result)
         result["inbox"] = {"filed": filed, "closed": closed}
     if not args.no_save:
-        save_snapshot(root, result)
+        save_snapshot(root, result, previous)
     if args.cmd == "collect" and args.json:
         print(json.dumps(_public(result), ensure_ascii=False, indent=1, default=str))
     else:

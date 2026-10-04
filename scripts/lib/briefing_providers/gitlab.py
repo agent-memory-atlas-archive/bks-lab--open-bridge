@@ -44,14 +44,17 @@ def _priority(labels: list):
     return None
 
 
-def normalize(raw: dict, *, repo: str, assignee_query: str) -> dict:
+def normalize(raw: dict, *, repo: str, assignee_query: str, me: str | None = None) -> dict:
     labels = [lab.get("name") if isinstance(lab, dict) else lab for lab in raw.get("labels") or []]
     assignees = [a.get("username") if isinstance(a, dict) else a for a in raw.get("assignees") or []]
     low = {lab.lower() for lab in labels}
     state = _state(raw, labels)
     kind = next((name for name, names in TYPES if low & names), "issue")
     category = "done" if state == "done" else "qa" if (state == "review" or low & QA) else "open"
-    mine = assignee_query == "@me" or assignee_query in assignees
+    # Mine means MY login among the assignees. A query for a colleague's items
+    # (assignee: bob) must not mark them as mine, or a to_inbox rule on
+    # assigned_to_me would file a colleague's work into my inbox.
+    mine = (me in assignees) if me else assignee_query == "@me"
     return {
         "id": f"{repo}#{raw.get('iid')}",
         "title": raw.get("title"),
@@ -59,7 +62,7 @@ def normalize(raw: dict, *, repo: str, assignee_query: str) -> dict:
         "raw_state": raw.get("state"),
         "type": kind,
         "assignee": assignees[0] if assignees else None,
-        "assigned_to_me": bool(mine and (assignees or assignee_query == "@me")),
+        "assigned_to_me": bool(mine),
         "url": raw.get("web_url"),
         "changed_at": raw.get("updated_at"),
         "project": repo,
@@ -69,12 +72,21 @@ def normalize(raw: dict, *, repo: str, assignee_query: str) -> dict:
     }
 
 
+def _me(ctx) -> str | None:
+    try:
+        data = load_json(ctx.run(["glab", "api", "user"], timeout=ctx.timeout), "glab api user")
+    except Exception:  # noqa: BLE001 - without a login, an @me query still means mine
+        return None
+    return data.get("username") if isinstance(data, dict) else None
+
+
 def collect(section: dict, ctx) -> list:
     query = dict(section.get("query") or {})
     repos = query.get("repos") or []
     if not repos:
         raise source_error("gitlab: query.repos is required (a list of group/project paths)")
     assignee = str(query.get("assignee", "@me"))
+    me = ((ctx.cfg.get("integrations") or {}).get("gitlab") or {}).get("assignee_me") or _me(ctx)
     out = []
     for repo in repos:
         argv = ["glab", "issue", "list", "--repo", str(repo), "--assignee", assignee,
@@ -86,5 +98,5 @@ def collect(section: dict, ctx) -> list:
         data = load_json(ctx.run(argv, timeout=ctx.timeout), f"glab issue list {repo}")
         if not isinstance(data, list):
             raise source_error(f"glab issue list {repo}: unexpected answer")
-        out += [normalize(raw, repo=str(repo), assignee_query=assignee) for raw in data]
+        out += [normalize(raw, repo=str(repo), assignee_query=assignee, me=me) for raw in data]
     return out

@@ -145,7 +145,7 @@ jobs:
         run: bash scripts/tests/test-inbox.sh
 
       - name: Validate briefing profiles
-        run: python3 scripts/briefing.py validate
+        run: python3 scripts/briefing.py validate && python3 scripts/briefing.py --root examples/portfolio validate
 
       - name: Run command-reference test suite and check
         run: python3 -m pytest scripts/tests/test_commands_doc.py -q -rs && python3 scripts/check-commands-doc.py

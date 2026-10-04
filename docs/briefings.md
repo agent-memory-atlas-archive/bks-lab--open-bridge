@@ -41,6 +41,7 @@ python3 scripts/briefing.py show [<id>]           # the resolved profile (also t
 python3 scripts/briefing.py offer "<text>"        # profiles whose offer_on matches the text
 python3 scripts/briefing.py collect [<id>] --json --file
 python3 scripts/briefing.py render [<id>]         # collect + plain terminal text
+python3 scripts/briefing.py collect --skip tracker --skip calendar   # the quick mode
 python3 scripts/briefing.py validate              # every profile; exit 1 on a problem
 ```
 
@@ -70,7 +71,7 @@ profiles offers the right one instead of the person having to remember ids.
 | `workplace` | the day's tab plan ([workplace](workplace.md)) | `max` |
 | `tasks` | `work/tasks/*/STATUS.md` | `status` (default doing, review), `contexts`, `max` |
 | `activity` | `work/log.md` rows of the last days | `days` (default 7), `max` |
-| `calendar` | events; also handed to `advise` for collisions | `provider` (auto, icalbuddy, ics, command), `days`, `path` (ics), `argv` (command) |
+| `calendar` | events in local time; also handed to `advise` for collisions. `ics` converts UTC and `TZID` times but lists a recurring event (RRULE) on its first date only: use `icalbuddy` or a `command` for recurring calendars | `provider` (auto, icalbuddy, ics, command), `days`, `path` (ics), `argv` (command), `exclude_calendars` (icalbuddy) |
 | `tracker` | work items from an external system | `provider`, `query`, `account_ref`, `state_map`, `max`, `to_inbox` |
 | `command` | any program printing a JSON list of items | `argv`, `max`, `to_inbox` |
 
@@ -121,11 +122,15 @@ value, and any value read through the engine is scrubbed from error lines.
 
 ## Change marks
 
+The time limit (`timeout_sec`, default 30 s) covers a whole section, all of
+its calls together, so a slow tracker costs at most that.
+
 Each run is compared with the previous run of the same profile on the same
 machine (`.bridge/briefings/<id>.last.json`, derived, not committed). Rows
 carry `new` and `changed`, so a briefing can lead with what moved since
-yesterday instead of repeating the whole list. A section that errored last
-time marks nothing as new: it did not look.
+yesterday instead of repeating the whole list. A run in which a section
+failed keeps that section's last good snapshot, so a lookup that failed
+today does not make every row look new tomorrow.
 
 ## Inbox rules
 

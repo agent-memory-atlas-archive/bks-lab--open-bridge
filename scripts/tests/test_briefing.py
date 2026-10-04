@@ -476,3 +476,190 @@ def test_default_http_gets_the_profile_timeout(tmp_path, monkeypatch):
     bf.collect(root, {"id": "p", "timeout_sec": 7, "sections": [{"kind": "tasks"}]}, c)
     c.http("GET", "https://example.invalid/x")
     assert seen["t"] == 7
+
+
+def test_task_title_is_the_body_heading_not_a_frontmatter_comment(tmp_path):
+    root = bridge(tmp_path)
+    d = root / "work" / "tasks" / "alpha"
+    d.mkdir(parents=True)
+    (d / "STATUS.md").write_text("---\n# yaml-language-server: $schema=x\nslug: alpha\nstatus: doing\n---\n\n"
+                                 "# Ship the alpha\n", encoding="utf-8")
+    sec = bf.collect(root, {"id": "p", "sections": [{"kind": "tasks"}]}, ctx(root))["sections"][0]
+    assert sec["items"][0]["title"] == "Ship the alpha"
+
+
+def test_render_writes_dates_day_first():
+    result = {"profile": "p", "title": "P", "sections": [
+        {"id": "calendar", "kind": "calendar", "title": "Calendar", "status": "ok", "total": 2, "items": [
+            {"id": "a", "title": "Standup", "start": "2026-10-05T09:00"},
+            {"id": "b", "title": "Holiday", "start": "2026-10-06"}]}]}
+    text = bf.render(result)
+    assert "05.10 09:00" in text and "06.10 all day" in text
+
+
+def test_icalbuddy_leaves_out_excluded_calendars(tmp_path):
+    root = bridge(tmp_path)
+    run = FakeRun({("icalBuddy",): ""})
+    section = {"kind": "calendar", "provider": "icalbuddy", "exclude_calendars": ["Holidays", "Birthdays"]}
+    bf.collect(root, {"id": "p", "sections": [section]}, ctx(root, run))
+    call = run.calls[0]
+    assert call[call.index("-ec") + 1] == "Holidays,Birthdays" and call[-1] == "eventsToday+1"
+
+
+# ---------------------------------------------------------------- review findings (each one a test)
+
+def test_builtin_maps_the_documented_gitlab_and_ado_config():
+    cfg = {"integrations": {"gitlab": {"enabled": True, "repos": ["g/p"], "limit": 20},
+                            "ado": {"enabled": True, "org": "https://dev.azure.com/example-org", "project": "Demo"}}}
+    sections = {s.get("id"): s for s in bf.builtin_profile(cfg)["sections"]}
+    assert sections["gitlab"]["query"] == {"repos": ["g/p"], "limit": 20}
+    assert sections["ado"]["query"] == {"organization": "https://dev.azure.com/example-org", "project": "Demo"}
+    bare = bf.builtin_profile({"integrations": {"gitlab": {"enabled": True}}})
+    assert "gitlab" not in {s.get("id") for s in bare["sections"]}
+
+
+@pytest.mark.parametrize("bad, word", [
+    ({"kind": "tasks", "max": "x"}, "max"),
+    ({"kind": "tasks", "max": 0}, "max"),
+    ({"kind": "activity", "days": -1}, "days"),
+    ({"kind": "tasks", "status": "doing"}, "status"),
+    ({"kind": "tasks", "status": ["wip"]}, "status"),
+    ({"kind": "tracker", "provider": "github", "state_map": ["a"]}, "state_map"),
+    ({"kind": "tasks", "to_inbox": {"when": {"state": "x"}}}, "to_inbox"),
+    ({"kind": "command", "argv": ["python3", 3]}, "argv"),
+    ({"kind": "tasks", "id": "Not OK"}, "id"),
+    ({"kind": "calendar", "provider": "command"}, "argv"),
+])
+def test_validate_catches_what_the_schema_rejects(bad, word):
+    problems = bf.profile_problems({"schema_version": 1, "scope": "user", "id": "p", "sections": [bad]}, "p")
+    assert any(word in p for p in problems), problems
+    schema = yaml.safe_load((ROOT / "workflow" / "briefings" / "_schema.yaml").read_text(encoding="utf-8"))
+    jsonschema = pytest.importorskip("jsonschema")
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate({"schema_version": 1, "scope": "user", "id": "p", "sections": [bad]}, schema)
+
+
+def test_validate_rejects_a_bad_profile_level_timeout():
+    problems = bf.profile_problems({"schema_version": 1, "scope": "user", "id": "p", "timeout_sec": "abc",
+                                    "sections": [{"kind": "tasks"}]}, "p")
+    assert any("timeout_sec" in p for p in problems)
+
+
+def test_collect_survives_bad_numbers_it_was_handed(tmp_path):
+    root = bridge(tmp_path)
+    task(root, "alpha")
+    result = bf.collect(root, {"id": "p", "timeout_sec": "abc", "sections": [{"kind": "tasks", "max": "x"}]},
+                        ctx(root))
+    assert result["sections"][0]["status"] == "ok"
+
+
+def test_an_errored_run_keeps_the_last_good_snapshot(tmp_path):
+    root = bridge(tmp_path)
+    profile = {"id": "p", "sections": [{"kind": "tracker", "id": "gh", "provider": "github",
+                                        "query": {"kinds": ["issues"]}}]}
+    good = bf.collect(root, profile, ctx(root, FakeRun(gh_answers())))
+    bf.save_snapshot(root, good)
+    bad = bf.collect(root, profile, ctx(root, FakeRun({("gh",): bf.SourceError("offline")})),
+                     previous=bf.load_snapshot(root, "p"))
+    bf.save_snapshot(root, bad, bf.load_snapshot(root, "p"))
+    again = bf.collect(root, profile, ctx(root, FakeRun(gh_answers())), previous=bf.load_snapshot(root, "p"))
+    assert not any(i["new"] for i in again["sections"][0]["items"])
+
+
+def test_ics_converts_utc_and_tzid_to_local_time(tmp_path, monkeypatch):
+    monkeypatch.setenv("TZ", "Europe/Berlin")
+    import time as _time
+    if hasattr(_time, "tzset"):
+        _time.tzset()
+    try:
+        assert bf._ics_date("20261004T080000Z") == "2026-10-04T10:00"
+        assert bf._ics_date("20261004T090000", "TZID=Europe/London") == "2026-10-04T10:00"
+        assert bf._ics_date("20261004T100000") == "2026-10-04T10:00"
+    finally:
+        monkeypatch.delenv("TZ")
+        if hasattr(_time, "tzset"):
+            _time.tzset()
+
+
+def test_skip_leaves_kinds_out_and_closes_nothing(tmp_path):
+    root = bridge(tmp_path)
+    run = FakeRun()
+    profile = {"id": "p", "sections": [{"kind": "tracker", "provider": "github"}, {"kind": "tasks"}]}
+    result = bf.collect(root, profile, ctx(root, run), skip=("tracker",))
+    assert result["sections"][0]["status"] == "skipped" and run.calls == []
+    assert result["sections"][1]["status"] == "ok"
+
+
+def test_the_time_limit_covers_the_whole_section(tmp_path, monkeypatch):
+    root = bridge(tmp_path)
+    clock = iter([0.0, 0.0, 5.0, 11.0, 11.0, 50.0])
+    monkeypatch.setattr(bf.time, "monotonic", lambda: next(clock, 99.0))
+    limits = []
+
+    def slow(argv, timeout=None, cwd=None):
+        limits.append(timeout)
+        return "[]"
+
+    c = bf.Context(root, now=NOW, run=slow, timeout=10)
+    section = {"kind": "tracker", "provider": "github", "query": {"kinds": ["issues", "prs"]}}
+    sec = bf.collect(root, {"id": "p", "sections": [section]}, c)["sections"][0]
+    assert sec["status"] == "error" and "time limit" in sec["reason"]
+    assert limits and all(t <= 10 for t in limits)
+
+
+def test_icalbuddy_keeps_events_across_midnight_and_several_days(tmp_path):
+    root = bridge(tmp_path)
+    out = "2026-10-04 at 23:00 - 2026-10-05 at 01:00\tLate deploy\n2026-10-04 - 2026-10-06\tOffsite\n"
+    run = FakeRun({("icalBuddy",): out})
+    items = bf.collect(root, {"id": "p", "sections": [{"kind": "calendar", "provider": "icalbuddy"}]},
+                       ctx(root, run))["sections"][0]["items"]
+    assert [(i["title"], i["start"], i["end"]) for i in items] == [
+        ("Late deploy", "2026-10-04T23:00", "2026-10-05T01:00"), ("Offsite", "2026-10-04", "2026-10-06")]
+
+
+def test_provider_errors_are_source_errors_under_the_cli(tmp_path, capsys):
+    import subprocess
+    root = bridge(tmp_path, profiles={"p": {"sections": [{"kind": "tracker", "provider": "gitlab"}]}})
+    res = subprocess.run([sys.executable, str(ROOT / "scripts" / "briefing.py"), "--root", str(root), "render", "p",
+                          "--no-save"], capture_output=True, text=True, timeout=60,
+                         env={**__import__("os").environ, "PYTHONDONTWRITEBYTECODE": "1"})
+    assert "query.repos is required" in res.stdout and "RuntimeError" not in res.stdout
+
+
+def test_github_review_request_wins_over_the_assigned_copy(tmp_path):
+    root = bridge(tmp_path)
+    pr = json.loads((FIX / "github" / "search-prs.json").read_text())[:1]
+    run = FakeRun({("gh", "api", "user"): '{"login": "octo"}', ("gh", "search", "issues"): "[]",
+                   ("gh", "search", "prs"): json.dumps(pr)})
+    section = {"kind": "tracker", "provider": "github", "query": {"review_requested": True}}
+    item = bf.collect(root, {"id": "p", "sections": [section]}, ctx(root, run))["sections"][0]["items"][0]
+    assert item["category"] == "qa" and item["assigned_to_me"] is True
+
+
+def test_github_assignee_other_than_me_is_not_mine(tmp_path):
+    root = bridge(tmp_path)
+    run = FakeRun({**gh_answers(), ("gh", "api", "user"): '{"login": "someone-else"}'})
+    section = {"kind": "tracker", "provider": "github", "query": {"assignee": "octo", "kinds": ["issues"]}}
+    items = bf.collect(root, {"id": "p", "sections": [section]}, ctx(root, run))["sections"][0]["items"]
+    assert items and not any(i["assigned_to_me"] for i in items)
+
+
+def test_items_close_when_rules_or_the_section_are_removed(tmp_path):
+    root = bridge(tmp_path)
+    task(root, "alpha", blocked_by="vendor")
+    box = inbox.Inbox(root / "work" / "inbox", actor="t", clock=lambda: NOW)
+    with_rule = {"id": "m", "sections": [{"kind": "tasks", "to_inbox": [{"when": {"state": "doing"}}]}]}
+    assert bf.file_to_inbox(box, with_rule, bf.collect(root, with_rule, ctx(root)))[0] == 1
+    without = {"id": "m", "sections": [{"kind": "tasks"}]}
+    assert bf.file_to_inbox(box, without, bf.collect(root, without, ctx(root))) == (0, 1)
+    assert bf.file_to_inbox(box, with_rule, bf.collect(root, with_rule, ctx(root)))[0] == 1
+    gone = {"id": "m", "sections": [{"kind": "activity"}]}
+    assert bf.file_to_inbox(box, gone, bf.collect(root, gone, ctx(root))) == (0, 1)
+
+
+def test_account_ref_must_stay_inside_the_bridge(tmp_path):
+    root = bridge(tmp_path)
+    outside = tmp_path / "elsewhere.yaml"
+    outside.write_text("base_url: https://x\n", encoding="utf-8")
+    with pytest.raises(bf.SourceError):
+        ctx(root).account({"account_ref": "../elsewhere.yaml"})

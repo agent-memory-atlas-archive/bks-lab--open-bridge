@@ -15,7 +15,7 @@ Daily and on-demand briefing. Read the referenced file ONLY when triggered.
 | Argument | Effect | Default |
 |----------|--------|---------|
 | `(none)` | Full briefing of the default profile: Phase 0.5 inbox, the profile's sections, the remaining streams + Phase 2 board.md sync | — |
-| `<id>` | Run the profile `workflow/briefings/<id>.yaml` instead of the default | — |
+| `<id>` | Run the profile `workflow/briefings/<id>.yaml` instead of the default | default profile |
 | `--quick` | Focus box + Stream A only (Phase 0.5 inbox still runs); **skips** trackers, companion data, channels, Phase 2 | false |
 | `--skip-trackers` | All streams except Stream B (offline-friendly); Phase 2 still runs | false |
 | `--commits YYYY-MM-DD` | Detailed commit analysis for one day (sessions, time est., types) — see `references/commit-analysis.md` | — |
