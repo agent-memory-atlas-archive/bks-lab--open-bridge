@@ -38,6 +38,7 @@ work/
 ├── streams/{slug}/       LONG-RUNNERS (same artifacts; never done, excluded from WIP)
 ├── done/YYYY-MM/         Closed tasks (status: done, folder moved here)
 ├── archive/              Weekly summaries
+├── inbox/<id>/           Open items that need a person (item.yaml + events/); inbox.md is the generated view
 ├── imports/              Universal inbox (.gitignored)
 ├── import-rules.yaml     File-pattern → action mapping
 └── templates/            CORE skeletons:
@@ -55,6 +56,13 @@ STATUS.md — not folders. The folder encodes **KIND**, not status: `work/tasks/
 the close move (→ `work/done/YYYY-MM/<slug>/`) and a KIND reclassification
 (`work/tasks/ ↔ work/streams/`). The full STATUS.md schema (status enum, context
 pattern, headline field, sync block) lives at `work/templates/_schema.status.yaml`.
+
+## Inbox
+
+Anything still open at the end of a unit of work goes into `work/inbox/`, not
+into a sentence in the log. An item closes when its `closes_when` probe holds
+against the live source, so a briefing reads the inbox instead of guessing from
+the log what is still open. Model and CLI: [`docs/inbox.md`](inbox.md).
 
 ## Status semantics
 

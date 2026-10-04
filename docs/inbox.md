@@ -1,0 +1,183 @@
+---
+summary: "The inbox: one place per Bridge where everything that needs a person waits until it is done. Item and event layout, derived states, gates, closing probes, who writes and reads, CLI reference."
+type: guide
+last_updated: 2026-10-04
+related:
+  - scripts/inbox.py
+  - scripts/tests/test_inbox.py
+  - work-system.md
+  - ../protocols/standing-orders/inbox.md
+  - ../work/templates/_schema.inbox-item.yaml
+  - ../agents/_runtime/approval.py
+  - ../scripts/inbox-approve.py
+  - workplace.md
+  - always-on-machine.md
+---
+
+# Inbox
+
+## Why
+
+A finding, a question from an agent, a decision, a draft waiting for its send:
+each used to live wherever it happened to be written down. A sentence in the log,
+a chat message, a mail from a scheduled job, a line in a STATUS.md. Nothing
+closed them. A briefing that re-read those places reported things as open that
+had been solved hours earlier, because the sentence saying "needed" was still
+there and the one saying "done" was further down.
+
+The inbox is the single place for everything that needs a person. An item stays
+until it is done, and "done" is decided by the live source where possible (the
+PR is merged, the file exists), not by someone remembering to cross it out.
+
+## Layout
+
+```
+work/inbox/<id>/item.yaml          written once, never changed
+work/inbox/<id>/events/*.yaml      one NEW file per change
+work/inbox.md                      GENERATED view (python3 scripts/inbox.py render)
+```
+
+`item.yaml` carries `schema_version`, `created`, `from`, `kind`, `summary`,
+`urgency`, `gate` and optionally `task`, `due`, `detail`, `key`, `action`
+(`argv` and `label`, no shell) and `closes_when`. Schema:
+[`work/templates/_schema.inbox-item.yaml`](../work/templates/_schema.inbox-item.yaml),
+annotated example: [`work/templates/inbox-item.yaml`](../work/templates/inbox-item.yaml).
+
+Every change is a **new event file**, never an edit. Verbs: `seen`, `note`,
+`approve`, `reject`, `drop`, `defer`, `close`, `executed`, `failed`. Two machines
+writing the same inbox through git therefore never touch the same file, and an
+item id ends in a random tail, so two machines filing the same thing in the same
+minute still create two folders. This is the property the task folders already have, and
+`work/board.md` is derived from them for the same reason. The inbox state is
+derived from events and never stored.
+
+Kinds: `decision`, `question`, `finding`, `draft`, `result`. Urgency: `now`,
+`today`, `later`.
+
+## States
+
+| State | Meaning |
+|---|---|
+| `open` | nobody has answered |
+| `approved` | a person said yes, `run` may execute the action |
+| `waiting` | a conditional yes is recorded, `run` executes when the condition holds |
+| `deferred` | pushed to a later day with `defer --until` |
+| `done` | closed (by a person or by `check`) or executed |
+| `dropped` | rejected or dropped |
+
+`open`, `approved` and `waiting` count as active and show in `list`.
+
+## Gates
+
+- `free`: the Bridge may act alone. `run` executes the action without a yes. A
+  failed free action waits for a person instead of retrying on every tick.
+- `your-yes`: acts after a person's yes. A **conditional yes** is
+  `approve --when-json '{"gh_pr": "contoso/portal#70", "state": "green"}'`
+  ("merge once green"): the item is `waiting`, and `run` executes it when the
+  condition holds.
+- `only-you`: send, publish, pay. `run` never executes it, whatever was
+  recorded, and a conditional yes on it is refused. The item exists so a person
+  does the click.
+
+## Probes (`closes_when`)
+
+`check` evaluates each open item's `closes_when` against the live source and
+closes what holds. Probes: `path_exists`, `command` (exit code, optional
+`expect_exit`), `after` (a date), `gh_pr` (with `state` merged, closed, open or
+green), `gh_issue` (with `state`), `task_status` (with `status`), and `all` /
+`any` to combine them.
+
+A probe that cannot be evaluated (no network, a typo, a missing task) is
+**unknown, never true**. The item stays open rather than vanishing on an error.
+
+## Who writes
+
+- A scheduled job on an always-on machine (a watcher that finds a red check or
+  a stale PR).
+- An agent or a terminal tab that reached a point where it needs a person.
+- The briefing's own checks, when they find something to act on.
+- A peer Bridge, but only through its own front door (an A2A request that a
+  local job files), never by writing into this repository.
+- The session itself, at the end of a unit of work (see the standing order
+  [`inbox`](../protocols/standing-orders/inbox.md)).
+
+**The rule: a finding files an item only when somebody has to act.** Green stays
+quiet. Use `--key` for anything that can fire again: a repeat of an open item
+with the same key adds a `seen` event, not a second item.
+
+## Who reads
+
+- The briefing, first: it runs `check` and reads the inbox instead of
+  re-deriving "open" from the log.
+- Phone and e-ink digests, as short views: `python3 scripts/inbox.py list --short`
+  prints one line per item.
+- A control tab, which can show `work/inbox.md` or the JSON of `list --json`.
+
+## CLI
+
+```bash
+python3 scripts/inbox.py add --from homebox/issue-radar --kind decision \
+    --summary "PR #70 is green and waits for a merge" --task portal-relaunch \
+    --action-json '{"argv": ["gh", "pr", "merge", "70", "-R", "contoso/portal"]}' \
+    --closes-when-json '{"gh_pr": "contoso/portal#70", "state": "merged"}'
+python3 scripts/inbox.py list [--all] [--json] [--short]   # open items, most urgent first
+python3 scripts/inbox.py show <id>                         # item plus its events; an unambiguous id prefix works
+python3 scripts/inbox.py approve <id> [--when-json '{...}'] [--text "edited draft"]
+python3 scripts/inbox.py reject|close|drop <id> [--note "why"]
+python3 scripts/inbox.py defer <id> --until 2026-10-08
+python3 scripts/inbox.py note <id> "Sam will answer on Monday"
+python3 scripts/inbox.py check                             # close what the live source says is done
+python3 scripts/inbox.py run [--dry-run]                   # execute what a person released
+python3 scripts/inbox.py render                            # regenerate work/inbox.md
+python3 scripts/inbox.py validate                          # structure of items and events
+python3 scripts/inbox.py sync [--no-push]
+```
+
+`--by` (or `$BRIDGE_ACTOR`, default the host name) sets who an event is
+attributed to. `add` takes `--due`, `--detail`, `--key`, `--urgency` (default
+`today`) and `--gate` (default `your-yes`). Items are `from` a machine and job
+(`homebox/issue-radar`), not a person.
+
+## Two machines, one inbox
+
+`inbox.py sync` stages and commits **only** `work/inbox/`, rebases onto the
+upstream and pushes. Nothing else in the working tree is committed, and the push
+is refused when the branch carries unpushed commits outside `work/inbox/`: syncing
+the inbox never ships unfinished work along with it. Because each change is its
+own new file, the rebase has nothing to merge; if it still fails it is aborted
+and the commit stays local for the next sync. The generated `work/inbox.md` is
+not part of a sync: every render rewrites its time stamp, so two machines
+committing it would conflict every time. Commit it like `work/board.md`, from
+the one machine you work on, or not at all.
+
+**Exactly one runner.** `run` executes on every machine that calls it, and two
+machines would both see an approved item before the other's `executed` event
+arrived. Name the one that acts in `bridge-config.yaml`:
+
+```yaml
+inbox:
+  runner: homebox      # the actor (--by / $BRIDGE_ACTOR / host name) that executes actions
+```
+
+Everywhere else `run` prints "not running" and does nothing. Without the key
+every machine runs, which is right for a Bridge on one machine only.
+
+**Trust.** An item can carry a command (`action.argv`, a `command` probe). Anyone
+who can push into `work/inbox/` can therefore make the runner execute something,
+exactly as anyone who can push a script the runner calls already can: the inbox
+is as trusted as the repository, and no more. Peer Bridges never write here.
+`list`, `show` and `work/inbox.md` always print the command a yes would run, and
+an `only-you` item executes nothing at all, not even a `command` probe.
+
+**Time.** Events are stamped in UTC with an offset and ordered by that, so a
+laptop in one time zone and an always-on machine in another agree on what came
+first.
+
+## Relation to the approval runtime
+
+[`agents/_runtime/approval.py`](../agents/_runtime/approval.py) holds an agent's
+outbound answer until a person approves it. An approver command can file the
+held answer as an inbox item (kind `draft`, gate `only-you`) so it shows up where
+everything else waits, and the person's `approve --text` releases an edited
+version. That bridge is the script `scripts/inbox-approve.py`, written separately
+from this model.

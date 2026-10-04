@@ -83,6 +83,12 @@ push: this clone points at the public repo.
    something ([`work/tasks/fabrikam-sync-backlog/`](work/tasks/fabrikam-sync-backlog/STATUS.md)).
    The weekly health report is a workload on the home server that writes a
    draft ([`workflow/workloads/fabrikam-weekly-report.yaml`](workflow/workloads/fabrikam-weekly-report.yaml)).
+   The home server also files what needs Sam into the
+   [inbox](work/inbox.md): a sync that last succeeded 28 hours ago, a PR with a
+   conditional yes ("merge once green"), and the drafted report waiting for the
+   send (an `only-you` item the script never executes). The digest declares
+   `reports_to: inbox`; the setup is in
+   [`docs/always-on-machine.md`](../../docs/always-on-machine.md).
 3. **Life admin across personas.** The electricity contract
    ([`identity/contracts/`](identity/contracts/example-power-electricity.yaml)) splits
    its cost between the private and freelance personas; its meter lives in

@@ -165,6 +165,13 @@ push-model — if nobody surfaces it, the relationship goes stale.
 
 **IMPORTANT: Never block.** If KW detection fails or log.md has unexpected format, warn and proceed. The briefing must always complete.
 
+## Phase 0.5: Settle the inbox
+
+Before gathering anything, `scripts/inbox.py check` closes what the live source
+says is done and `inbox.py run` executes what a person already released. Runs in
+every mode, also `--quick`. Steps, gates and the rule behind them
+("nothing is reported as open from the log"): `references/control.md`.
+
 ## Phase 1: Parallel Data Collection
 
 **Start all streams simultaneously.** Collect results, then render output.
@@ -534,6 +541,11 @@ floods the user with decision-fatigue. One cluster + one decision is
 cheaper.
 
 ## Phase 4: Terminal Output
+
+**Top of the output:** after the focus box come `One thing first`, `Waiting for
+you` and (with a `workplace:` block) `Workplace today`, built from the inbox after
+`skills/briefing/scripts/advise.py --file` ran with the calendar of Stream C.
+Layout, gates and how answers map onto the inbox: `references/control.md`.
 
 **Width: 76 chars.** Box-drawing for focus box. No ANSI colors.
 

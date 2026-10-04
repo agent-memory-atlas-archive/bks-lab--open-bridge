@@ -28,6 +28,7 @@ capabilities:
   # - docker            # Start/stop containers
   # - git               # Clone/pull repos
   # - claude            # Run Claude Code sessions
+  # - arm               # Always on, runs the Bridge's watchers, writes the inbox (docs/always-on-machine.md)
   # - gpu               # GPU compute available
   # - boot              # Bootable media (USB toolkits)
   # - forensics         # Forensic analysis tools

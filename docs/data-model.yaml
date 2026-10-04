@@ -278,7 +278,7 @@ families:
     island: "user, the whole folder"
     lives: [private]
     references: []
-    writer: "scripts/worklog.py, scripts/gen-board.py, and the skills that write a STATUS.md"
+    writer: "scripts/worklog.py, scripts/gen-board.py, scripts/inbox.py (work/inbox/), and the skills that write a STATUS.md"
     read: start
 
 # Files an instance carries beside the families.

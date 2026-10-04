@@ -45,7 +45,7 @@ items:
     note: The entry file. Thin by design; it routes, it does not explain.
 
   AGENTS.md:
-    max_bytes: 33600
+    max_bytes: 34000
     note: >-
       The operating manual, and still the largest single always-on item. It
       routes; it does not restate. Every load-bearing pointer in it is a
@@ -93,6 +93,8 @@ items:
       and how do I authenticate", comes up when a user says "ask X's Bridge",
       before any file about A2A has been read.
 
+      RAISED from 33600 on 2026-10-04 by 400 bytes: the `### Inbox` section (what stays
+      open is filed with scripts/inbox.py, not left as a log sentence). 49 bytes of headroom.
   ecosystem.yaml:
     optional: true
     source: phase1
@@ -168,6 +170,11 @@ items:
       except the one it was written for. The body is the decision tree behind
       `document-work.md`'s offer, which is eager and cannot ask a question
       whose criteria are absent.
+  protocols/standing-orders/inbox.md:
+    max_bytes: 1200
+    note: >-
+      Eager on purpose: the duty (file what stays open, never leave it as a log
+      sentence) must bite while nobody says "inbox". Body kept to the rules.
   protocols/standing-orders/document-work.md:
     max_bytes: 3000
   protocols/standing-orders/security-baseline.md:

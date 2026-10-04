@@ -141,10 +141,14 @@ ISOLATIONS = ("process-group", "process")
 ON_TIMEOUTS = ("report", "kill-silent")
 EVIDENCE = ("exit-code", "log-trace", "delivery-receipt")
 NOTIFY_ON = ("failure", "timeout", "missing")
+#: Where a finding of the run lands (docs/workloads.md § reports_to). `inbox` means
+#: the run files what needs a person with scripts/inbox.py; it changes nothing the
+#: engine renders, which is why it is also a cosmetic field below.
+REPORTS_TO = ("inbox", "channel", "none")
 
 TOP_LEVEL_KEYS = ("schema_version", "scope", "id", "title", "purpose", "persona_ref",
                   "system", "placement", "schedule", "execution", "response",
-                  "reconcile", "retired", "learned_from")
+                  "reconcile", "retired", "learned_from", "reports_to")
 
 #: Kinds the Bridge both owns AND executes, so they need a deadline and evidence.
 EXECUTED_KINDS = ("recurring", "interval", "watch", "oneshot")
@@ -172,7 +176,7 @@ TRIGGER_KEYS = ("rrule", "every_sec", "watch_paths", "at")
 EXTRA_TRIGGER_FOR_KIND = {"watch": ("every_sec",)}
 
 #: Cosmetic fields: a typo fix or a provision timestamp is not drift.
-COSMETIC_FIELDS = ("title", "purpose", "learned_from", "provisioned_at")
+COSMETIC_FIELDS = ("title", "purpose", "learned_from", "provisioned_at", "reports_to")
 
 
 # ── What a declared value may be, before it is written into a file ───────────
@@ -524,6 +528,7 @@ class Workload:
     reconcile: ReconcileSpec = field(default_factory=ReconcileSpec)
     retired: Optional[Retired] = None
     learned_from: Optional[str] = None
+    reports_to: str = "none"
     source_path: Optional[Path] = None
     raw: Mapping = field(default_factory=dict)
     #: False when the declaration carries no schedule block at all. The typed
@@ -633,6 +638,7 @@ def load_declaration(path: Path) -> Workload:
         reconcile=reconcile,
         retired=retired,
         learned_from=raw.get("learned_from"),
+        reports_to=_enum(raw, "reports_to", raw.get("reports_to") or "none", REPORTS_TO, name),
         source_path=path,
         raw=dict(raw),
         has_schedule=schedule_raw is not None,

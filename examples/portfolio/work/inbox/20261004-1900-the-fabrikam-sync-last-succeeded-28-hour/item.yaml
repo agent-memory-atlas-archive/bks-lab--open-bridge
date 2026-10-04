@@ -1,0 +1,16 @@
+schema_version: 1
+created: 2026-10-04T19:00
+from: homebox/fabrikam-sync-watch
+kind: finding
+summary: The Fabrikam sync last succeeded 28 hours ago
+urgency: now
+gate: free
+task: fabrikam-sync-backlog
+detail: The hourly watcher found no successful run since yesterday 08:40. Nothing
+  on Fabrikam's side has changed; the next step is a look at the sync log.
+key: fabrikam-sync-stale
+closes_when:
+  command:
+  - test
+  - -s
+  - work/fabrikam-sync-ok

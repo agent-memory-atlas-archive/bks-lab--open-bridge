@@ -170,6 +170,11 @@ What stays manual:
 - Mention follow-up: "Edit each file to add `capabilities`, `services`,
   `wake_on_lan` settings as you need them — see `docs/feature-tour.md
   #infra-remotes`"
+- Offer once, one line, after the scaffold: "Do you have a machine that is
+  always on? It can become the arm of your Bridge: it watches while you are
+  away and files what needs you into the inbox. Guide:
+  `docs/always-on-machine.md`." Yes → point at the guide, change nothing here;
+  no or later → drop it, never ask twice.
 
 ---
 

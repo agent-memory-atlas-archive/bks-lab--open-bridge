@@ -146,6 +146,8 @@ skills.
 
 **Scan evidence:** {if a mesh-VPN surfaced in Phase C → "you decided X"; else if known_hosts hit → "I saw N hosts in ~/.ssh/known_hosts"; else → omit this line}
 
+**Also:** a machine that is always on can become the arm of your Bridge, watching while you are away and filing what needs you into the inbox. Guide: `docs/always-on-machine.md`.
+
 **Activate:** `/bridge-onboard --add remotes`
 
 ### Scheduled Jobs

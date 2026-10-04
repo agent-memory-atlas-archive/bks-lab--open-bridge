@@ -35,6 +35,15 @@ purpose: "<One sentence: what this exists for. Required.>"
 #                 alone" carry different advice.
 # system: <slug>
 
+# Optional. WHERE A FINDING OF THIS RUN LANDS. Absent means `none`.
+#   inbox    the run files what needs a person with
+#            `python3 scripts/inbox.py add --key <stable-key> ...` (the key
+#            makes a repeat one item), closes it with a closes_when probe or
+#            `inbox.py close`, then runs `inbox.py sync`. Green runs file nothing.
+#   channel  the run pushes through response.notify_via.
+#   none     the run only writes its own log.
+# reports_to: inbox
+
 # ── 1 · HOW IT IS PROVISIONED ────────────────────────────────────────────────
 placement:
   host: <host>                  # slug under infra/remotes/ (e.g. my-server), or `local`
