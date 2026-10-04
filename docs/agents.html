@@ -181,7 +181,97 @@ html.dark .code{background:var(--code-bg)}
 }
 .pointers-sub a:hover{background:var(--accent-soft)}
 
+/* at-a-glance figure (shared .steps-fig from brand.css): a wide drawing for
+   desktop and a tall one for phones, same steps, one legend */
+.ag-fig{margin-top:44px}
+.steps-fig svg.ag-tall{display:none}
+.ag-fig .ag-cap{letter-spacing:.06em}
+.ag-fig .ag-x{fill:var(--attention-text);font:600 15px var(--font-mono)}
+@media (max-width:700px){
+  .steps-fig svg.ag-wide{display:none}
+  .steps-fig svg.ag-tall{display:block;max-width:420px;margin:0 auto}
+}
+
 @media (max-width:560px){ .lead-def{padding:24px 22px} .split .card{padding:22px 20px} .use{padding:24px 22px} }
+
+/* ==== visual pass (feat/site-command-bridge) ====
+   The page used to be one centred 48rem column. Now: a two-part hero (text
+   left, the at-a-glance figure right) from 1100px, and every section shares
+   one rhythm: a head (eyebrow + h2 left, short intro right on wide screens),
+   then content at a common 74rem width. Long text keeps a ~68ch measure. */
+.sec{padding-block:88px}
+.wide{max-width:74rem;margin-inline:auto}
+
+/* hero */
+.hero-split{display:grid;gap:8px}
+.hero-split .prose{max-width:var(--prose-w)}
+.hero-split .ag-fig{margin-top:40px}
+/* two columns from 1280: below that the wide figure would shrink its labels to about 8px */
+@media (min-width:1280px){
+  .page-hero .hero-split{max-width:86rem;grid-template-columns:minmax(0,4fr) minmax(0,7fr);gap:48px;align-items:center}
+  .hero-split .prose{max-width:none;margin:0}
+  .page-hero .hero-split p.lede{font-size:17px;line-height:1.65}
+  .hero-split .lead-def{margin:28px 0 0;max-width:none;padding:24px 26px}
+  .hero-split .lead-def .def{font-size:18px}
+  .hero-split .ag-fig{margin:0;max-width:none;padding:18px 16px 14px}
+}
+@media (min-width:1280px){ .page-hero .hero-split{grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:56px} }
+
+/* section head */
+.sh{max-width:74rem;margin:0 auto 40px;display:grid;gap:14px 64px}
+.sh .eyebrow{color:var(--accent-text)}
+.sh .h2{margin-top:8px}
+.sh-i p{font-size:17px;line-height:1.7;max-width:68ch;color:var(--on-surface);margin:0}
+.sh-i p+p{margin-top:12px}
+.sub{max-width:74rem;margin:56px auto 22px;display:grid;gap:8px 64px}
+.sub h3.h3{font-size:22px;font-weight:600;line-height:1.3;color:var(--primary)}
+.sub p{font-size:16px;line-height:1.7;max-width:68ch;margin:0}
+@media (min-width:1100px){
+  .sh{grid-template-columns:minmax(0,5fr) minmax(0,7fr);align-items:start}
+  .sh-i{padding-top:34px}
+  .sub{grid-template-columns:minmax(0,5fr) minmax(0,7fr);align-items:baseline}
+}
+
+/* content widths */
+.split{max-width:74rem;margin:0 auto}
+.uses{max-width:74rem}
+.use.flagship{background:color-mix(in srgb,var(--accent-soft) 45%,var(--surface))}
+@media (min-width:900px){
+  .use.flagship{display:grid;grid-template-columns:minmax(0,4fr) minmax(0,7fr);gap:8px 48px;padding:32px 36px}
+  .use.flagship .use-b p{max-width:68ch}
+}
+.note{max-width:74rem;margin:34px auto 0}
+@media (min-width:900px){
+  .note{display:grid;grid-template-columns:minmax(0,4fr) minmax(0,7fr);gap:8px 48px;padding:26px 36px}
+  .note p{max-width:72ch}
+}
+
+/* terminal: code left, the explanation beside it on wide screens */
+.term{max-width:74rem}
+.term .after{max-width:68ch;margin:16px 0 0}
+@media (min-width:1100px){
+  .term{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,4fr);gap:40px;align-items:center}
+  .term .after{margin:0;font-size:15px}
+  .term .after+.after{margin-top:14px}
+}
+
+/* limits as three cards */
+.limits{max-width:74rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,19rem),1fr));gap:18px}
+.limit{display:flex;flex-direction:column}
+.pointers,.pointers-sub{max-width:74rem}
+
+/* safety figure: what a Bridge-Agent may know, may do, and never reaches */
+.sg-fig{max-width:60rem;margin:0 auto 48px}
+.steps-fig svg.sg-tall{display:none}
+.sg-fig .ag-cap{letter-spacing:.06em}
+.sg-fig .ag-x{fill:var(--attention-text);font:600 14px var(--font-mono)}
+.sg-fig .sf-box.no{fill:none;stroke:var(--line);stroke-dasharray:4 5}
+@media (max-width:700px){
+  .steps-fig svg.sg-wide{display:none}
+  .steps-fig svg.sg-tall{display:block;max-width:420px;margin:0 auto}
+}
+
+@media (max-width:700px){ .sec{padding-block:60px} .sh{margin-bottom:28px} .sub{margin-top:40px} }
 </style>
 </head>
 <body>
@@ -227,7 +317,8 @@ html.dark .code{background:var(--code-bg)}
 
   <!-- ---- intro + lead definition ---- -->
   <section class="page-hero">
-    <div class="container">
+    <div class="container hero-split">
+      <div class="hero-text">
       <div class="prose">
         <p class="eyebrow" data-lang="en">Feature</p>
         <p class="eyebrow" data-lang="de">Feature</p>
@@ -236,7 +327,7 @@ html.dark .code{background:var(--code-bg)}
         <p class="lede" data-lang="de">Ein Bridge-Agent ist ein persistenter, adressierbarer <strong>A2A-Endpunkt</strong>, der <em>eine</em> Persona nach außen vertritt. Er beantwortet Fragen aus öffentlichem Inhalt, zeigt Verfügbarkeit und nimmt Anfragen entgegen, stets unter einem harten menschlichen Gate, nie aus eigenem Antrieb handelnd. Die Engine, die ihn betreibt, ist generisch (CORE); alles, was ihn zu <em>dieser</em> Persona macht, lebt in einem Instanz-Ordner pro Agent (USER).</p>
       </div>
 
-      <div class="lead-def">
+      <div class="lead-def" data-reveal>
         <div class="k" data-lang="en">What is a Bridge-Agent?</div>
         <div class="k" data-lang="de">Was ist ein Bridge-Agent?</div>
         <p class="def" data-lang="en">A <strong>persistent, addressable A2A endpoint that fronts one persona</strong>, under a human gate. Its body is a runnable instance under <code>agents/&lt;name&gt;/</code>, its self is the persona in the system prompt, and its interface is a published <strong>AgentCard</strong>.</p>
@@ -245,23 +336,196 @@ html.dark .code{background:var(--code-bg)}
           <a href="https://github.com/bks-lab/open-bridge/blob/main/docs/representative-agent.md" target="_blank" rel="noopener"><span data-lang="en">Read the representative-agent guide →</span><span data-lang="de">Den Representative-Agent-Guide lesen →</span></a>
         </p>
       </div>
+      </div>
+
+      <!-- At a glance: a request from outside reaches the AgentCard endpoint, the
+           runtime answers from the grounding dir only, bookings and replies wait at
+           a human gate before they go out in the persona's name. Below the line, the inward sub-agent for contrast.
+           Two drawings of the same figure: wide for desktop, tall for phones. -->
+      <figure class="steps-fig ag-fig" data-steps>
+        <svg class="ag-wide" viewBox="0 0 800 440" role="img"
+             aria-label="A visitor, a foreign agent or a peer bridge with a bearer token sends an A2A request to the AgentCard endpoint of the Bridge-Agent. The runtime starts one claude -p per turn with the grounding dir as working directory, so it reads public content only and cannot reach the private tree. Requests, bookings and replies go to a human gate with a fixed recipient; only what you approve goes out as the persona. Below a line, for contrast: a sub-agent inside your session takes one task from the orchestrator and returns a summary, with no address and no card.">
+          <defs>
+            <marker id="agArr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--accent-text)"/></marker>
+            <marker id="agArrM" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--muted)"/></marker>
+          </defs>
+
+          <!-- 1 · callers from outside -->
+          <g data-step="1">
+            <text class="sf-sub ag-cap" x="16" y="30"><tspan data-lang="en">OUTSIDE</tspan><tspan data-lang="de">AUSSEN</tspan></text>
+            <rect class="sf-box" x="16" y="62" width="184" height="72" rx="10"/>
+            <text class="sf-lbl" x="30" y="86"><tspan data-lang="en">Outer face</tspan><tspan data-lang="de">Äußeres Gesicht</tspan></text>
+            <text class="sf-sub" x="30" y="106"><tspan data-lang="en">visitor · widget</tspan><tspan data-lang="de">Besucher · Widget</tspan></text>
+            <text class="sf-sub" x="30" y="122"><tspan data-lang="en">foreign agent</tspan><tspan data-lang="de">fremder Agent</tspan></text>
+            <rect class="sf-box" x="16" y="152" width="184" height="72" rx="10"/>
+            <text class="sf-lbl" x="30" y="176"><tspan data-lang="en">Peer bridge</tspan><tspan data-lang="de">Peer-Bridge</tspan></text>
+            <text class="sf-mono" x="30" y="196">trust: peer</text>
+            <text class="sf-sub" x="30" y="212"><tspan data-lang="en">bearer token</tspan><tspan data-lang="de">Bearer-Token</tspan></text>
+          </g>
+
+          <!-- 2 · the AgentCard endpoint -->
+          <g data-step="2">
+            <rect class="sf-zone" x="212" y="40" width="392" height="280" rx="14"/>
+            <text class="sf-sub ag-cap" x="228" y="30"><tspan data-lang="en">YOUR BRIDGE-AGENT · agents/&lt;name&gt;/</tspan><tspan data-lang="de">DEIN BRIDGE-AGENT · agents/&lt;name&gt;/</tspan></text>
+            <rect class="sf-box hi" x="228" y="62" width="240" height="72" rx="10"/>
+            <text class="sf-lbl" x="242" y="86"><tspan data-lang="en">AgentCard endpoint</tspan><tspan data-lang="de">AgentCard-Endpunkt</tspan></text>
+            <text class="sf-mono" x="242" y="106">/.well-known/agent-card.json</text>
+            <text class="sf-sub" x="242" y="122">message/send · message/stream</text>
+          </g>
+          <path class="sf-line" data-step="2" data-draw d="M200 98 H222" marker-end="url(#agArr)"/>
+          <path class="sf-line" data-step="2" data-draw d="M200 188 C214 188 210 120 222 120" marker-end="url(#agArr)"/>
+
+          <!-- 3 · runtime reads public content only -->
+          <path class="sf-line" data-step="3" data-draw d="M348 134 V158" marker-end="url(#agArr)"/>
+          <g data-step="3">
+            <rect class="sf-box" x="228" y="164" width="240" height="60" rx="10"/>
+            <text class="sf-lbl" x="242" y="188"><tspan data-lang="en">Runtime</tspan><tspan data-lang="de">Runtime</tspan> <tspan class="sf-mono" dx="4">claude -p</tspan></text>
+            <text class="sf-sub" x="242" y="208"><tspan data-lang="en">one subprocess per turn</tspan><tspan data-lang="de">ein Subprozess pro Turn</tspan></text>
+            <rect class="sf-box" x="228" y="250" width="160" height="54" rx="10"/>
+            <text class="sf-mono" x="240" y="272">grounding_dir</text>
+            <text class="sf-sub" x="240" y="290"><tspan data-lang="en">public · read</tspan><tspan data-lang="de">öffentlich · lesen</tspan></text>
+            <rect class="sf-zone" x="400" y="250" width="160" height="54" rx="10"/>
+            <text class="sf-sub" x="414" y="272"><tspan data-lang="en">private tree</tspan><tspan data-lang="de">privater Baum</tspan></text>
+            <text class="sf-sub" x="414" y="290">identity/ · work/</text>
+            <text class="ag-x" x="440" y="243" text-anchor="middle">✕</text>
+          </g>
+          <path class="sf-line" data-step="3" data-draw d="M284 224 V244" marker-end="url(#agArr)"/>
+          <path class="sf-line soft" data-step="3" d="M440 224 V230"/>
+
+          <!-- 4 · the human gate -->
+          <path class="sf-line" data-step="4" data-draw d="M468 194 H612" marker-end="url(#agArr)"/>
+          <g data-step="4">
+            <text class="sf-sub" x="480" y="178"><tspan data-lang="en">bookings · replies</tspan><tspan data-lang="de">Buchung · Antwort</tspan></text>
+            <text class="sf-sub" x="480" y="214"><tspan data-lang="en">fixed recipient</tspan><tspan data-lang="de">fester Empfänger</tspan></text>
+            <text class="sf-sub ag-cap" x="620" y="140"><tspan data-lang="en">YOU</tspan><tspan data-lang="de">DU</tspan></text>
+            <rect class="sf-box hi" x="620" y="152" width="164" height="84" rx="10"/>
+            <text class="sf-lbl" x="634" y="176"><tspan data-lang="en">Human gate</tspan><tspan data-lang="de">Menschliches Gate</tspan></text>
+            <text class="sf-sub" x="634" y="198"><tspan data-lang="en">you approve</tspan><tspan data-lang="de">du gibst frei</tspan></text>
+            <text class="sf-sub" x="634" y="216"><tspan data-lang="en">nothing autonomous</tspan><tspan data-lang="de">nichts autonom</tspan></text>
+            <rect class="sf-box" x="620" y="262" width="164" height="54" rx="10"/>
+            <text class="sf-lbl" x="634" y="284"><tspan data-lang="en">Goes out</tspan><tspan data-lang="de">Geht raus</tspan></text>
+            <text class="sf-sub" x="634" y="302"><tspan data-lang="en">as the persona</tspan><tspan data-lang="de">als die Persona</tspan></text>
+          </g>
+          <path class="sf-line" data-step="4" data-draw d="M702 236 V256" marker-end="url(#agArr)"/>
+
+          <!-- 5 · contrast: the inward sub-agent -->
+          <g data-step="5">
+            <path class="sf-line soft" d="M16 342 H784"/>
+            <text class="sf-sub ag-cap" x="16" y="376"><tspan data-lang="en">INWARD</tspan><tspan data-lang="de">NACH INNEN</tspan></text>
+            <text class="sf-sub ag-cap" x="16" y="394"><tspan data-lang="en">INSIDE YOUR SESSION</tspan><tspan data-lang="de">IN DEINER SESSION</tspan></text>
+            <rect class="sf-zone" x="212" y="350" width="392" height="78" rx="14"/>
+            <rect class="sf-box" x="228" y="364" width="150" height="50" rx="10"/>
+            <text class="sf-lbl" x="242" y="386"><tspan data-lang="en">Orchestrator</tspan><tspan data-lang="de">Orchestrator</tspan></text>
+            <text class="sf-sub" x="242" y="404"><tspan data-lang="en">your session</tspan><tspan data-lang="de">deine Session</tspan></text>
+            <rect class="sf-box" x="438" y="364" width="150" height="50" rx="10"/>
+            <text class="sf-lbl" x="452" y="386"><tspan data-lang="en">Sub-agent</tspan><tspan data-lang="de">Sub-Agent</tspan></text>
+            <text class="sf-mono" x="452" y="404">.claude/agents/</text>
+            <path class="sf-line soft" d="M380 380 H432" marker-end="url(#agArrM)"/>
+            <path class="sf-line soft" d="M436 398 H384" marker-end="url(#agArrM)"/>
+            <text class="sf-sub" x="620" y="378"><tspan data-lang="en">no address,</tspan><tspan data-lang="de">keine Adresse,</tspan></text>
+            <text class="sf-sub" x="620" y="396"><tspan data-lang="en">no card,</tspan><tspan data-lang="de">keine Card,</tspan></text>
+            <text class="sf-sub" x="620" y="414"><tspan data-lang="en">one task, then gone</tspan><tspan data-lang="de">eine Aufgabe, dann weg</tspan></text>
+          </g>
+        </svg>
+
+        <svg class="ag-tall" viewBox="0 0 360 720" role="img"
+             aria-label="A visitor, a foreign agent or a peer bridge sends an A2A request to the AgentCard endpoint. The runtime reads public content only. Bookings and replies wait at a human gate before they go out as the persona. Below a line: a sub-agent inside your session, with no address and no card.">
+          <defs>
+            <marker id="agArrT" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--accent-text)"/></marker>
+            <marker id="agArrTM" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--muted)"/></marker>
+          </defs>
+          <g data-step="1">
+            <text class="sf-sub ag-cap" x="12" y="18"><tspan data-lang="en">OUTSIDE</tspan><tspan data-lang="de">AUSSEN</tspan></text>
+            <rect class="sf-box" x="12" y="28" width="160" height="70" rx="10"/>
+            <text class="sf-lbl" x="24" y="50"><tspan data-lang="en">Outer face</tspan><tspan data-lang="de">Äußeres Gesicht</tspan></text>
+            <text class="sf-sub" x="24" y="70"><tspan data-lang="en">visitor · widget</tspan><tspan data-lang="de">Besucher · Widget</tspan></text>
+            <text class="sf-sub" x="24" y="86"><tspan data-lang="en">foreign agent</tspan><tspan data-lang="de">fremder Agent</tspan></text>
+            <rect class="sf-box" x="188" y="28" width="160" height="70" rx="10"/>
+            <text class="sf-lbl" x="200" y="50"><tspan data-lang="en">Peer bridge</tspan><tspan data-lang="de">Peer-Bridge</tspan></text>
+            <text class="sf-mono" x="200" y="70">trust: peer</text>
+            <text class="sf-sub" x="200" y="86"><tspan data-lang="en">bearer token</tspan><tspan data-lang="de">Bearer-Token</tspan></text>
+          </g>
+          <g data-step="2">
+            <rect class="sf-zone" x="4" y="116" width="352" height="272" rx="14"/>
+            <text class="sf-sub ag-cap" x="180" y="134" text-anchor="middle">agents/&lt;name&gt;/</text>
+            <path class="sf-line" d="M92 98 V140" marker-end="url(#agArrT)"/>
+            <path class="sf-line" d="M268 98 V140" marker-end="url(#agArrT)"/>
+            <rect class="sf-box hi" x="20" y="146" width="320" height="70" rx="10"/>
+            <text class="sf-lbl" x="34" y="168"><tspan data-lang="en">AgentCard endpoint</tspan><tspan data-lang="de">AgentCard-Endpunkt</tspan></text>
+            <text class="sf-mono" x="34" y="188">/.well-known/agent-card.json</text>
+            <text class="sf-sub" x="34" y="204">message/send · message/stream</text>
+          </g>
+          <g data-step="3">
+            <path class="sf-line" d="M180 216 V234" marker-end="url(#agArrT)"/>
+            <rect class="sf-box" x="20" y="240" width="320" height="56" rx="10"/>
+            <text class="sf-lbl" x="34" y="262"><tspan data-lang="en">Runtime</tspan><tspan data-lang="de">Runtime</tspan> <tspan class="sf-mono" dx="4">claude -p</tspan></text>
+            <text class="sf-sub" x="34" y="282"><tspan data-lang="en">one subprocess per turn</tspan><tspan data-lang="de">ein Subprozess pro Turn</tspan></text>
+            <path class="sf-line" d="M94 296 V314" marker-end="url(#agArrT)"/>
+            <rect class="sf-box" x="20" y="320" width="150" height="54" rx="10"/>
+            <text class="sf-mono" x="32" y="342">grounding_dir</text>
+            <text class="sf-sub" x="32" y="360"><tspan data-lang="en">public · read</tspan><tspan data-lang="de">öffentlich · lesen</tspan></text>
+            <path class="sf-line soft" d="M240 296 V302"/>
+            <text class="ag-x" x="240" y="316" text-anchor="middle">✕</text>
+            <rect class="sf-zone" x="186" y="320" width="140" height="54" rx="10"/>
+            <text class="sf-sub" x="198" y="342"><tspan data-lang="en">private tree</tspan><tspan data-lang="de">privater Baum</tspan></text>
+            <text class="sf-sub" x="198" y="360">identity/ · work/</text>
+          </g>
+          <g data-step="4">
+            <path class="sf-line" d="M340 268 H348 V412" marker-end="url(#agArrT)"/>
+            <text class="sf-sub" x="20" y="430"><tspan data-lang="en">bookings · replies</tspan><tspan data-lang="de">Buchung · Antwort</tspan></text>
+            <text class="sf-sub" x="20" y="448"><tspan data-lang="en">fixed recipient</tspan><tspan data-lang="de">fester Empfänger</tspan></text>
+            <path class="sf-line" d="M150 440 H172" marker-end="url(#agArrT)"/>
+            <rect class="sf-box hi" x="180" y="418" width="168" height="80" rx="10"/>
+            <text class="sf-lbl" x="194" y="442"><tspan data-lang="en">Human gate</tspan><tspan data-lang="de">Menschliches Gate</tspan></text>
+            <text class="sf-sub" x="194" y="462"><tspan data-lang="en">you approve</tspan><tspan data-lang="de">du gibst frei</tspan></text>
+            <text class="sf-sub" x="194" y="480"><tspan data-lang="en">nothing autonomous</tspan><tspan data-lang="de">nichts autonom</tspan></text>
+            <path class="sf-line" d="M264 498 V514" marker-end="url(#agArrT)"/>
+            <rect class="sf-box" x="180" y="520" width="168" height="52" rx="10"/>
+            <text class="sf-lbl" x="194" y="542"><tspan data-lang="en">Goes out</tspan><tspan data-lang="de">Geht raus</tspan></text>
+            <text class="sf-sub" x="194" y="560"><tspan data-lang="en">as the persona</tspan><tspan data-lang="de">als die Persona</tspan></text>
+          </g>
+          <g data-step="5">
+            <path class="sf-line soft" d="M4 592 H356"/>
+            <text class="sf-sub ag-cap" x="12" y="614"><tspan data-lang="en">INWARD · INSIDE YOUR SESSION</tspan><tspan data-lang="de">NACH INNEN · IN DEINER SESSION</tspan></text>
+            <rect class="sf-box" x="12" y="626" width="140" height="50" rx="10"/>
+            <text class="sf-lbl" x="24" y="648"><tspan data-lang="en">Orchestrator</tspan><tspan data-lang="de">Orchestrator</tspan></text>
+            <text class="sf-sub" x="24" y="666"><tspan data-lang="en">your session</tspan><tspan data-lang="de">deine Session</tspan></text>
+            <rect class="sf-box" x="208" y="626" width="140" height="50" rx="10"/>
+            <text class="sf-lbl" x="220" y="648"><tspan data-lang="en">Sub-agent</tspan><tspan data-lang="de">Sub-Agent</tspan></text>
+            <text class="sf-mono" x="220" y="666">.claude/agents/</text>
+            <path class="sf-line soft" d="M154 642 H202" marker-end="url(#agArrTM)"/>
+            <path class="sf-line soft" d="M206 660 H158" marker-end="url(#agArrTM)"/>
+            <text class="sf-sub" x="180" y="704" text-anchor="middle"><tspan data-lang="en">no address, no card · one task, then gone</tspan><tspan data-lang="de">keine Adresse, keine Card · eine Aufgabe, dann weg</tspan></text>
+          </g>
+        </svg>
+
+        <ol class="steps-legend">
+          <li data-step="1"><b>1</b><span data-lang="en">A visitor, foreign agent or peer bridge asks</span><span data-lang="de">Besucher, fremder Agent oder Peer-Bridge fragt</span></li>
+          <li data-step="2"><b>2</b><span data-lang="en">The A2A request lands at the AgentCard endpoint</span><span data-lang="de">Die A2A-Anfrage landet am AgentCard-Endpunkt</span></li>
+          <li data-step="3"><b>3</b><span data-lang="en">The runtime answers from public content only</span><span data-lang="de">Die Runtime antwortet nur aus öffentlichem Inhalt</span></li>
+          <li data-step="4"><b>4</b><span data-lang="en">Bookings and replies wait at a human gate</span><span data-lang="de">Buchungen und Antworten warten an einem menschlichen Gate</span></li>
+          <li data-step="5"><b>5</b><span data-lang="en">Unlike a sub-agent: inward, no address, no card</span><span data-lang="de">Anders als ein Sub-Agent: nach innen, ohne Adresse, ohne Card</span></li>
+        </ol>
+      </figure>
     </div>
   </section>
 
   <!-- ---- Bridge-Agent, not sub-agent ---- -->
-  <section class="alt" style="padding-block:56px 72px">
+  <section class="alt sec">
     <div class="container">
-      <div class="grp reveal">
-        <p class="eyebrow" data-lang="en">Two meanings of "agent"</p>
-        <p class="eyebrow" data-lang="de">Zwei Bedeutungen von „Agent"</p>
-        <h2 class="h2" data-lang="en">Bridge-Agent, not sub-agent</h2>
-        <h2 class="h2" data-lang="de">Bridge-Agent, kein Sub-Agent</h2>
-      </div>
-      <div class="block reveal">
-        <p data-lang="en">The word "agent" names two different things. A <strong>sub-agent</strong> is ephemeral, inward-facing machinery: it runs one task inside your session and returns a summary. A function with tools, pointed <em>at</em> your work. A <strong>Bridge-Agent</strong> is a persistent, addressable <em>entity</em> that faces <em>outward</em>: its body is a runnable instance, its self is the persona in the system prompt, and its interface is a published AgentCard. This page is about the outward kind.</p>
-        <p data-lang="de">Das Wort „Agent" benennt zwei verschiedene Dinge. Ein <strong>Sub-Agent</strong> ist ephemere, nach innen gerichtete Maschinerie: er erledigt eine Aufgabe in deiner Session und liefert eine Zusammenfassung. Eine Funktion mit Werkzeugen, <em>auf</em> deine Arbeit gerichtet. Ein <strong>Bridge-Agent</strong> ist eine persistente, adressierbare <em>Entität</em>, die nach <em>außen</em> blickt: sein Körper ist eine lauffähige Instanz, sein Selbst ist die Persona im System-Prompt, seine Schnittstelle eine veröffentlichte AgentCard. Diese Seite handelt vom nach außen gerichteten Typ.</p>
-      </div>
-      <div class="split reveal">
+      <header class="sh" data-reveal>
+        <div class="sh-t">
+          <p class="eyebrow" data-lang="en">Two meanings of "agent"</p>
+          <p class="eyebrow" data-lang="de">Zwei Bedeutungen von „Agent"</p>
+          <h2 class="h2" data-lang="en">Bridge-Agent, not sub-agent</h2>
+          <h2 class="h2" data-lang="de">Bridge-Agent, kein Sub-Agent</h2>
+        </div>
+        <div class="sh-i">
+          <p data-lang="en">The word "agent" names two different things. A <strong>sub-agent</strong> is ephemeral, inward-facing machinery: it runs one task inside your session and returns a summary. A function with tools, pointed <em>at</em> your work. A <strong>Bridge-Agent</strong> is a persistent, addressable <em>entity</em> that faces <em>outward</em>: its body is a runnable instance, its self is the persona in the system prompt, and its interface is a published AgentCard. This page is about the outward kind.</p>
+          <p data-lang="de">Das Wort „Agent" benennt zwei verschiedene Dinge. Ein <strong>Sub-Agent</strong> ist ephemere, nach innen gerichtete Maschinerie: er erledigt eine Aufgabe in deiner Session und liefert eine Zusammenfassung. Eine Funktion mit Werkzeugen, <em>auf</em> deine Arbeit gerichtet. Ein <strong>Bridge-Agent</strong> ist eine persistente, adressierbare <em>Entität</em>, die nach <em>außen</em> blickt: sein Körper ist eine lauffähige Instanz, sein Selbst ist die Persona im System-Prompt, seine Schnittstelle eine veröffentlichte AgentCard. Diese Seite handelt vom nach außen gerichteten Typ.</p>
+        </div>
+      </header>
+      <div class="split" data-reveal="stagger">
         <div class="card">
           <span class="tag" data-lang="en">inward · ephemeral</span>
           <span class="tag" data-lang="de">nach innen · ephemer</span>
@@ -279,13 +543,17 @@ html.dark .code{background:var(--code-bg)}
           <p data-lang="de">Lebt in <code>agents/&lt;name&gt;/</code>. Ein langlaufender A2A-Dienst auf einer stabilen Adresse. Er <em>vertritt eine Persona nach außen</em>: Körper = die Instanz, Selbst = <code>IDENTITY</code>/<code>SOUL</code> im System-Prompt, Schnittstelle = die AgentCard, die andere Agenten und Besucher entdecken.</p>
         </div>
       </div>
-      <div class="block reveal" style="margin-top:34px">
+      <div class="sub" data-reveal>
+        <div>
         <h3 class="h3" data-lang="en">Two faces, one self</h3>
         <h3 class="h3" data-lang="de">Zwei Gesichter, ein Selbst</h3>
+        </div>
+        <div>
         <p data-lang="en">The same machinery serves two directions over one persona. Which face you deploy sets the trust boundary: the caps and the denylist tighten or relax, but the shape stays the same.</p>
         <p data-lang="de">Dieselbe Maschinerie bedient zwei Richtungen über eine Persona. Welches Gesicht du deployst, setzt die Vertrauensgrenze: Die Caps und die Denylist ziehen an oder lockern sich, aber die Form bleibt gleich.</p>
+        </div>
       </div>
-      <div class="split reveal">
+      <div class="split" data-reveal="stagger">
         <div class="card">
           <span class="tag" data-lang="en">outer face · the world</span>
           <span class="tag" data-lang="de">äußeres Gesicht · die Welt</span>
@@ -307,28 +575,34 @@ html.dark .code{background:var(--code-bg)}
   </section>
 
   <!-- ---- what it can do ---- -->
-  <section style="padding-block:72px">
+  <section class="sec">
     <div class="container">
-      <div class="grp reveal">
-        <p class="eyebrow" data-lang="en">Capabilities</p>
-        <p class="eyebrow" data-lang="de">Fähigkeiten</p>
-        <h2 class="h2" data-lang="en">What it can do</h2>
-        <h2 class="h2" data-lang="de">Was er kann</h2>
-      </div>
-      <div class="block reveal">
-        <p data-lang="en">A representative agent does four things and, on the honest card, advertises only the ones this instance actually implements. It never acts on anyone's behalf.</p>
-        <p data-lang="de">Ein Representative-Agent tut vier Dinge und wirbt auf der ehrlichen Card nur mit denen, die diese Instanz tatsächlich umsetzt. Er handelt nie im Namen von irgendjemandem.</p>
-      </div>
-      <div class="uses reveal">
+      <header class="sh" data-reveal>
+        <div class="sh-t">
+          <p class="eyebrow" data-lang="en">Capabilities</p>
+          <p class="eyebrow" data-lang="de">Fähigkeiten</p>
+          <h2 class="h2" data-lang="en">What it can do</h2>
+          <h2 class="h2" data-lang="de">Was er kann</h2>
+        </div>
+        <div class="sh-i">
+          <p data-lang="en">A representative agent does four things and, on the honest card, advertises only the ones this instance actually implements. It never acts on anyone's behalf.</p>
+          <p data-lang="de">Ein Representative-Agent tut vier Dinge und wirbt auf der ehrlichen Card nur mit denen, die diese Instanz tatsächlich umsetzt. Er handelt nie im Namen von irgendjemandem.</p>
+        </div>
+      </header>
+      <div class="uses" data-reveal="stagger">
 
         <div class="use flagship">
+          <div class="use-h">
           <div class="n">01</div>
           <h3 data-lang="en">Answer from public content</h3>
           <h3 data-lang="de">Aus öffentlichem Inhalt antworten</h3>
+          </div>
+          <div class="use-b">
           <p data-lang="en">The agent answers questions about its persona grounded in the <em>public</em> content of its grounding dir, the only files it can read. It speaks in the persona's voice and stays inside the persona's disclosure boundary; it cannot reach the bridge's private tree (identity, work, memory, customer data).</p>
           <p data-lang="de">Der Agent beantwortet Fragen zu seiner Persona, belegt aus dem <em>öffentlichen</em> Inhalt seines Grounding-Verzeichnisses (den einzigen Dateien, die er lesen kann). Er spricht in der Stimme der Persona und bleibt innerhalb ihrer Offenlegungsgrenze; den privaten Baum der Bridge (Identity, Work, Memory, Kundendaten) erreicht er nicht.</p>
           <p class="caveat" data-lang="en"><strong>Honest card:</strong> the AgentCard advertises only skills the prompt and tools actually implement. It must never claim a capability the instance cannot deliver.</p>
           <p class="caveat" data-lang="de"><strong>Ehrliche Card:</strong> die AgentCard wirbt nur mit Skills, die Prompt und Werkzeuge wirklich umsetzen. Sie darf nie eine Fähigkeit behaupten, die die Instanz nicht liefern kann.</p>
+          </div>
         </div>
 
         <div class="use">
@@ -360,26 +634,32 @@ html.dark .code{background:var(--code-bg)}
   </section>
 
   <!-- ---- anatomy of an instance ---- -->
-  <section class="alt" style="padding-block:72px">
+  <section class="alt sec">
     <div class="container">
-      <div class="grp reveal">
-        <p class="eyebrow" data-lang="en">Instance anatomy</p>
-        <p class="eyebrow" data-lang="de">Anatomie einer Instanz</p>
-        <h2 class="h2" data-lang="en">Anatomy of an instance</h2>
-        <h2 class="h2" data-lang="de">Anatomie einer Instanz</h2>
-      </div>
-      <div class="block reveal">
-        <p data-lang="en">Each agent is fully declarative: three parts under <code>agents/&lt;name&gt;/</code>. The runtime that reads them, <code>agents/_runtime/</code>, is generic and never contains persona-specific content.</p>
-        <p data-lang="de">Jeder Agent ist vollständig deklarativ: drei Teile unter <code>agents/&lt;name&gt;/</code>. Die Runtime, die sie liest, <code>agents/_runtime/</code>, ist generisch und enthält nie persona-spezifischen Inhalt.</p>
-      </div>
-      <div class="uses reveal">
+      <header class="sh" data-reveal>
+        <div class="sh-t">
+          <p class="eyebrow" data-lang="en">Instance anatomy</p>
+          <p class="eyebrow" data-lang="de">Anatomie einer Instanz</p>
+          <h2 class="h2" data-lang="en">Anatomy of an instance</h2>
+          <h2 class="h2" data-lang="de">Anatomie einer Instanz</h2>
+        </div>
+        <div class="sh-i">
+          <p data-lang="en">Each agent is fully declarative: three parts under <code>agents/&lt;name&gt;/</code>. The runtime that reads them, <code>agents/_runtime/</code>, is generic and never contains persona-specific content.</p>
+          <p data-lang="de">Jeder Agent ist vollständig deklarativ: drei Teile unter <code>agents/&lt;name&gt;/</code>. Die Runtime, die sie liest, <code>agents/_runtime/</code>, ist generisch und enthält nie persona-spezifischen Inhalt.</p>
+        </div>
+      </header>
+      <div class="uses" data-reveal="stagger">
 
         <div class="use flagship">
+          <div class="use-h">
           <div class="n">agent.yaml</div>
           <h3 data-lang="en">The card &amp; the knobs</h3>
           <h3 data-lang="de">Die Card &amp; die Stellschrauben</h3>
+          </div>
+          <div class="use-b">
           <p data-lang="en">The card spec plus every runtime knob: the AgentCard fields (<code>name</code>, <code>description</code>, <code>version</code>, <code>provider</code>, <code>skills</code>), the network binding (<code>host</code>, <code>port</code>, <code>public_url</code>), the model and per-turn <code>timeout</code>, the <code>grounding_dir</code>, the scoped <code>allowed_tools</code>, and the public-endpoint caps (<code>max_concurrency</code>, <code>max_input_chars</code>, <code>max_turns</code>, <code>max_contexts</code>). Key fields (host, port, public URL, model, grounding dir, environment, and CORS) can be overridden by an environment variable at launch, so the same files run in dev and on the host.</p>
           <p data-lang="de">Die Card-Spezifikation plus jede Runtime-Stellschraube: die AgentCard-Felder (<code>name</code>, <code>description</code>, <code>version</code>, <code>provider</code>, <code>skills</code>), die Netzwerk-Bindung (<code>host</code>, <code>port</code>, <code>public_url</code>), das Modell und der Pro-Turn-<code>timeout</code>, das <code>grounding_dir</code>, die skopierten <code>allowed_tools</code> und die Public-Endpoint-Caps (<code>max_concurrency</code>, <code>max_input_chars</code>, <code>max_turns</code>, <code>max_contexts</code>). Schlüsselfelder (Host, Port, Public-URL, Modell, Grounding-Dir, Environment und CORS) lassen sich beim Start per Umgebungsvariable überschreiben, sodass dieselben Dateien in Dev und auf dem Host laufen.</p>
+          </div>
         </div>
 
         <div class="use">
@@ -399,7 +679,7 @@ html.dark .code{background:var(--code-bg)}
         </div>
 
       </div>
-      <div class="note reveal" style="margin-top:34px">
+      <div class="note" data-reveal>
         <div class="k" data-lang="en">CORE vs. USER</div>
         <div class="k" data-lang="de">CORE vs. USER</div>
         <p data-lang="en">The runtime (<code>agents/_runtime/</code>, <code>_template/</code>, the tests and deps) is <strong>CORE</strong>: generic, shipped to open-bridge, never persona-specific. Each <code>agents/&lt;name&gt;/</code> instance is <strong>USER</strong>: your persona and PII, kept local. Copy <code>_template</code> to start a new one.</p>
@@ -409,19 +689,22 @@ html.dark .code{background:var(--code-bg)}
   </section>
 
   <!-- ---- how to use it ---- -->
-  <section style="padding-block:72px">
+  <section class="sec">
     <div class="container">
-      <div class="grp reveal">
-        <p class="eyebrow" data-lang="en">Quickstart</p>
-        <p class="eyebrow" data-lang="de">Schnellstart</p>
-        <h2 class="h2" data-lang="en">How to use it</h2>
-        <h2 class="h2" data-lang="de">Wie man ihn nutzt</h2>
-      </div>
-      <div class="block reveal">
-        <p data-lang="en">Copy the template, run the runtime against your instance, then probe the two discovery endpoints. Editing <code>agent.yaml</code> and <code>system-prompt.md</code> in between is what makes the agent <em>this</em> persona.</p>
-        <p data-lang="de">Kopiere das Template, starte die Runtime gegen deine Instanz und prüfe dann die beiden Discovery-Endpunkte. Das Editieren von <code>agent.yaml</code> und <code>system-prompt.md</code> dazwischen macht den Agenten zu <em>dieser</em> Persona.</p>
-      </div>
-      <div class="term reveal">
+      <header class="sh" data-reveal>
+        <div class="sh-t">
+          <p class="eyebrow" data-lang="en">Quickstart</p>
+          <p class="eyebrow" data-lang="de">Schnellstart</p>
+          <h2 class="h2" data-lang="en">How to use it</h2>
+          <h2 class="h2" data-lang="de">Wie man ihn nutzt</h2>
+        </div>
+        <div class="sh-i">
+          <p data-lang="en">Copy the template, run the runtime against your instance, then probe the two discovery endpoints. Editing <code>agent.yaml</code> and <code>system-prompt.md</code> in between is what makes the agent <em>this</em> persona.</p>
+          <p data-lang="de">Kopiere das Template, starte die Runtime gegen deine Instanz und prüfe dann die beiden Discovery-Endpunkte. Das Editieren von <code>agent.yaml</code> und <code>system-prompt.md</code> dazwischen macht den Agenten zu <em>dieser</em> Persona.</p>
+        </div>
+      </header>
+      <div class="term">
+        <div class="term-code">
         <div class="code-label">
           <span data-lang="en">shell: the agent runtime</span>
           <span data-lang="de">Shell: die Agent-Runtime</span>
@@ -437,26 +720,31 @@ html.dark .code{background:var(--code-bg)}
 <span class="k">$</span> curl -s localhost:8011/.well-known/agent-card.json | head
 <span class="k">$</span> curl -s localhost:8011/health
 <span class="ok">{"status":"ok","agent":"&lt;name&gt;"}</span></pre>
+        </div>
+        <div class="term-side" data-reveal>
         <p class="after" data-lang="en">The card lists <code>supported_interfaces</code> and only the skills the instance implements; <code>/health</code> is a plain GET. Deploy behind a tunnel that maps the <code>public_url</code> host to this port (<a href="#limits">see Limits</a>).</p>
         <p class="after" data-lang="de">Die Card führt <code>supported_interfaces</code> und nur die von der Instanz umgesetzten Skills auf; <code>/health</code> ist ein einfacher GET. Deploye hinter einem Tunnel, der den <code>public_url</code>-Host auf diesen Port abbildet (<a href="#limits">siehe Grenzen</a>).</p>
+        </div>
       </div>
     </div>
   </section>
 
   <!-- ---- the runtime & protocol ---- -->
-  <section class="alt" style="padding-block:72px">
+  <section class="alt sec">
     <div class="container">
-      <div class="grp reveal">
-        <p class="eyebrow" data-lang="en">Runtime &amp; protocol</p>
-        <p class="eyebrow" data-lang="de">Runtime &amp; Protokoll</p>
-        <h2 class="h2" data-lang="en">The runtime &amp; protocol</h2>
-        <h2 class="h2" data-lang="de">Die Runtime &amp; das Protokoll</h2>
-      </div>
-      <div class="block reveal">
-        <p data-lang="en">The brain is <code>claude -p</code>; the shell around it is plain, standard, and spec-faithful: nothing exotic to run an A2A endpoint.</p>
-        <p data-lang="de">Das Gehirn ist <code>claude -p</code>; die Hülle drumherum ist schlicht, standardkonform und spec-treu: nichts Exotisches, um einen A2A-Endpunkt zu betreiben.</p>
-      </div>
-      <div class="split reveal">
+      <header class="sh" data-reveal>
+        <div class="sh-t">
+          <p class="eyebrow" data-lang="en">Runtime &amp; protocol</p>
+          <p class="eyebrow" data-lang="de">Runtime &amp; Protokoll</p>
+          <h2 class="h2" data-lang="en">The runtime &amp; protocol</h2>
+          <h2 class="h2" data-lang="de">Die Runtime &amp; das Protokoll</h2>
+        </div>
+        <div class="sh-i">
+          <p data-lang="en">The brain is <code>claude -p</code>; the shell around it is plain, standard, and spec-faithful: nothing exotic to run an A2A endpoint.</p>
+          <p data-lang="de">Das Gehirn ist <code>claude -p</code>; die Hülle drumherum ist schlicht, standardkonform und spec-treu: nichts Exotisches, um einen A2A-Endpunkt zu betreiben.</p>
+        </div>
+      </header>
+      <div class="split" data-reveal="stagger">
         <div class="card">
           <span class="tag" data-lang="en">the brain</span>
           <span class="tag" data-lang="de">das Gehirn</span>
@@ -474,7 +762,7 @@ html.dark .code{background:var(--code-bg)}
           <p data-lang="de">Der Server ist eine <strong>schlichte Starlette-App</strong> (a2a-sdk 1.x hat keine Wrapper-Applikation). Er setzt die JSON-RPC- und Agent-Card-Routen des SDK über einem <code>DefaultRequestHandler</code> und einem In-Memory-Task-Store zusammen, mit CORS-Middleware und zwei kleinen Korrektheits-Shims (0.3-Dialekt-Kompatibilität und wiederhergestellte A2A-Spec-Fehlercodes). Er spricht <strong>A2A-Spec v1.0</strong>.</p>
         </div>
       </div>
-      <div class="note reveal" style="margin-top:34px">
+      <div class="note" data-reveal>
         <div class="k" data-lang="en">Discovery &amp; the answer contract</div>
         <div class="k" data-lang="de">Discovery &amp; der Antwort-Vertrag</div>
         <p data-lang="en">The <strong>AgentCard</strong> is served at <code>/.well-known/agent-card.json</code> (with a legacy alias). In a2a-sdk 1.x the single <code>url</code> field is gone: the card advertises a list of <code>supported_interfaces[]</code>, each an interface with a public URL and a JSON-RPC transport binding. Over that, the runtime upholds one hard contract every turn, <strong>exactly one non-empty answer, delivered within <code>timeout</code></strong>: never a hang, never a blank bubble. A raised line buffer, an overall deadline, and an accumulated-text fallback hold that line; a hermetic regression net (no real <code>claude</code>, no network) locks it in CI.</p>
@@ -484,26 +772,32 @@ html.dark .code{background:var(--code-bg)}
   </section>
 
   <!-- ---- live instances ---- -->
-  <section style="padding-block:72px">
+  <section class="sec">
     <div class="container">
-      <div class="grp reveal">
-        <p class="eyebrow" data-lang="en">Live instances</p>
-        <p class="eyebrow" data-lang="de">Live-Instanzen</p>
-        <h2 class="h2" data-lang="en">They answer on the open internet</h2>
-        <h2 class="h2" data-lang="de">Sie antworten im offenen Netz</h2>
-      </div>
-      <div class="block reveal">
-        <p data-lang="en">The runtime above is not a diagram. Instances of it answer on the open internet, each grounded in its own public content, each read-only, each behind the same human gate. The card is the contract: fetch one and you see exactly what that instance claims to do, and nothing it cannot.</p>
-        <p data-lang="de">Die Runtime oben ist kein Schaubild. Instanzen davon antworten im offenen Netz, jede in ihrem eigenen öffentlichen Inhalt verankert, jede nur lesend, jede hinter demselben menschlichen Gate. Die Card ist der Vertrag: hol eine, und du siehst genau, was diese Instanz zu können behauptet, und nichts, was sie nicht kann.</p>
-      </div>
-      <div class="uses reveal">
+      <header class="sh" data-reveal>
+        <div class="sh-t">
+          <p class="eyebrow" data-lang="en">Live instances</p>
+          <p class="eyebrow" data-lang="de">Live-Instanzen</p>
+          <h2 class="h2" data-lang="en">They answer on the open internet</h2>
+          <h2 class="h2" data-lang="de">Sie antworten im offenen Netz</h2>
+        </div>
+        <div class="sh-i">
+          <p data-lang="en">The runtime above is not a diagram. Instances of it answer on the open internet, each grounded in its own public content, each read-only, each behind the same human gate. The card is the contract: fetch one and you see exactly what that instance claims to do, and nothing it cannot.</p>
+          <p data-lang="de">Die Runtime oben ist kein Schaubild. Instanzen davon antworten im offenen Netz, jede in ihrem eigenen öffentlichen Inhalt verankert, jede nur lesend, jede hinter demselben menschlichen Gate. Die Card ist der Vertrag: hol eine, und du siehst genau, was diese Instanz zu können behauptet, und nichts, was sie nicht kann.</p>
+        </div>
+      </header>
+      <div class="uses" data-reveal="stagger">
 
         <div class="use flagship">
+          <div class="use-h">
           <div class="n">01</div>
           <h3 data-lang="en">This project's own agent</h3>
           <h3 data-lang="de">Der Agent dieses Projekts</h3>
+          </div>
+          <div class="use-b">
           <p data-lang="en"><code>openbridge.bks-lab.com</code> answers questions about open-bridge itself, grounded exclusively in this repo's public documentation. It is the reference instance of the runtime described above: the page you are reading and the agent answering it are the same project.</p>
           <p data-lang="de"><code>openbridge.bks-lab.com</code> beantwortet Fragen zu open-bridge selbst, ausschließlich belegt aus der öffentlichen Dokumentation dieses Repos. Es ist die Referenz-Instanz der oben beschriebenen Runtime: die Seite, die du liest, und der Agent, der antwortet, sind dasselbe Projekt.</p>
+          </div>
         </div>
 
         <div class="use">
@@ -515,11 +809,11 @@ html.dark .code{background:var(--code-bg)}
         </div>
 
       </div>
-      <div class="pointers reveal">
+      <div class="pointers" data-reveal="stagger">
         <a href="https://openbridge.bks-lab.com/.well-known/agent-card.json" target="_blank" rel="noopener"><span data-lang="en">open-bridge agent card</span><span data-lang="de">open-bridge Agent-Card</span></a>
         <a href="https://ai.bks-lab.com/.well-known/agent-card.json" target="_blank" rel="noopener"><span data-lang="en">BKS-Lab agent card</span><span data-lang="de">BKS-Lab Agent-Card</span></a>
       </div>
-      <div class="note reveal" style="margin-top:34px">
+      <div class="note" data-reveal>
         <div class="k" data-lang="en">The mesh is not a diagram either</div>
         <div class="k" data-lang="de">Auch das Mesh ist kein Schaubild</div>
         <p data-lang="en">These agents consult each other as peers, read-only, over standard A2A: the project agent carries a <code>bks_consult</code> skill, the company agent an <code>openbridge_consult</code> skill, and a third peer fronting a person sits on the same mesh. A peer's answer is relayed as the peer's and never claimed as the agent's own, and no peer call can drive a write: an unauthenticated public endpoint must not become a lever on its neighbour.</p>
@@ -529,26 +823,32 @@ html.dark .code{background:var(--code-bg)}
   </section>
 
   <!-- ---- MCP→A2A gateway ---- -->
-  <section id="gateway" style="padding-block:72px">
+  <section id="gateway" class="alt sec">
     <div class="container">
-      <div class="grp reveal">
-        <p class="eyebrow" data-lang="en">MCP → A2A</p>
-        <p class="eyebrow" data-lang="de">MCP → A2A</p>
-        <h2 class="h2" data-lang="en">The MCP→A2A gateway</h2>
-        <h2 class="h2" data-lang="de">Der MCP→A2A-Gateway</h2>
-      </div>
-      <div class="block reveal">
-        <p data-lang="en">Bridge-Agents speak A2A, but most people sit behind an <strong>MCP-only</strong> frontend: Claude connectors, ChatGPT developer mode, Gemini, any MCP client. <code>agents/_gateway/</code> is a thin, stateless translation layer that makes your A2A bridges reachable from those frontends through three tools and one registry. No model, no reasoning, no persistent state inside the gateway itself.</p>
-        <p data-lang="de">Bridge-Agents sprechen A2A, aber die meisten Menschen sitzen hinter einem <strong>reinen MCP</strong>-Frontend: Claude-Connectors, ChatGPT-Entwicklermodus, Gemini, jeder MCP-Client. <code>agents/_gateway/</code> ist eine schlanke, zustandslose Übersetzungsschicht, die deine A2A-Bridges über drei Werkzeuge und eine Registry aus diesen Frontends erreichbar macht. Kein Modell, kein Reasoning, kein persistenter Zustand im Gateway selbst.</p>
-      </div>
-      <div class="uses reveal">
+      <header class="sh" data-reveal>
+        <div class="sh-t">
+          <p class="eyebrow" data-lang="en">MCP → A2A</p>
+          <p class="eyebrow" data-lang="de">MCP → A2A</p>
+          <h2 class="h2" data-lang="en">The MCP→A2A gateway</h2>
+          <h2 class="h2" data-lang="de">Der MCP→A2A-Gateway</h2>
+        </div>
+        <div class="sh-i">
+          <p data-lang="en">Bridge-Agents speak A2A, but most people sit behind an <strong>MCP-only</strong> frontend: Claude connectors, ChatGPT developer mode, Gemini, any MCP client. <code>agents/_gateway/</code> is a thin, stateless translation layer that makes your A2A bridges reachable from those frontends through three tools and one registry. No model, no reasoning, no persistent state inside the gateway itself.</p>
+          <p data-lang="de">Bridge-Agents sprechen A2A, aber die meisten Menschen sitzen hinter einem <strong>reinen MCP</strong>-Frontend: Claude-Connectors, ChatGPT-Entwicklermodus, Gemini, jeder MCP-Client. <code>agents/_gateway/</code> ist eine schlanke, zustandslose Übersetzungsschicht, die deine A2A-Bridges über drei Werkzeuge und eine Registry aus diesen Frontends erreichbar macht. Kein Modell, kein Reasoning, kein persistenter Zustand im Gateway selbst.</p>
+        </div>
+      </header>
+      <div class="uses" data-reveal="stagger">
 
         <div class="use flagship">
+          <div class="use-h">
           <div class="n">list_bridges · get_bridge_card · ask_bridge</div>
           <h3 data-lang="en">Three tools, one registry</h3>
           <h3 data-lang="de">Drei Werkzeuge, eine Registry</h3>
+          </div>
+          <div class="use-b">
           <p data-lang="en"><code>list_bridges</code> returns the registry entries visible at the caller's access tier. <code>get_bridge_card(bridge)</code> fetches and normalizes that bridge's AgentCard: it reads both card dialects, so v1 and legacy cards resolve the same way. <code>ask_bridge(bridge, message, conversation?)</code> sends one A2A ask; passing back the same <code>conversation</code> id continues the thread, stateless on the gateway's side. It is threaded through to the target agent's own A2A <code>contextId</code>.</p>
           <p data-lang="de"><code>list_bridges</code> liefert die Registry-Einträge, die für den Access-Tier des Aufrufers sichtbar sind. <code>get_bridge_card(bridge)</code> holt und normalisiert die AgentCard dieser Bridge. Sie liest beide Card-Dialekte, sodass v1- und Legacy-Cards gleich aufgelöst werden. <code>ask_bridge(bridge, message, conversation?)</code> schickt eine A2A-Anfrage; dieselbe <code>conversation</code>-ID zurückgeben setzt den Thread fort, zustandslos auf Gateway-Seite. Sie wird an die eigene A2A-<code>contextId</code> des Zielagenten durchgereicht.</p>
+          </div>
         </div>
 
         <div class="use">
@@ -569,7 +869,8 @@ html.dark .code{background:var(--code-bg)}
 
       </div>
 
-      <div class="term reveal" style="margin-top:34px">
+      <div class="term" style="margin-top:34px">
+        <div class="term-code">
         <div class="code-label">
           <span data-lang="en">shell: run the gateway</span>
           <span data-lang="de">Shell: den Gateway starten</span>
@@ -584,11 +885,14 @@ html.dark .code{background:var(--code-bg)}
 
 <span class="cmt"># 3 · point any MCP client at it (Streamable HTTP)</span>
 <span class="k">$</span> claude mcp add --transport http bridge-gateway http://127.0.0.1:8900/mcp</pre>
+        </div>
+        <div class="term-side" data-reveal>
         <p class="after" data-lang="en">Behind a public tunnel, the MCP SDK's DNS-rebinding protection answers a tunnel hostname with HTTP 421 unless you allowlist it: <code>GATEWAY_ALLOWED_HOSTS="&lt;your-gateway-host&gt;,127.0.0.1:8900,localhost:8900"</code>. List the loopback host:port too, or local health probes start 421ing the moment the tunnel hostname is configured.</p>
         <p class="after" data-lang="de">Hinter einem öffentlichen Tunnel beantwortet der DNS-Rebinding-Schutz des MCP-SDK einen Tunnel-Hostnamen mit HTTP 421, sofern er nicht auf der Allowlist steht: <code>GATEWAY_ALLOWED_HOSTS="&lt;dein-gateway-host&gt;,127.0.0.1:8900,localhost:8900"</code>. Auch den Loopback-<code>host:port</code> aufführen, sonst 421en lokale Health-Probes, sobald der Tunnel-Hostname konfiguriert ist.</p>
+        </div>
       </div>
 
-      <div class="note reveal" style="margin-top:34px">
+      <div class="note" data-reveal>
         <div class="k" data-lang="en">Security posture</div>
         <div class="k" data-lang="de">Sicherheitshaltung</div>
         <p data-lang="en">The gateway adds reach, not privilege. It is a client like any other in front of the target agent and bypasses none of the agent's own guardrails (grounding confinement, scoped tools, human-gated intake; see the safety model below). A per-bridge concurrency gate, a timeout budget under the client's own tool-call timeout, and typed error envelopes (<code>unknown_bridge</code>, <code>tier_denied</code>, <code>unauthorized</code>, <code>busy</code>, <code>timeout</code>, <code>unreachable</code>, <code>upstream_error</code>) keep a stuck or hostile upstream from silently hanging the client. Put an edge rate-limit in front of a public deployment, and keep <code>min_tier: authenticated</code> on anything you don't want anonymous traffic to reach.</p>
@@ -598,26 +902,204 @@ html.dark .code{background:var(--code-bg)}
   </section>
 
   <!-- ---- the safety model ---- -->
-  <section style="padding-block:72px">
+  <section class="sec">
     <div class="container">
-      <div class="grp reveal">
-        <p class="eyebrow" data-lang="en">Safety</p>
-        <p class="eyebrow" data-lang="de">Sicherheit</p>
-        <h2 class="h2" data-lang="en">The safety model</h2>
-        <h2 class="h2" data-lang="de">Das Sicherheitsmodell</h2>
-      </div>
-      <div class="block reveal">
-        <p data-lang="en">A public endpoint is assumed hostile on every request. Several independent layers ensure a visitor can never make the agent read private files, exfiltrate secrets, or act on anyone's behalf: defense-in-depth on top of the model's own refusal.</p>
-        <p data-lang="de">Ein öffentlicher Endpunkt gilt bei jeder Anfrage als feindlich. Mehrere unabhängige Schichten stellen sicher, dass ein Besucher den Agenten nie dazu bringen kann, private Dateien zu lesen, Geheimnisse zu exfiltrieren oder in jemandes Namen zu handeln: Defense-in-Depth über der modelleigenen Verweigerung.</p>
-      </div>
-      <div class="uses reveal">
+      <header class="sh" data-reveal>
+        <div class="sh-t">
+          <p class="eyebrow" data-lang="en">Safety</p>
+          <p class="eyebrow" data-lang="de">Sicherheit</p>
+          <h2 class="h2" data-lang="en">The safety model</h2>
+          <h2 class="h2" data-lang="de">Das Sicherheitsmodell</h2>
+        </div>
+        <div class="sh-i">
+          <p data-lang="en">A public endpoint is assumed hostile on every request. Several independent layers ensure a visitor can never make the agent read private files, exfiltrate secrets, or act on anyone's behalf: defense-in-depth on top of the model's own refusal.</p>
+          <p data-lang="de">Ein öffentlicher Endpunkt gilt bei jeder Anfrage als feindlich. Mehrere unabhängige Schichten stellen sicher, dass ein Besucher den Agenten nie dazu bringen kann, private Dateien zu lesen, Geheimnisse zu exfiltrieren oder in jemandes Namen zu handeln: Defense-in-Depth über der modelleigenen Verweigerung.</p>
+        </div>
+      </header>
+      <!-- Safety at a glance (docs/representative-agent.md §4): a hostile request
+           passes the executor caps into one claude -p turn whose cwd is the
+           grounding dir. Read axis: what it may KNOW. Write axis: what it may DO,
+           every outward action behind a human gate. Below the line: what it never
+           reaches and never does. Wide drawing for desktop, tall one for phones. -->
+      <figure class="steps-fig sg-fig" id="safety-fig" data-steps>
+        <svg class="sg-wide" viewBox="0 0 800 516" role="img"
+             aria-label="A visitor request, assumed hostile, passes the executor caps into one claude -p turn whose working directory is the grounding dir and which loads project settings only. On the read axis the agent may know the public grounding dir through Read, Glob and Grep, and the files inlined into its system prompt. On the write axis it may run only scoped tools by absolute path; intake goes to a fixed recipient from operator config, and every outward action waits at a human gate. It never reaches the private tree, read-only shell binaries such as cat, security or git (blocked by a denylist that is a backstop), or the host user's settings, and it never messages a third party or books or replies on its own.">
+          <defs>
+            <marker id="sgArr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--accent-text)"/></marker>
+          </defs>
+          <!-- 1 · request, caps, the turn -->
+          <g data-step="1">
+            <rect class="sf-box" x="290" y="14" width="220" height="50" rx="10"/>
+            <text class="sf-lbl" x="304" y="35"><tspan data-lang="en">Visitor request</tspan><tspan data-lang="de">Anfrage von außen</tspan></text>
+            <text class="sf-sub" x="304" y="54"><tspan data-lang="en">assumed hostile</tspan><tspan data-lang="de">gilt als feindlich</tspan></text>
+            <path class="sf-line" d="M400 64 V80" marker-end="url(#sgArr)"/>
+            <rect class="sf-box" x="270" y="86" width="260" height="54" rx="10"/>
+            <text class="sf-lbl" x="284" y="107"><tspan data-lang="en">Executor caps</tspan><tspan data-lang="de">Executor-Caps</tspan></text>
+            <text class="sf-sub" x="284" y="127">max_concurrency · max_turns</text>
+            <path class="sf-line" d="M400 140 V152" marker-end="url(#sgArr)"/>
+            <rect class="sf-box hi" x="260" y="158" width="280" height="74" rx="10"/>
+            <text class="sf-lbl" x="276" y="182"><tspan data-lang="en">One turn</tspan><tspan data-lang="de">Ein Turn</tspan> <tspan class="sf-mono" dx="4">claude -p</tspan></text>
+            <text class="sf-mono" x="276" y="202">cwd = grounding_dir</text>
+            <text class="sf-sub" x="276" y="220">--setting-sources project</text>
+          </g>
+          <!-- 2 · read axis: may know -->
+          <path class="sf-line" data-step="2" data-draw d="M258 194 H242" marker-end="url(#sgArr)"/>
+          <g data-step="2">
+            <text class="sf-sub ag-cap" x="16" y="142"><tspan data-lang="en">MAY KNOW · READ AXIS</tspan><tspan data-lang="de">DARF WISSEN · LESEACHSE</tspan></text>
+            <rect class="sf-box" x="16" y="154" width="220" height="66" rx="10"/>
+            <text class="sf-mono" x="30" y="178">grounding_dir/</text>
+            <text class="sf-sub" x="30" y="196"><tspan data-lang="en">public content</tspan><tspan data-lang="de">öffentlicher Inhalt</tspan></text>
+            <text class="sf-sub" x="30" y="212">Read · Glob · Grep</text>
+            <rect class="sf-box" x="16" y="236" width="220" height="52" rx="10"/>
+            <text class="sf-mono" x="30" y="258">system-prompt.md</text>
+            <text class="sf-sub" x="30" y="276">inline_grounding</text>
+          </g>
+          <!-- 3 · write axis: may do, behind a human gate -->
+          <path class="sf-line" data-step="3" data-draw d="M542 194 H558" marker-end="url(#sgArr)"/>
+          <g data-step="3">
+            <text class="sf-sub ag-cap" x="564" y="142"><tspan data-lang="en">MAY DO · WRITE AXIS</tspan><tspan data-lang="de">DARF TUN · SCHREIBACHSE</tspan></text>
+            <rect class="sf-box" x="564" y="154" width="220" height="66" rx="10"/>
+            <text class="sf-lbl" x="578" y="178"><tspan data-lang="en">Scoped tools</tspan><tspan data-lang="de">Skopierte Werkzeuge</tspan></text>
+            <text class="sf-mono" x="578" y="196">${tools_dir}/…</text>
+            <text class="sf-sub" x="578" y="212"><tspan data-lang="en">absolute path only</tspan><tspan data-lang="de">nur absoluter Pfad</tspan></text>
+            <path class="sf-line" d="M674 220 V234" marker-end="url(#sgArr)"/>
+            <rect class="sf-box" x="564" y="240" width="220" height="52" rx="10"/>
+            <text class="sf-lbl" x="578" y="262"><tspan data-lang="en">Intake, fixed recipient</tspan><tspan data-lang="de">Intake, fester Empfänger</tspan></text>
+            <text class="sf-mono" x="578" y="280">AGENT_NOTIFY_TO</text>
+            <path class="sf-line" d="M674 292 V306" marker-end="url(#sgArr)"/>
+            <rect class="sf-box hi" x="564" y="312" width="220" height="50" rx="10"/>
+            <text class="sf-lbl" x="578" y="334"><tspan data-lang="en">Human gate</tspan><tspan data-lang="de">Menschliches Gate</tspan></text>
+            <text class="sf-sub" x="578" y="352"><tspan data-lang="en">every outward action</tspan><tspan data-lang="de">jede Aktion nach außen</tspan></text>
+          </g>
+          <!-- 4 · never reaches -->
+          <g data-step="4">
+            <path class="sf-line soft" d="M16 386 H784"/>
+            <text class="sf-sub ag-cap" x="16" y="410"><tspan data-lang="en">NEVER REACHES</tspan><tspan data-lang="de">ERREICHT NIE</tspan></text>
+            <rect class="sf-box no" x="16" y="420" width="144" height="80" rx="10"/>
+            <text class="ag-x" x="144" y="444" text-anchor="middle">✕</text>
+            <text class="sf-lbl" x="28" y="444"><tspan data-lang="en">Private tree</tspan><tspan data-lang="de">Privater Baum</tspan></text>
+            <text class="sf-sub" x="28" y="464">identity/ · work/</text>
+            <text class="sf-sub" x="28" y="482"><tspan data-lang="en">memory · customers</tspan><tspan data-lang="de">Memory · Kunden</tspan></text>
+            <rect class="sf-box no" x="172" y="420" width="144" height="80" rx="10"/>
+            <text class="ag-x" x="300" y="444" text-anchor="middle">✕</text>
+            <text class="sf-lbl" x="184" y="444"><tspan data-lang="en">Read-only shell</tspan><tspan data-lang="de">Read-only-Shell</tspan></text>
+            <text class="sf-sub" x="184" y="464">cat · security …</text>
+            <text class="sf-sub" x="184" y="482"><tspan data-lang="en">denylist, a backstop</tspan><tspan data-lang="de">Denylist, Backstop</tspan></text>
+            <rect class="sf-box no" x="328" y="420" width="144" height="80" rx="10"/>
+            <text class="ag-x" x="456" y="444" text-anchor="middle">✕</text>
+            <text class="sf-lbl" x="340" y="444"><tspan data-lang="en">Host settings</tspan><tspan data-lang="de">Host-Settings</tspan></text>
+            <text class="sf-sub" x="340" y="464">~/.claude</text>
+            <text class="sf-sub" x="340" y="482"><tspan data-lang="en">allowlist · hooks</tspan><tspan data-lang="de">Allowlist · Hooks</tspan></text>
+          </g>
+          <!-- 5 · never does -->
+          <g data-step="5">
+            <text class="sf-sub ag-cap" x="484" y="410"><tspan data-lang="en">NEVER DOES</tspan><tspan data-lang="de">TUT NIE</tspan></text>
+            <rect class="sf-box no" x="484" y="420" width="144" height="80" rx="10"/>
+            <text class="ag-x" x="612" y="444" text-anchor="middle">✕</text>
+            <text class="sf-lbl" x="496" y="444"><tspan data-lang="en">Third party</tspan><tspan data-lang="de">An Dritte</tspan></text>
+            <text class="sf-sub" x="496" y="464"><tspan data-lang="en">no --to flag</tspan><tspan data-lang="de">kein --to-Flag</tspan></text>
+            <text class="sf-sub" x="496" y="482"><tspan data-lang="en">recipient: config</tspan><tspan data-lang="de">Empfänger: Config</tspan></text>
+            <rect class="sf-box no" x="640" y="420" width="144" height="80" rx="10"/>
+            <text class="ag-x" x="768" y="444" text-anchor="middle">✕</text>
+            <text class="sf-lbl" x="652" y="444"><tspan data-lang="en">Autonomously</tspan><tspan data-lang="de">Autonom</tspan></text>
+            <text class="sf-sub" x="652" y="464"><tspan data-lang="en">no booking</tspan><tspan data-lang="de">keine Buchung</tspan></text>
+            <text class="sf-sub" x="652" y="482"><tspan data-lang="en">no reply</tspan><tspan data-lang="de">keine Antwort</tspan></text>
+          </g>
+        </svg>
+
+        <svg class="sg-tall" viewBox="0 0 360 776" role="img"
+             aria-label="A hostile request passes the executor caps into one claude -p turn whose working directory is the grounding dir. It may know the public grounding dir and its system prompt. It may run scoped tools by absolute path; intake goes to a fixed recipient and every outward action waits at a human gate. It never reaches the private tree, read-only shell binaries or host settings, and never messages a third party or acts on its own.">
+          <defs>
+            <marker id="sgArrT" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--accent-text)"/></marker>
+          </defs>
+          <g data-step="1">
+            <rect class="sf-box" x="70" y="8" width="220" height="48" rx="10"/>
+            <text class="sf-lbl" x="84" y="28"><tspan data-lang="en">Visitor request</tspan><tspan data-lang="de">Anfrage von außen</tspan></text>
+            <text class="sf-sub" x="84" y="46"><tspan data-lang="en">assumed hostile</tspan><tspan data-lang="de">gilt als feindlich</tspan></text>
+            <path class="sf-line" d="M180 56 V66" marker-end="url(#sgArrT)"/>
+            <rect class="sf-box" x="50" y="72" width="260" height="50" rx="10"/>
+            <text class="sf-lbl" x="64" y="92"><tspan data-lang="en">Executor caps</tspan><tspan data-lang="de">Executor-Caps</tspan></text>
+            <text class="sf-sub" x="64" y="110">max_concurrency · max_turns</text>
+            <path class="sf-line" d="M180 122 V132" marker-end="url(#sgArrT)"/>
+            <rect class="sf-box hi" x="30" y="138" width="300" height="70" rx="10"/>
+            <text class="sf-lbl" x="46" y="160"><tspan data-lang="en">One turn</tspan><tspan data-lang="de">Ein Turn</tspan> <tspan class="sf-mono" dx="4">claude -p</tspan></text>
+            <text class="sf-mono" x="46" y="180">cwd = grounding_dir</text>
+            <text class="sf-sub" x="46" y="197">--setting-sources project</text>
+          </g>
+          <g data-step="2">
+            <text class="sf-sub ag-cap" x="12" y="232"><tspan data-lang="en">MAY KNOW · READ</tspan><tspan data-lang="de">DARF WISSEN · LESEN</tspan></text>
+            <rect class="sf-box" x="12" y="242" width="164" height="64" rx="10"/>
+            <text class="sf-mono" x="24" y="264">grounding_dir/</text>
+            <text class="sf-sub" x="24" y="282"><tspan data-lang="en">public content</tspan><tspan data-lang="de">öffentlicher Inhalt</tspan></text>
+            <text class="sf-sub" x="24" y="298">Read · Glob · Grep</text>
+            <rect class="sf-box" x="184" y="242" width="164" height="64" rx="10"/>
+            <text class="sf-mono" x="196" y="264">system-prompt.md</text>
+            <text class="sf-sub" x="196" y="282">inline_grounding</text>
+          </g>
+          <g data-step="3">
+            <text class="sf-sub ag-cap" x="12" y="334"><tspan data-lang="en">MAY DO · WRITE</tspan><tspan data-lang="de">DARF TUN · SCHREIBEN</tspan></text>
+            <rect class="sf-box" x="12" y="344" width="164" height="64" rx="10"/>
+            <text class="sf-lbl" x="24" y="366"><tspan data-lang="en">Scoped tools</tspan><tspan data-lang="de">Skop. Werkzeuge</tspan></text>
+            <text class="sf-mono" x="24" y="384">${tools_dir}/…</text>
+            <text class="sf-sub" x="24" y="400"><tspan data-lang="en">absolute path only</tspan><tspan data-lang="de">nur absoluter Pfad</tspan></text>
+            <rect class="sf-box" x="184" y="344" width="164" height="64" rx="10"/>
+            <text class="sf-lbl" x="196" y="366">Intake</text>
+            <text class="sf-sub" x="196" y="384"><tspan data-lang="en">fixed recipient</tspan><tspan data-lang="de">fester Empfänger</tspan></text>
+            <text class="sf-mono" x="196" y="400">AGENT_NOTIFY_TO</text>
+            <path class="sf-line" d="M266 408 V420" marker-end="url(#sgArrT)"/>
+            <rect class="sf-box hi" x="184" y="426" width="164" height="50" rx="10"/>
+            <text class="sf-lbl" x="196" y="447"><tspan data-lang="en">Human gate</tspan><tspan data-lang="de">Menschliches Gate</tspan></text>
+            <text class="sf-sub" x="196" y="465"><tspan data-lang="en">every outward action</tspan><tspan data-lang="de">jede Aktion nach außen</tspan></text>
+          </g>
+          <g data-step="4">
+            <path class="sf-line soft" d="M4 496 H356"/>
+            <text class="sf-sub ag-cap" x="12" y="520"><tspan data-lang="en">NEVER REACHES</tspan><tspan data-lang="de">ERREICHT NIE</tspan></text>
+            <rect class="sf-box no" x="12" y="530" width="336" height="40" rx="10"/>
+            <text class="ag-x" x="30" y="555" text-anchor="middle">✕</text>
+            <text class="sf-lbl" x="46" y="555"><tspan data-lang="en">Private tree</tspan><tspan data-lang="de">Privater Baum</tspan></text>
+            <text class="sf-sub" x="176" y="555">identity/ · work/</text>
+            <rect class="sf-box no" x="12" y="578" width="336" height="40" rx="10"/>
+            <text class="ag-x" x="30" y="603" text-anchor="middle">✕</text>
+            <text class="sf-lbl" x="46" y="603"><tspan data-lang="en">Read-only shell</tspan><tspan data-lang="de">Read-only-Shell</tspan></text>
+            <text class="sf-sub" x="176" y="603">cat · security · git</text>
+            <rect class="sf-box no" x="12" y="626" width="336" height="40" rx="10"/>
+            <text class="ag-x" x="30" y="651" text-anchor="middle">✕</text>
+            <text class="sf-lbl" x="46" y="651"><tspan data-lang="en">Host settings</tspan><tspan data-lang="de">Host-Settings</tspan></text>
+            <text class="sf-sub" x="176" y="651"><tspan data-lang="en">~/.claude hooks</tspan><tspan data-lang="de">~/.claude-Hooks</tspan></text>
+          </g>
+          <g data-step="5">
+            <text class="sf-sub ag-cap" x="12" y="694"><tspan data-lang="en">NEVER DOES</tspan><tspan data-lang="de">TUT NIE</tspan></text>
+            <rect class="sf-box no" x="12" y="704" width="164" height="62" rx="10"/>
+            <text class="ag-x" x="160" y="726" text-anchor="middle">✕</text>
+            <text class="sf-lbl" x="24" y="726"><tspan data-lang="en">Third party</tspan><tspan data-lang="de">An Dritte</tspan></text>
+            <text class="sf-sub" x="24" y="746"><tspan data-lang="en">no --to flag</tspan><tspan data-lang="de">kein --to-Flag</tspan></text>
+            <rect class="sf-box no" x="184" y="704" width="164" height="62" rx="10"/>
+            <text class="ag-x" x="332" y="726" text-anchor="middle">✕</text>
+            <text class="sf-lbl" x="196" y="726"><tspan data-lang="en">Autonomously</tspan><tspan data-lang="de">Autonom</tspan></text>
+            <text class="sf-sub" x="196" y="746"><tspan data-lang="en">no booking, no reply</tspan><tspan data-lang="de">bucht, antwortet nie</tspan></text>
+          </g>
+        </svg>
+
+        <ol class="steps-legend">
+          <li data-step="1"><b>1</b><span data-lang="en">A request, assumed hostile, passes the caps into one turn</span><span data-lang="de">Eine Anfrage, als feindlich angenommen, passiert die Caps in einen Turn</span></li>
+          <li data-step="2"><b>2</b><span data-lang="en">May know: grounding dir and prompt, read-only</span><span data-lang="de">Darf wissen: Grounding-Verzeichnis und Prompt, nur lesend</span></li>
+          <li data-step="3"><b>3</b><span data-lang="en">May do: scoped tools, intake to a fixed recipient, then a human gate</span><span data-lang="de">Darf tun: skopierte Werkzeuge, Intake an festen Empfänger, dann ein menschliches Gate</span></li>
+          <li data-step="4"><b>4</b><span data-lang="en">Never reaches: private tree, shell readers, host settings</span><span data-lang="de">Erreicht nie: privaten Baum, Shell-Leser, Host-Settings</span></li>
+          <li data-step="5"><b>5</b><span data-lang="en">Never does: message a third party, book or reply on its own</span><span data-lang="de">Tut nie: Dritte anschreiben, selbst buchen oder antworten</span></li>
+        </ol>
+      </figure>
+      <div class="uses" data-reveal="stagger">
 
         <div class="use flagship">
+          <div class="use-h">
           <div class="n">01</div>
           <h3 data-lang="en">Read-confinement: cwd = grounding_dir</h3>
           <h3 data-lang="de">Lese-Begrenzung: cwd = grounding_dir</h3>
+          </div>
+          <div class="use-b">
           <p data-lang="en">The single most important control. The subprocess runs with its <strong>working directory set to the grounding dir</strong>: the folder of <em>public</em> content the agent may know. That cwd confines the read-only file tools (<code>Read</code>, <code>Glob</code>, <code>Grep</code>) to public content: they cannot reach the bridge's private tree. Scoped instance tools still resolve because they are invoked by absolute path, not relative to cwd.</p>
           <p data-lang="de">Die wichtigste einzelne Kontrolle. Der Subprozess läuft mit seinem <strong>Arbeitsverzeichnis auf das Grounding-Verzeichnis gesetzt</strong>, den Ordner mit dem <em>öffentlichen</em> Inhalt, den der Agent kennen darf. Dieses cwd begrenzt die Nur-Lese-Dateiwerkzeuge (<code>Read</code>, <code>Glob</code>, <code>Grep</code>) auf öffentlichen Inhalt: den privaten Baum der Bridge erreichen sie nicht. Skopierte Instanz-Werkzeuge lösen dennoch auf, weil sie per absolutem Pfad aufgerufen werden, nicht relativ zum cwd.</p>
+          </div>
         </div>
 
         <div class="use">
@@ -661,7 +1143,7 @@ html.dark .code{background:var(--code-bg)}
         </div>
 
       </div>
-      <div class="note reveal" style="margin-top:34px">
+      <div class="note" data-reveal>
         <div class="k" data-lang="en">The named real fix: an OS sandbox</div>
         <div class="k" data-lang="de">Der benannte echte Fix: eine OS-Sandbox</div>
         <p data-lang="en">The layers above are defense-in-depth; the <strong>real</strong> fix for read-confinement is an OS sandbox that confines reads to the grounding dir and blocks network and secret-store access with the mechanism the host supports: a container as an unprivileged user on Linux, or a <code>sandbox-exec</code> profile / dedicated low-privilege user on the host OS. Name it as the goal; the denylist buys time until it is in place.</p>
@@ -671,19 +1153,21 @@ html.dark .code{background:var(--code-bg)}
   </section>
 
   <!-- ---- honest limits ---- -->
-  <section class="alt" id="limits" style="padding-block:72px">
+  <section class="alt sec" id="limits">
     <div class="container">
-      <div class="grp reveal">
-        <p class="eyebrow" data-lang="en">Honest limits</p>
-        <p class="eyebrow" data-lang="de">Ehrliche Grenzen</p>
-        <h2 class="h2" data-lang="en">What it does not promise</h2>
-        <h2 class="h2" data-lang="de">Was es nicht verspricht</h2>
-      </div>
-      <div class="block reveal">
-        <p data-lang="en">The feature is built carefully, and it is documented just as carefully. Three limits to know before you lean on it:</p>
-        <p data-lang="de">Das Feature ist sorgfältig gebaut und ebenso sorgfältig dokumentiert. Drei Grenzen, die man kennen sollte, bevor man sich darauf verlässt:</p>
-      </div>
-      <div class="limits reveal">
+      <header class="sh" data-reveal>
+        <div class="sh-t">
+          <p class="eyebrow" data-lang="en">Honest limits</p>
+          <p class="eyebrow" data-lang="de">Ehrliche Grenzen</p>
+          <h2 class="h2" data-lang="en">What it does not promise</h2>
+          <h2 class="h2" data-lang="de">Was es nicht verspricht</h2>
+        </div>
+        <div class="sh-i">
+          <p data-lang="en">The feature is built carefully, and it is documented just as carefully. Three limits to know before you lean on it:</p>
+          <p data-lang="de">Das Feature ist sorgfältig gebaut und ebenso sorgfältig dokumentiert. Drei Grenzen, die man kennen sollte, bevor man sich darauf verlässt:</p>
+        </div>
+      </header>
+      <div class="limits" data-reveal="stagger">
         <div class="limit">
           <h4 data-lang="en">It is not autonomous</h4>
           <h4 data-lang="de">Er ist nicht autonom</h4>
@@ -707,21 +1191,24 @@ html.dark .code{background:var(--code-bg)}
   </section>
 
   <!-- ---- pointers ---- -->
-  <section style="padding-block:64px 88px">
+  <section class="sec">
     <div class="container">
-      <div class="grp reveal">
+      <header class="sh" data-reveal>
+        <div class="sh-t">
         <p class="eyebrow" data-lang="en">Go deeper</p>
         <p class="eyebrow" data-lang="de">Tiefer einsteigen</p>
         <h2 class="h2" data-lang="en">Read next</h2>
         <h2 class="h2" data-lang="de">Weiterlesen</h2>
-      </div>
-      <div class="pointers reveal">
+        </div>
+      </header>
+      <div class="pointers" data-reveal="stagger">
         <a href="https://github.com/bks-lab/open-bridge/blob/main/agents/README.md" target="_blank" rel="noopener"><span data-lang="en">Runtime overview (agents/README.md)</span><span data-lang="de">Runtime-Überblick (agents/README.md)</span></a>
         <a href="https://github.com/bks-lab/open-bridge/blob/main/docs/representative-agent.md" target="_blank" rel="noopener"><span data-lang="en">Representative-agent guide</span><span data-lang="de">Representative-Agent-Guide</span></a>
         <a href="https://github.com/bks-lab/open-bridge/tree/main/agents" target="_blank" rel="noopener"><span data-lang="en">The agents/ runtime &amp; template</span><span data-lang="de">Der agents/-Runtime &amp; das Template</span></a>
         <a href="https://github.com/bks-lab/open-bridge/tree/main/agents/_gateway" target="_blank" rel="noopener"><span data-lang="en">MCP→A2A gateway (agents/_gateway/README.md)</span><span data-lang="de">MCP→A2A-Gateway (agents/_gateway/README.md)</span></a>
+        <a href="concepts.html"><span data-lang="en">The concept guide</span><span data-lang="de">Der Konzept-Guide</span></a>
       </div>
-      <div class="pointers-sub reveal">
+      <div class="pointers-sub" data-reveal>
         <span class="lab" data-lang="en">Issues</span><span class="lab" data-lang="de">Issues</span>
         <a href="https://github.com/bks-lab/open-bridge/pull/93" target="_blank" rel="noopener">PR #93</a>
         <a href="https://github.com/bks-lab/open-bridge/issues/47" target="_blank" rel="noopener">#47</a>
@@ -729,12 +1216,16 @@ html.dark .code{background:var(--code-bg)}
         <a href="https://github.com/bks-lab/open-bridge/issues/124" target="_blank" rel="noopener">#124</a>
         <a href="https://github.com/bks-lab/open-bridge/pull/125" target="_blank" rel="noopener">PR #125</a>
       </div>
-      <div class="prose" style="margin-top:44px;text-align:center">
-        <a class="btn btn-primary" href="concepts.html"><span data-lang="en">Read the concept guide</span><span data-lang="de">Den Konzept-Guide lesen</span> <span class="arrow">→</span></a>
-        <a class="btn btn-secondary" href="index.html#get-started" style="margin-left:10px"><span data-lang="en">Set up your own</span><span data-lang="de">Eigene Bridge einrichten</span> <span class="arrow">→</span></a>
-      </div>
     </div>
   </section>
+
+  <!-- ---- end-of-page: the shared install band (brand.css .cta-band) ---- -->
+  <section class="cta-band"><div class="container">
+    <p class="eyebrow"><span data-lang="en">Get started</span><span data-lang="de">Loslegen</span></p>
+    <h2><span data-lang="en">One prompt. Your own private bridge.</span><span data-lang="de">Ein Prompt. Deine eigene, private Bridge.</span></h2>
+    <p><span data-lang="en">Paste it into Claude Code, Codex or Copilot CLI. Your agent follows SETUP.md, shows you its plan and waits for your go.</span><span data-lang="de">Kopier ihn in Claude Code, Codex oder Copilot CLI. Dein Agent folgt SETUP.md, zeigt dir seinen Plan und wartet auf dein Go.</span></p>
+    <div class="cta-row"><a class="btn btn-primary" href="index.html#get-started"><span data-lang="en">Get the prompt</span><span data-lang="de">Zum Prompt</span> <span class="arrow">→</span></a><a class="btn btn-secondary" href="demo.html"><span data-lang="en">See it work</span><span data-lang="de">Sieh es arbeiten</span></a></div>
+  </div></section>
 
 </main>
 <!-- ========================== END PAGE CONTENT ============================== -->
@@ -888,5 +1379,7 @@ html.dark .code{background:var(--code-bg)}
 <!-- A2A chat widget: the Bridge-Agents page fronts a Bridge-Agent (dogfooding). -->
 <script defer src="assets/agent-config.js"></script>
 <script defer src="assets/agent-widget.js"></script>
+<script defer src="assets/diagram-steps.js"></script>
+<script defer src="assets/page-motion.js"></script>
 </body>
 </html>

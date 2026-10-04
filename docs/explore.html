@@ -81,25 +81,81 @@
   --viz-core:#22d3ee;     /* cyan, CORE: the half that ships */
   --viz-user:#fbbf24;     /* amber, USER: the half that is yours */
 }
+/* Light mode: the same seven hues, darkened until a small label in that colour
+   still reads on the warm off-white stage. The bright set above is tuned for
+   near-black and washes out on paper. */
+html:not(.dark){
+  --g-foundation:#4338ca;
+  --g-method:#0e7490;
+  --g-behaviour:#b45309;
+  --g-identity:#be185d;
+  --g-infra:#15803d;
+  --g-scale:#c2410c;
+  --g-hub:#6d28d9;
+  --viz-core:#0e7490;
+  --viz-user:#b45309;
+}
 
-/* Intro */
-.explore-intro{padding-block:48px 8px}
+/* Intro: the shared .page-hero (dotted frame, word rise) with the copy on the
+   left and a three-step "how to read the map" guide on the right from 1100px. */
+.explore-intro{padding-block:64px 28px}
 .explore-intro .eyebrow{margin-bottom:10px}
-.explore-intro .lead{font-size:18px;font-weight:300;max-width:46rem;margin-top:14px}
+.explore-intro .lead{font-size:18px;font-weight:300;max-width:40rem;margin-top:14px}
 .explore-intro .lead b{font-weight:500;color:var(--primary)}
+.ex-hero{display:grid;gap:28px}
+.stage-wrap{scroll-margin-top:80px}
+.stage-head{margin-bottom:18px;max-width:44rem}
+.stage-head .eyebrow{margin-bottom:8px}
+.stage-head h2:focus{outline:none}
+.stage-head .sub{margin-top:8px;font-size:15px;line-height:1.6;color:var(--on-surface)}
+.ex-copy{min-width:0}
+.ex-what{margin-top:20px;max-width:40rem;font-size:14.5px;line-height:1.6;color:var(--on-surface);
+  border-left:2px solid var(--accent-text);padding:2px 0 2px 14px}
+.ex-what .k{display:block;font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-text);margin-bottom:2px}
+.ex-how{list-style:none;margin:0;padding:0;display:grid;gap:10px;min-width:0}
+.ex-how a{display:grid;grid-template-columns:28px 1fr;gap:4px 12px;align-items:start;text-decoration:none;color:inherit;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;
+  transition:border-color .2s ease,background .2s ease}
+.ex-how a:hover{border-color:var(--accent-text);background:var(--surface-subtle)}
+.ex-how a:focus-visible{outline:2px solid var(--accent-text);outline-offset:2px}
+.ex-how .n{grid-row:span 2;width:28px;height:28px;border-radius:9999px;display:grid;place-items:center;
+  font:600 12px var(--font-sans);color:var(--accent-text);border:1px solid var(--accent-text)}
+.ex-how .t{font-size:15px;font-weight:600;color:var(--ink);line-height:1.35}
+.ex-how .d{font-size:13.5px;line-height:1.55;color:var(--on-surface)}
+.ex-how .num{font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink)}
+/* phone: the map is replaced by the tappable list, so a guide to the map would point at nothing */
+@media (max-width:560px){.ex-how{display:none}}
+@media (min-width:700px) and (max-width:1099px){.ex-how{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (min-width:1100px){
+  .ex-hero{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:56px;align-items:center}
+}
 
-/* ---- The constellation stage: an immersive near-black viz panel that reads as
-   intentional in BOTH themes. Light mode: a deep slate that frames the graph;
-   dark mode: leans into the page's own near-black surface. Scoped so it never
-   bleeds into the rest of the page. ---- */
+/* ---- The two stages: the concept map and the CORE/USER anatomy, one after the
+   other. Dark mode is an immersive near-black viz panel; light mode is flat on
+   the page's own warm surface, no gradient, no shadow. Every colour the SVG and
+   the canvas use is a variable here, so the scripts follow the theme. ---- */
 .stage-wrap{padding-block:8px 64px}
+.stage-wrap + .stage-wrap{padding-top:16px}
 .stage{
   position:relative;
   --viz-bg-1:#0a0e1a; --viz-bg-2:#05070d;
   --viz-line:rgba(148,163,184,.16);
   --viz-line-dim:rgba(148,163,184,.05);
   --viz-fg:#e5e7eb; --viz-fg-dim:#94a3b8; --viz-fg-muted:#6E8099;
+  --viz-fg-strong:#ffffff;
   --viz-panel:rgba(15,20,33,.92); --viz-panel-border:rgba(148,163,184,.18);
+  --viz-lbl-halo:rgba(5,7,13,.85);
+  --viz-dot-stroke:rgba(255,255,255,.35);
+  --viz-kbd:rgba(148,163,184,.18);
+  --viz-detail-bg:linear-gradient(180deg,rgba(15,20,33,.55),rgba(7,11,20,.75));
+  --viz-chip:rgba(148,163,184,.12); --viz-chip-border:rgba(148,163,184,.18);
+  --viz-hover:rgba(129,140,248,.22);
+  --viz-learn-fg:#c7d2fe; --viz-learn-bg:rgba(129,140,248,.12);
+  --viz-learn-border:rgba(148,163,184,.28); --viz-learn-border-hover:rgba(129,140,248,.5);
+  --viz-ok-fg:#86efac; --viz-ok-bg:rgba(34,197,94,.14); --viz-ok-border:rgba(34,197,94,.3);
+  --viz-bet-fg:#fcd34d; --viz-bet-bg:rgba(251,191,36,.14); --viz-bet-border:rgba(251,191,36,.3);
+  /* canvas only: plain hex, the script mixes its own alpha into them */
+  --viz-canvas-chip:#0f1421; --viz-canvas-tip:#080c15;
   background:
     radial-gradient(ellipse 70% 60% at 50% 42%, rgba(129,140,248,.12) 0%, rgba(5,7,13,0) 62%),
     linear-gradient(180deg,var(--viz-bg-1),var(--viz-bg-2));
@@ -112,6 +168,29 @@ html.dark .stage{
   --viz-bg-1:#0c1322; --viz-bg-2:#070b14;
   border-color:var(--border);
 }
+html:not(.dark) .stage{
+  --viz-line:color-mix(in srgb, var(--muted) 38%, transparent);
+  --viz-line-dim:color-mix(in srgb, var(--line) 70%, transparent);
+  --viz-fg:var(--on-surface); --viz-fg-dim:var(--muted); --viz-fg-muted:var(--muted);
+  --viz-fg-strong:var(--ink);
+  --viz-panel:var(--surface-subtle); --viz-panel-border:var(--line);
+  --viz-lbl-halo:var(--surface);
+  --viz-dot-stroke:var(--surface);
+  --viz-kbd:var(--line);
+  --viz-detail-bg:var(--surface-subtle);
+  --viz-chip:var(--surface); --viz-chip-border:var(--line);
+  --viz-hover:var(--surface);
+  --viz-learn-fg:var(--accent-text); --viz-learn-bg:var(--surface);
+  --viz-learn-border:var(--line); --viz-learn-border-hover:var(--accent-text);
+  --viz-ok-fg:var(--ok-text); --viz-ok-bg:var(--surface); --viz-ok-border:var(--ok-text);
+  --viz-bet-fg:var(--g-behaviour); --viz-bet-bg:var(--surface); --viz-bet-border:var(--g-behaviour);
+  --viz-canvas-chip:var(--surface-subtle); --viz-canvas-tip:var(--surface-subtle);
+  background:var(--surface);
+  border-color:var(--line);
+  box-shadow:none;
+}
+html:not(.dark) .viz-legend,
+html:not(.dark) .viz-hint{backdrop-filter:none;-webkit-backdrop-filter:none}
 
 /* layout: graph + side panel side by side on wide, stacked on narrow */
 .stage-grid{display:grid;grid-template-columns:1fr 320px;min-height:560px}
@@ -136,16 +215,16 @@ html.dark .stage{
 .node .dot{transition:r .18s ease, fill-opacity .18s ease, stroke-width .18s ease}
 .node .lbl{
   fill:var(--viz-fg);font-family:var(--font-sans);font-size:12px;font-weight:500;
-  paint-order:stroke;stroke:rgba(5,7,13,.85);stroke-width:3px;stroke-linejoin:round;
+  paint-order:stroke;stroke:var(--viz-lbl-halo);stroke-width:3px;stroke-linejoin:round;
   transition:fill .18s ease,opacity .18s ease;
 }
 .node.dim .dot{fill-opacity:.28}
 .node.dim .lbl{opacity:.3}
-.node.lit .lbl{fill:#fff}
+.node.lit .lbl{fill:var(--viz-fg-strong)}
 .node.lit .halo{opacity:.9}
 .node.sel .halo{opacity:1}
 .node:focus-visible .ring{opacity:1}
-.node .ring{fill:none;stroke:#fff;stroke-width:2;opacity:0;stroke-dasharray:3 3}
+.node .ring{fill:none;stroke:var(--viz-fg-strong);stroke-width:2;opacity:0;stroke-dasharray:3 3}
 
 /* hub */
 .hub-dot{transition:r .2s ease}
@@ -156,7 +235,7 @@ html.dark .stage{
 @keyframes hubpulse{
   0%{r:34px;opacity:.5} 70%{opacity:0} 100%{r:64px;opacity:0}
 }
-.hub-lbl{fill:#fff;font-family:var(--font-sans);font-weight:600;font-size:14px;text-anchor:middle}
+.hub-lbl{fill:var(--viz-fg-strong);font-family:var(--font-sans);font-weight:600;font-size:14px;text-anchor:middle}
 .hub-sub{fill:var(--viz-fg-dim);font-family:var(--font-mono);font-size:9.5px;text-anchor:middle;letter-spacing:.06em}
 
 /* in-svg group legend (wide screens) */
@@ -173,32 +252,14 @@ html.dark .stage{
 .viz-legend .sw{width:10px;height:10px;border-radius:3px;flex:none}
 .viz-hint{position:absolute;right:14px;top:14px;z-index:3;font-size:11px;color:var(--viz-fg-muted);
   background:var(--viz-panel);border:1px solid var(--viz-panel-border);border-radius:var(--r-full);padding:5px 11px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
-.viz-hint kbd{font-family:var(--font-mono);font-size:10px;background:rgba(148,163,184,.18);border-radius:3px;padding:1px 5px;color:var(--viz-fg-dim)}
+.viz-hint kbd{font-family:var(--font-mono);font-size:10px;background:var(--viz-kbd);border-radius:3px;padding:1px 5px;color:var(--viz-fg-dim)}
 
-/* ---- View switch + CORE/USER anatomy ------------------------------------
-   A second view on the same stage: the concept constellation answers "what are
-   the pieces", the anatomy answers "what is actually in each half, and how much".
-   Both hues come from the palette declared above, no new colours: --viz-core
-   (cyan) is CORE and --viz-user (amber) is USER. ---- */
-.viz-tabs{
-  position:absolute;left:14px;top:14px;z-index:4;display:flex;gap:2px;
-  background:var(--viz-panel);border:1px solid var(--viz-panel-border);
-  border-radius:9px;padding:3px;backdrop-filter:blur(6px);
-}
-.viz-tabs button{
-  appearance:none;border:0;background:transparent;color:var(--viz-fg-dim);
-  font:500 11.5px var(--font-sans);letter-spacing:.02em;padding:5px 11px;
-  border-radius:6px;cursor:pointer;transition:background .18s ease,color .18s ease;
-}
-.viz-tabs button:hover{color:var(--viz-fg)}
-.viz-tabs button[aria-selected="true"]{background:rgba(148,163,184,.16);color:var(--viz-fg)}
-.viz-tabs button:focus-visible{outline:2px solid var(--g-hub);outline-offset:1px}
-
-.brain-wrap{display:none;position:relative;width:100%;min-height:660px}
-.graph-col.anatomy > .graph-svg{display:none}
-.graph-col.anatomy > .viz-legend,
-.graph-col.anatomy > .viz-hint{display:none}
-.graph-col.anatomy > .brain-wrap{display:block}
+/* ---- CORE/USER anatomy --------------------------------------------------
+   The second stage: the concept constellation answers "what are the pieces",
+   the anatomy answers "what is actually in each half, and how much". Both hues
+   come from the palette declared above, no new colours: --viz-core (cyan) is
+   CORE and --viz-user (amber) is USER. ---- */
+.brain-wrap{display:block;position:relative;width:100%;height:100%;min-height:660px}
 #brain{display:block;width:100%;height:100%;min-height:660px;cursor:grab;touch-action:pan-y}
 .brain-foot{
   position:absolute;left:16px;right:16px;bottom:12px;z-index:2;text-align:center;
@@ -229,7 +290,7 @@ html.dark .stage{
 /* ---- Detail side panel (the payoff: click → learn) ---- */
 .detail{
   border-left:1px solid var(--viz-panel-border);
-  background:linear-gradient(180deg,rgba(15,20,33,.55),rgba(7,11,20,.75));
+  background:var(--viz-detail-bg);
   padding:24px 22px;display:flex;flex-direction:column;gap:14px;color:var(--viz-fg);
   min-width:0;
 }
@@ -240,33 +301,36 @@ html.dark .stage{
 .detail .empty .big{display:block;font-size:15px;color:var(--viz-fg-dim);font-weight:500;margin-bottom:6px}
 .detail .d-group{display:inline-flex;align-items:center;gap:7px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--viz-fg-dim);font-weight:600}
 .detail .d-group .sw{width:9px;height:9px;border-radius:3px;flex:none}
-.detail h2{font-size:22px;font-weight:400;letter-spacing:-0.01em;color:#fff;margin:0;line-height:1.2}
+.detail h2{font-size:22px;font-weight:400;letter-spacing:-0.01em;color:var(--viz-fg-strong);margin:0;line-height:1.2}
 .detail .d-short{font-size:14.5px;line-height:1.62;color:var(--viz-fg)}
 .detail .d-status{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;letter-spacing:.04em;
   padding:3px 9px;border-radius:var(--r-full);width:max-content}
-.detail .d-status.proven{color:#86efac;background:rgba(34,197,94,.14);border:1px solid rgba(34,197,94,.3)}
-.detail .d-status.bet{color:#fcd34d;background:rgba(251,191,36,.14);border:1px solid rgba(251,191,36,.3)}
+.detail .d-status.proven{color:var(--viz-ok-fg);background:var(--viz-ok-bg);border:1px solid var(--viz-ok-border)}
+.detail .d-status.bet{color:var(--viz-bet-fg);background:var(--viz-bet-bg);border:1px solid var(--viz-bet-border)}
 .detail .d-learn{
   margin-top:auto;display:inline-flex;align-items:center;gap:8px;align-self:flex-start;
-  text-decoration:none;font-size:14px;font-weight:500;color:#c7d2fe;
-  padding:10px 16px;border-radius:var(--r-md);border:1px solid rgba(148,163,184,.28);
-  background:rgba(129,140,248,.12);transition:background .18s ease,border-color .18s ease,transform .18s ease;
+  text-decoration:none;font-size:14px;font-weight:500;color:var(--viz-learn-fg);
+  padding:10px 16px;border-radius:var(--r-md);border:1px solid var(--viz-learn-border);
+  background:var(--viz-learn-bg);transition:background .18s ease,border-color .18s ease,transform .18s ease;
 }
-.detail .d-learn:hover{background:rgba(129,140,248,.22);border-color:rgba(129,140,248,.5);transform:translateY(-1px)}
+.detail .d-learn:hover{background:var(--viz-hover);border-color:var(--viz-learn-border-hover);transform:translateY(-1px)}
 .detail .d-learn .arrow{transition:transform .18s ease}
 .detail .d-learn:hover .arrow{transform:translateX(3px)}
 .detail .d-rel{font-size:12px;color:var(--viz-fg-muted)}
 .detail .d-rel b{color:var(--viz-fg-dim);font-weight:600;display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em;font-size:10px}
-.detail .d-rel .rchip{display:inline-block;font-size:11.5px;color:var(--viz-fg-dim);background:rgba(148,163,184,.12);
-  border:1px solid rgba(148,163,184,.18);border-radius:var(--r-full);padding:3px 9px;margin:0 5px 5px 0;cursor:pointer;transition:color .15s ease,background .15s ease}
-.detail .d-rel .rchip:hover{color:#fff;background:rgba(129,140,248,.22)}
+.detail .d-rel .rchip{display:inline-block;font-size:11.5px;color:var(--viz-fg-dim);background:var(--viz-chip);
+  border:1px solid var(--viz-chip-border);border-radius:var(--r-full);padding:3px 9px;margin:0 5px 5px 0;cursor:pointer;transition:color .15s ease,background .15s ease}
+.detail .d-rel .rchip:hover{color:var(--viz-fg-strong);background:var(--viz-hover);border-color:var(--viz-learn-border-hover)}
 
 /* ---- Mobile fallback: a grouped, tappable list of concepts that still links to
    concepts.html#<id>. Shown only on narrow viewports where the SVG is too dense
    to tap reliably. The SVG stays for wider phones/tablets. ---- */
 .concept-list{display:none}
 @media (max-width:560px){
-  .stage-wrap .stage{display:none}
+  #stage{display:none}
+  /* the anatomy needs room for two headers and its labels; on a phone it is
+     left out, as it was when it sat behind a tab of the hidden stage */
+  #core-user{display:none}
   .concept-list{display:block;margin-top:8px}
 }
 .cl-group{margin-bottom:26px}
@@ -289,7 +353,7 @@ html.dark .stage{
 .cl-card .cl-go{font-size:12.5px;font-weight:500;color:var(--accent-text);margin-top:10px;display:inline-block}
 
 /* skip the dense intro padding on tiny screens */
-@media (max-width:560px){.explore-intro{padding-block:32px 0}.stage-wrap{padding-block:0 40px}}
+@media (max-width:560px){.explore-intro{padding-block:40px 20px}.stage-wrap{padding-block:0 40px}}
 </style>
 </head>
 <body>
@@ -334,28 +398,51 @@ html.dark .stage{
 <main>
 
   <!-- Intro -->
-  <div class="container explore-intro">
-    <div class="eyebrow"><span data-lang="en">Explore</span><span data-lang="de">Erkunden</span></div>
-    <h1 class="h1"><span data-lang="en">The pieces, on one map</span><span data-lang="de">Die Bausteine, auf einer Karte</span></h1>
-    <p class="lead">
-      <span data-lang="en">Every concept in BKS open-bridge orbits one idea: a <b>bridge</b>, plain files your agent reads. Click any node to learn what it does, then follow <b>Learn more</b> into the deep dive.</span>
-      <span data-lang="de">Jedes Konzept in BKS open-bridge kreist um eine Idee: eine <b>Bridge</b>, schlichte Dateien, die dein Agent liest. Klick auf einen Knoten, um zu erfahren, was er tut. <b>Mehr erfahren</b> führt dich zum ausführlichen Text.</span>
-    </p>
+  <div class="container page-hero explore-intro">
+    <div class="ex-hero">
+      <div class="ex-copy">
+        <div class="eyebrow"><span data-lang="en">Explore</span><span data-lang="de">Erkunden</span></div>
+        <h1 class="h1"><span data-lang="en">The pieces, on one map</span><span data-lang="de">Die Bausteine, auf einer Karte</span></h1>
+        <p class="lead">
+          <span data-lang="en">Every concept in BKS open-bridge orbits one idea: a <b>bridge</b>, plain files your agent reads. Click any node to learn what it does, then follow <b>Learn more</b> into the deep dive.</span>
+          <span data-lang="de">Jedes Konzept in BKS open-bridge kreist um eine Idee: eine <b>Bridge</b>, schlichte Dateien, die dein Agent liest. Klick auf einen Knoten, um zu erfahren, was er tut. <b>Mehr erfahren</b> führt dich zum ausführlichen Text.</span>
+        </p>
+        <p class="ex-what" data-reveal>
+          <span class="k"><span data-lang="en">What you are looking at</span><span data-lang="de">Was du hier siehst</span></span>
+          <span data-lang="en">One map, two views: how the concepts connect, and the CORE / USER split counted file by file.</span>
+          <span data-lang="de">Eine Karte, zwei Ansichten: wie die Konzepte zusammenhängen, und die Trennung von CORE und USER, Datei für Datei gezählt.</span>
+        </p>
+      </div>
+      <ol class="ex-how" data-reveal="stagger" aria-label="How to read the map">
+        <li><a href="#explore-map" data-view="concepts">
+          <span class="n" aria-hidden="true">1</span>
+          <span class="t"><span data-lang="en">Concepts</span><span data-lang="de">Konzepte</span></span>
+          <span class="d"><span data-lang="en">Click a node: a plain-language summary opens beside the map.</span><span data-lang="de">Klick auf einen Knoten: neben der Karte öffnet sich eine verständliche Zusammenfassung.</span></span>
+        </a></li>
+        <li><a href="#core-user" data-view="anatomy">
+          <span class="n" aria-hidden="true">2</span>
+          <span class="t">CORE / USER</span>
+          <span class="d"><span data-lang="en"><span class="num" data-count="985" data-fc="core">985</span> files ship, <span class="num" data-count="27" data-fc="user">27</span> are yours. One dot per tracked file.</span><span data-lang="de"><span class="num" data-count="985" data-fc="core">985</span> Dateien kommen mit, <span class="num" data-count="27" data-fc="user">27</span> sind deine. Ein Punkt je versionierter Datei.</span></span>
+        </a></li>
+        <li><a href="concepts.html">
+          <span class="n" aria-hidden="true">3</span>
+          <span class="t"><span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span></span>
+          <span class="d"><span data-lang="en">Every summary links into the full write-up on the Concepts page.</span><span data-lang="de">Jede Zusammenfassung führt zum vollständigen Text auf der Konzepte-Seite.</span></span>
+        </a></li>
+      </ol>
+    </div>
   </div>
 
-  <!-- Constellation stage -->
-  <div class="container stage-wrap">
-    <div class="stage" id="stage">
+  <!-- Stage 1: the concept constellation -->
+  <section class="container stage-wrap" id="explore-map" aria-labelledby="h-concepts">
+    <div class="stage-head">
+      <p class="eyebrow"><span data-lang="en">Concepts</span><span data-lang="de">Konzepte</span></p>
+      <h2 class="h2" id="h-concepts" tabindex="-1"><span data-lang="en">How the concepts connect</span><span data-lang="de">Wie die Konzepte zusammenhängen</span></h2>
+      <p class="sub"><span data-lang="en">Click a node: a plain-language summary opens beside the map.</span><span data-lang="de">Klick auf einen Knoten: neben der Karte öffnet sich eine verständliche Zusammenfassung.</span></p>
+    </div>
+    <div class="stage" id="stage" data-reveal>
       <div class="stage-grid">
         <div class="graph-col" id="graph-col">
-          <div class="viz-tabs" role="tablist" aria-label="Stage view">
-            <button type="button" id="tab-concepts" role="tab" aria-selected="true" aria-controls="graph">
-              <span data-lang="en">Concepts</span><span data-lang="de">Konzepte</span>
-            </button>
-            <button type="button" id="tab-anatomy" role="tab" aria-selected="false" aria-controls="brain-wrap">
-              <span data-lang="en">CORE / USER</span><span data-lang="de">CORE / USER</span>
-            </button>
-          </div>
           <svg class="graph-svg" id="graph" viewBox="-70 0 900 620" preserveAspectRatio="xMidYMid meet"
                role="application"
                aria-label="Interactive concept constellation. Use Tab to move between concepts, Enter to open a concept's summary.">
@@ -369,23 +456,6 @@ html.dark .stage{
           <div class="viz-hint" aria-hidden="true">
             <span data-lang="en">Click a node · <kbd>Tab</kbd>+<kbd>↵</kbd></span>
             <span data-lang="de">Knoten klicken · <kbd>Tab</kbd>+<kbd>↵</kbd></span>
-          </div>
-
-          <!-- CORE/USER anatomy: two halves of one bridge, one dot per tracked file.
-               Counted with git, never estimated:
-                 git ls-files | grep -v '^examples/' | wc -l   ->  794
-                 git ls-files examples/agency | wc -l          ->   27 -->
-          <div class="brain-wrap" id="brain-wrap">
-            <canvas id="brain" aria-hidden="true"></canvas>
-            <button type="button" class="brain-spin" id="brain-spin" aria-pressed="true">Pause</button>
-            <p class="brain-foot">
-              <span data-lang="en"><b>974 files ship. 27 are yours.</b> Each bright dot is one tracked file; the faint field is the body, not data. Drag to turn it.</span>
-              <span data-lang="de"><b>974 Dateien kommen mit, 27 sind deine.</b> Jeder helle Punkt ist eine versionierte Datei, das schwache Feld ist der Körper, keine Daten. Zum Drehen ziehen.</span>
-            </p>
-            <p class="brain-sr">
-              <span data-lang="en">Two halves of one bridge, side by side. The left half is CORE, everything open-bridge ships: 974 tracked files, one dot each, grouped by top level folder, with skills at 440 files and scripts at 151 the largest by far. The right half is USER, one instance of your own, here the shipped example in examples/agency: 27 files, one dot each. Six folder names appear in both halves and are joined across the middle: the repository root, identity, infra, workflow, protocols and work. On the CORE side each holds a template and a schema. On the USER side each holds files you name yourself, for example infra/channels/email.yaml. Use the folder list in the panel beside the figure to read each pair.</span>
-              <span data-lang="de">Zwei Hälften einer Bridge, nebeneinander. Die linke Hälfte ist CORE, alles was open-bridge mitliefert: 974 versionierte Dateien, je Datei ein Punkt, nach Ordner der obersten Ebene gruppiert, mit skills bei 440 Dateien und scripts bei 151 als mit Abstand größten. Die rechte Hälfte ist USER, eine eigene Instanz, hier das mitgelieferte Beispiel in examples/agency: 27 Dateien, je Datei ein Punkt. Sechs Ordnernamen kommen in beiden Hälften vor und sind über die Mitte verbunden: die Repo-Wurzel, identity, infra, workflow, protocols und work. Auf der CORE-Seite hält jeder eine Vorlage und ein Schema. Auf der USER-Seite hält jeder Dateien, die du selbst benennst, etwa infra/channels/email.yaml. Die Ordnerliste im Panel neben der Grafik führt jedes Paar auf.</span>
-            </p>
           </div>
         </div>
 
@@ -402,26 +472,63 @@ html.dark .stage{
     </div>
 
     <!-- Mobile fallback: grouped tappable list (injected). -->
-    <div class="concept-list" id="concept-list" aria-label="Concepts list"></div>
-  </div>
+    <div class="concept-list" id="concept-list" aria-label="Concepts list" data-reveal></div>
+  </section>
 
-  <!-- ---- end-of-page funnel CTA ---- -->
-  <section style="padding-block:64px 88px">
-    <div class="container" style="text-align:center">
-      <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
-        <a class="btn btn-primary" href="demo.html">
-          <span data-lang="en">See it work: the live demo</span>
-          <span data-lang="de">Sieh es arbeiten: die Live-Demo</span>
-          <span class="arrow">→</span>
-        </a>
-        <a class="btn btn-secondary" href="index.html#get-started">
-          <span data-lang="en">Set up your own</span>
-          <span data-lang="de">Eigene Bridge einrichten</span>
-          <span class="arrow">→</span>
-        </a>
+  <!-- Stage 2: the CORE/USER anatomy -->
+  <section class="container stage-wrap" id="core-user" aria-labelledby="h-core-user">
+    <div class="stage-head">
+      <p class="eyebrow">CORE / USER</p>
+      <h2 class="h2" id="h-core-user" tabindex="-1"><span data-lang="en">The CORE / USER split, counted file by file</span><span data-lang="de">Die Trennung von CORE und USER, Datei für Datei gezählt</span></h2>
+      <p class="sub"><span data-lang="en">One dot per tracked file. Hover a folder to see real files in it, drag to turn the body.</span><span data-lang="de">Ein Punkt je versionierter Datei. Fahr über einen Ordner, dann siehst du echte Dateien darin, Ziehen dreht den Körper.</span></p>
+    </div>
+    <div class="stage stage-anatomy" id="stage-anatomy" data-reveal>
+      <div class="stage-grid">
+        <div class="graph-col anatomy" id="anatomy-col">
+          <!-- CORE/USER anatomy: two halves of one bridge, one dot per tracked file.
+               Counted with git, never estimated:
+                 git ls-files | grep -v '^examples/' | wc -l   ->  794
+                 git ls-files examples/agency | wc -l          ->   27 -->
+          <div class="brain-wrap" id="brain-wrap">
+            <canvas id="brain" aria-hidden="true"></canvas>
+            <button type="button" class="brain-spin" id="brain-spin" aria-pressed="true">Pause</button>
+            <p class="brain-foot">
+              <span data-lang="en"><b>985 files ship. 27 are yours.</b> Each bright dot is one tracked file; the faint field is the body, not data. Drag to turn it.</span>
+              <span data-lang="de"><b>985 Dateien kommen mit, 27 sind deine.</b> Jeder helle Punkt ist eine versionierte Datei, das schwache Feld ist der Körper, keine Daten. Zum Drehen ziehen.</span>
+<script>
+/* The hero guide repeats the CORE/USER counts. check-figure-counts.py keeps the
+   caption above true to the git tree; the guide reads its numbers from that
+   caption, so the two can never drift apart. Runs before page-motion.js counts. */
+(function(){
+  var cap = document.body.innerHTML.match(/(\d+) files ship\. (\d+) are yours\./);
+  if(!cap) return;
+  document.querySelectorAll("[data-fc]").forEach(function(el){
+    var n = el.getAttribute("data-fc") === "core" ? cap[1] : cap[2];
+    el.setAttribute("data-count", n); el.textContent = n;
+  });
+})();
+</script>
+            </p>
+            <p class="brain-sr">
+              <span data-lang="en">Two halves of one bridge, side by side. The left half is CORE, everything open-bridge ships: 985 tracked files, one dot each, grouped by top level folder, with skills at 440 files and scripts at 151 the largest by far. The right half is USER, one instance of your own, here the shipped example in examples/agency: 27 files, one dot each. Six folder names appear in both halves and are joined across the middle: the repository root, identity, infra, workflow, protocols and work. On the CORE side each holds a template and a schema. On the USER side each holds files you name yourself, for example infra/channels/email.yaml. Use the folder list in the panel beside the figure to read each pair.</span>
+              <span data-lang="de">Zwei Hälften einer Bridge, nebeneinander. Die linke Hälfte ist CORE, alles was open-bridge mitliefert: 985 versionierte Dateien, je Datei ein Punkt, nach Ordner der obersten Ebene gruppiert, mit skills bei 440 Dateien und scripts bei 151 als mit Abstand größten. Die rechte Hälfte ist USER, eine eigene Instanz, hier das mitgelieferte Beispiel in examples/agency: 27 Dateien, je Datei ein Punkt. Sechs Ordnernamen kommen in beiden Hälften vor und sind über die Mitte verbunden: die Repo-Wurzel, identity, infra, workflow, protocols und work. Auf der CORE-Seite hält jeder eine Vorlage und ein Schema. Auf der USER-Seite hält jeder Dateien, die du selbst benennst, etwa infra/channels/email.yaml. Die Ordnerliste im Panel neben der Grafik führt jedes Paar auf.</span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Detail panel of the anatomy, filled by its script -->
+        <aside class="detail" id="detail-anatomy" aria-live="polite"></aside>
       </div>
     </div>
   </section>
+
+  <!-- ---- end-of-page: the shared install band (brand.css .cta-band) ---- -->
+  <section class="cta-band"><div class="container" data-reveal="stagger">
+    <p class="eyebrow"><span data-lang="en">Get started</span><span data-lang="de">Loslegen</span></p>
+    <h2><span data-lang="en">One prompt. Your own private bridge.</span><span data-lang="de">Ein Prompt. Deine eigene, private Bridge.</span></h2>
+    <p><span data-lang="en">Paste it into Claude Code, Codex or Copilot CLI. Your agent follows SETUP.md, shows you its plan and waits for your go.</span><span data-lang="de">Kopier ihn in Claude Code, Codex oder Copilot CLI. Dein Agent folgt SETUP.md, zeigt dir seinen Plan und wartet auf dein Go.</span></p>
+    <div class="cta-row"><a class="btn btn-primary" href="index.html#get-started"><span data-lang="en">Get the prompt</span><span data-lang="de">Zum Prompt</span> <span class="arrow">→</span></a><a class="btn btn-secondary" href="demo.html"><span data-lang="en">See it work</span><span data-lang="de">Sieh es arbeiten</span></a></div>
+  </div></section>
 
 </main>
 <!-- ========================== END PAGE CONTENT ============================== -->
@@ -745,7 +852,7 @@ html.dark .stage{
     g.setAttribute("aria-label", (c["label_"+L()]||c.label_en));
 
     var halo = mk("circle",{class:"halo", cx:p.x.toFixed(1), cy:p.y.toFixed(1), r:"16", fill:col, "fill-opacity":"0.18", stroke:col, "stroke-width":"1.5"});
-    var dot = mk("circle",{class:"dot", cx:p.x.toFixed(1), cy:p.y.toFixed(1), r: c.status==="bet" ? "7" : "8", fill:col, "fill-opacity":"0.92", stroke: c.status==="bet" ? col : "rgba(255,255,255,.35)", "stroke-width": c.status==="bet" ? "1.5" : "1", "stroke-dasharray": c.status==="bet" ? "2 2" : "0"});
+    var dot = mk("circle",{class:"dot", cx:p.x.toFixed(1), cy:p.y.toFixed(1), r: c.status==="bet" ? "7" : "8", fill:col, "fill-opacity":"0.92", stroke: c.status==="bet" ? col : "var(--viz-dot-stroke)", "stroke-width": c.status==="bet" ? "1.5" : "1", "stroke-dasharray": c.status==="bet" ? "2 2" : "0"});
     var ring = mk("circle",{class:"ring", cx:p.x.toFixed(1), cy:p.y.toFixed(1), r:"14"});
 
     // label placement: outside the dot, anchored by side of the graph.
@@ -1048,12 +1155,10 @@ html.dark .stage{
   var cv = document.getElementById("brain");
   if(!cv || !cv.getContext) return;
   var wrap   = document.getElementById("brain-wrap");
-  var col    = document.getElementById("graph-col");
-  var tabC   = document.getElementById("tab-concepts");
-  var tabA   = document.getElementById("tab-anatomy");
   var spinBtn= document.getElementById("brain-spin");
-  var detail = document.getElementById("detail");
-  if(!wrap || !col || !tabC || !tabA || !detail) return;
+  var detail = document.getElementById("detail-anatomy");
+  var conceptStage = document.getElementById("stage");
+  if(!wrap || !detail) return;
   var ctx = cv.getContext("2d");
   var root = document.documentElement;
   var reduceMQ = matchMedia("(prefers-reduced-motion: reduce)");
@@ -1063,11 +1168,11 @@ html.dark .stage{
   /* The six folders that exist on both sides, at mirrored coordinates.
      USER counts sum to 27, CORE counts to 166. */
   var PAIRS = [
-    { id:"root", n:"./", core:23, user:8, x:0.30, y:-0.30, z:0.14,
+    { id:"root", n:"./", core:24, user:8, x:0.30, y:-0.30, z:0.14,
       cex:["AGENTS.md","CLAUDE.md","GEMINI.md","README.md","bridge-config.yaml.template","ecosystem.example.yaml"], uex:["bridge-config.yaml","ecosystem.yaml","AGENTS.md",".claude/agents/ops-officer.md"],
       t_en:"The root", t_de:"Die Wurzel",
-      c_en:"23 files: AGENTS.md, CLAUDE.md, GEMINI.md, README.md, DESIGN.md, the licence, bridge-config.yaml.template and ecosystem.example.yaml. The manual and the two blank forms.",
-      c_de:"23 Dateien: AGENTS.md, CLAUDE.md, GEMINI.md, README.md, DESIGN.md, die Lizenz, bridge-config.yaml.template und ecosystem.example.yaml. Das Handbuch und die zwei leeren Formulare.",
+      c_en:"24 files: AGENTS.md, CLAUDE.md, GEMINI.md, README.md, DESIGN.md, the licence, bridge-config.yaml.template and ecosystem.example.yaml. The manual and the two blank forms.",
+      c_de:"24 Dateien: AGENTS.md, CLAUDE.md, GEMINI.md, README.md, DESIGN.md, die Lizenz, bridge-config.yaml.template und ecosystem.example.yaml. Das Handbuch und die zwei leeren Formulare.",
       u_en:"8 files: bridge-config.yaml and ecosystem.yaml, the two that describe your world, plus this instance's own AGENTS.md, CLAUDE.md and README.md. The three sub-agent definitions under .claude/agents/ are counted here too. Sub-agents are the one Claude Code specific piece in the whole system; everything else runs from AGENTS.md, which any tool reads.",
       u_de:"8 Dateien: bridge-config.yaml und ecosystem.yaml, die beiden, die deine Welt beschreiben, dazu die eigene AGENTS.md, CLAUDE.md und README.md dieser Instanz. Die drei Sub-Agenten unter .claude/agents/ zählen hier mit. Sub-Agenten sind das einzige Claude-Code-spezifische Stück im ganzen System, alles andere läuft über AGENTS.md, die jedes Werkzeug liest." },
     { id:"identity", n:"identity/", core:17, user:2, x:0.44, y:-0.16, z:0.26,
@@ -1116,10 +1221,10 @@ html.dark .stage{
       ex:["scripts/validate-bridge.py","scripts/gen-board.py","scripts/measure-context.py","scripts/check-figure-counts.py","scripts/categorize-commits.py"],
       d_en:"151 files. The validators and generators. They are what makes a claim in this repo checkable rather than asserted.",
       d_de:"151 Dateien. Die Prüfer und Generatoren. Sie sind der Grund, warum eine Behauptung in diesem Repo nachprüfbar ist statt behauptet." },
-    { id:"docs",     n:"docs/",     c:78,  x:-0.66, y:-0.18, z:0.14, key:1,
+    { id:"docs",     n:"docs/",     c:88,  x:-0.66, y:-0.18, z:0.14, key:1,
       ex:["docs/structure.md","docs/extension-model.md","docs/commands.md","docs/workloads.md","docs/memory.md"],
-      d_en:"78 files. The guides for humans, plus this site.",
-      d_de:"78 Dateien. Die Anleitungen für Menschen, dazu diese Website." },
+      d_en:"88 files. The guides for humans, plus this site.",
+      d_de:"88 Dateien. Die Anleitungen für Menschen, dazu diese Website." },
     { id:"agents",   n:"agents/",   c:51,  x:-0.34, y:-0.32, z:-0.10, key:1,
       ex:["agents/README.md","agents/_gateway/SPEC.md"],
       d_en:"51 files. The Bridge-Agent runtime: persistent endpoints that front a persona to peer bridges, always behind a human gate.",
@@ -1197,10 +1302,12 @@ html.dark .stage{
   for(var si=0; si<1024; si++) SIN[si] = Math.sin(si/1024*6.283185307);
   var clock = 0, breathe = 1;
 
+  /* clientWidth, not getBoundingClientRect: the stage rises in with a
+     transform, and a box measured mid transition would size the canvas wrong. */
   function measure(){
-    var r = wrap.getBoundingClientRect();
-    if(!r.width || !r.height) return false;
-    W=r.width; H=r.height; DPR=Math.min(devicePixelRatio||1, 2);
+    var w = wrap.clientWidth, h = wrap.clientHeight;
+    if(!w || !h) return false;
+    W=w; H=h; DPR=Math.min(devicePixelRatio||1, 2);
     cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR);
     S=Math.min(W/2.30, H/1.96); CX=W/2; CY=H*0.45;
     return true;
@@ -1271,8 +1378,16 @@ html.dark .stage{
     return [CX + x1*S*persp, CY + y2*S*persp, persp, z2];
   }
 
+  /* Every colour comes from a CSS variable on the stage, read per frame, so a
+     theme flip is one redraw. Accepts #rgb, #rrggbb and rgb()/rgba(). */
   function hexa(h, a){
-    h=(h||"").replace("#","");
+    h=(h||"").trim();
+    var m = /^rgba?\(([^)]+)\)/i.exec(h);
+    if(m){
+      var c = m[1].split(/[ ,\/]+/).filter(Boolean);
+      return "rgba("+(+c[0]|0)+","+(+c[1]|0)+","+(+c[2]|0)+","+a+")";
+    }
+    h=h.replace("#","");
     if(h.length===3) h=h.replace(/./g,"$&$&");
     var n=parseInt(h||"888888",16);
     return "rgba("+((n>>16)&255)+","+((n>>8)&255)+","+(n&255)+","+a+")";
@@ -1283,7 +1398,17 @@ html.dark .stage{
     if(!P) build();
     orient();
     var CORECOL=tok("--viz-core"), USERCOL=tok("--viz-user"),
-        FG=tok("--viz-fg"), DIM=tok("--viz-fg-dim"), PANEL=tok("--viz-panel");
+        FG=tok("--viz-fg"), DIM=tok("--viz-fg-dim"),
+        CHIP=tok("--viz-canvas-chip"), TIP=tok("--viz-canvas-tip"),
+        LINE=tok("--viz-panel-border");
+    /* Dark adds light ("lighter"), so overlapping dots glow. On a light
+       surface that would bleach to white, so there the dots lay ink instead:
+       plain source-over, with alphas tuned for paper. */
+    var DARK = root.classList.contains("dark");
+    var ADD = DARK ? "lighter" : "source-over";
+    var A = DARK
+      ? { wash:0.20, bc:0.115, bu:0.175, seam:0.18, gc:0.075, gu:0.15, arc:0.17, ico:0.55, hub:0.10 }
+      : { wash:0.08, bc:0.16,  bu:0.22,  seam:0.16, gc:0.07,  gu:0.12, arc:0.30, ico:0.70, hub:0.08 };
     ctx.setTransform(DPR,0,0,DPR,0,0);
     ctx.clearRect(0,0,W,H);
     var small = W < 620, i, p, q, k;
@@ -1294,9 +1419,9 @@ html.dark .stage{
        hundred cannot hold that side of the picture on their own. */
     var hc = project(0.46, 0, 0);
     var halo = ctx.createRadialGradient(hc[0], hc[1], 0, hc[0], hc[1], S*1.05);
-    halo.addColorStop(0, hexa(USERCOL, 0.20));
+    halo.addColorStop(0, hexa(USERCOL, A.wash));
     halo.addColorStop(1, hexa(USERCOL, 0));
-    ctx.globalCompositeOperation = "lighter";
+    ctx.globalCompositeOperation = ADD;
     ctx.fillStyle = halo; ctx.fillRect(0, 0, W, H);
     ctx.globalCompositeOperation = "source-over";
 
@@ -1335,13 +1460,13 @@ html.dark .stage{
         k.moveTo(q[0]+kr, q[1]); k.arc(q[0], q[1], kr, 0, 6.283185307);
       }
     }
-    ctx.globalCompositeOperation = "lighter";
-    ctx.fillStyle = hexa(CORECOL, 0.115); for(b=0;b<NB;b++) ctx.fill(bodyC[b]);
-    ctx.fillStyle = hexa(USERCOL, 0.175); for(b=0;b<NB;b++) ctx.fill(bodyU[b]);
-    ctx.fillStyle = hexa(FG, 0.18);       ctx.fill(bodySeam[0]); ctx.fill(bodySeam[1]);
+    ctx.globalCompositeOperation = ADD;
+    ctx.fillStyle = hexa(CORECOL, A.bc); for(b=0;b<NB;b++) ctx.fill(bodyC[b]);
+    ctx.fillStyle = hexa(USERCOL, A.bu); for(b=0;b<NB;b++) ctx.fill(bodyU[b]);
+    ctx.fillStyle = hexa(FG, A.seam);    ctx.fill(bodySeam[0]); ctx.fill(bodySeam[1]);
 
-    ctx.fillStyle=hexa(CORECOL,0.075); ctx.fill(glow.c);
-    ctx.fillStyle=hexa(USERCOL,0.15);  ctx.fill(glow.u);
+    ctx.fillStyle=hexa(CORECOL,A.gc); ctx.fill(glow.c);
+    ctx.fillStyle=hexa(USERCOL,A.gu); ctx.fill(glow.u);
     ctx.fillStyle=hexa(CORECOL,0.95);  ctx.fill(core.c);
     ctx.fillStyle=hexa(USERCOL,1);     ctx.fill(core.u);
     if(focusId){
@@ -1357,13 +1482,13 @@ html.dark .stage{
        to amber where a template becomes your file, amber to cyan where a
        scope:core change goes back upstream with /bridge-promote. Three arcs each way:
        the traffic is two directional and so is the model. */
-    ctx.globalCompositeOperation = "lighter";
+    ctx.globalCompositeOperation = ADD;
     for(i=0;i<PAIRS.length;i++){
       var pr = PAIRS[i], back = (i % 2) === 1;
       var a0x = back ? pr.x : -pr.x, a1x = back ? -pr.x : pr.x;
       var cpx = 0, cpy = pr.y*0.30, cpz = pr.z*0.30 + 0.06;
       var seg = 22, prev = null, u, bx2, by2, bz2, sp2;
-      ctx.strokeStyle = hexa(FG, 0.17); ctx.lineWidth = 1;
+      ctx.strokeStyle = hexa(FG, A.arc); ctx.lineWidth = 1;
       ctx.beginPath();
       for(k=0;k<=seg;k++){
         u = k/seg;
@@ -1400,8 +1525,8 @@ html.dark .stage{
       var v=ICO.v[i], cs=Math.cos(spin), sn=Math.sin(spin);
       vp.push(project(v[0]*cs+v[2]*sn, v[1], -v[0]*sn+v[2]*cs));
     }
-    ctx.globalCompositeOperation = "lighter";
-    ctx.strokeStyle=hexa(FG,0.55); ctx.lineWidth=1;
+    ctx.globalCompositeOperation = ADD;
+    ctx.strokeStyle=hexa(FG,A.ico); ctx.lineWidth=1;
     ctx.beginPath();
     for(i=0;i<ICO.e.length;i++){
       k2=ICO.e[i];
@@ -1409,7 +1534,7 @@ html.dark .stage{
     }
     ctx.stroke();
     var c0=project(0,0,0);
-    ctx.fillStyle=hexa(FG,0.10);
+    ctx.fillStyle=hexa(FG,A.hub);
     ctx.beginPath(); ctx.arc(c0[0], c0[1], 22*c0[2], 0, 6.283185307); ctx.fill();
     ctx.fillStyle=hexa(FG,0.9);
     ctx.beginPath(); ctx.arc(c0[0], c0[1], 3.2*c0[2], 0, 6.283185307); ctx.fill();
@@ -1462,12 +1587,13 @@ html.dark .stage{
       var depth = Math.max(0.35, Math.min(1, (c.sc - 0.72)/0.5));
       var on = (picked === c.id) || (hoverId === c.id && hoverSide === c.side);
       ctx.globalAlpha = on ? 1 : 0.5 + depth*0.45;
-      ctx.fillStyle = hexa("0f1421", on ? 0.94 : 0.78);
+      ctx.fillStyle = hexa(CHIP, on ? 0.94 : (DARK ? 0.78 : 0.86));
       ctx.beginPath();
       var rr = 5;
       ctx.moveTo(bx+rr,by); ctx.arcTo(bx+c.w,by,bx+c.w,by+c.h,rr); ctx.arcTo(bx+c.w,by+c.h,bx,by+c.h,rr);
       ctx.arcTo(bx,by+c.h,bx,by,rr); ctx.arcTo(bx,by,bx+c.w,by,rr); ctx.closePath(); ctx.fill();
       if(on){ ctx.strokeStyle = hexa(c.colour,0.9); ctx.lineWidth = 1; ctx.stroke(); }
+      else if(!DARK){ ctx.strokeStyle = LINE; ctx.lineWidth = 1; ctx.stroke(); }
       // a hair line back to the cluster it names, so a pushed chip still points home
       if(Math.abs(by - (c.sy - fs)) > 2){
         ctx.strokeStyle = hexa(c.colour, 0.28); ctx.lineWidth = 1;
@@ -1479,10 +1605,10 @@ html.dark .stage{
       hits.push({ id:c.id, name:c.name, side:c.side, ex:c.ex, colour:c.colour, x:bx, y:by, w:c.w, h:c.h, d:c.z });
     }
 
-    // the two headers, in the bottom corners, clear of the view tabs above
+    // the two headers, in the bottom corners, clear of the controls above
     var hy = H - fs*2 - 54;
     ctx.textAlign="left"; ctx.fillStyle=CORECOL; ctx.fillText("main (CORE)", 14, hy);
-    ctx.fillStyle=DIM; ctx.fillText(L()==="de" ? "974 Dateien, alle mitgeliefert" : "974 files, all shipped", 14, hy+fs+4);
+    ctx.fillStyle=DIM; ctx.fillText(L()==="de" ? "985 Dateien, alle mitgeliefert" : "985 files, all shipped", 14, hy+fs+4);
     ctx.textAlign="right"; ctx.fillStyle=USERCOL; ctx.fillText("user/<you>", W-14, hy);
     ctx.fillStyle=DIM; ctx.fillText(L()==="de" ? "27 Dateien, alle deine" : "27 files, all yours", W-14, hy+fs+4);
 
@@ -1507,7 +1633,7 @@ html.dark .stage{
         if(ty + th > H-8) ty = H - 8 - th;
         if(ty < 8) ty = 8;
         ctx.globalAlpha = 1;
-        ctx.fillStyle = hexa("080c15", 0.95);
+        ctx.fillStyle = hexa(TIP, 0.95);
         ctx.beginPath();
         var q3 = 8;
         ctx.moveTo(tx+q3,ty); ctx.arcTo(tx+tw2,ty,tx+tw2,ty+th,q3); ctx.arcTo(tx+tw2,ty+th,tx,ty+th,q3);
@@ -1575,7 +1701,7 @@ html.dark .stage{
   }
   function start(){
     stop();
-    if(!measure()){ requestAnimationFrame(start); return; }
+    if(!measure()) return;          // hidden: the ResizeObserver calls again once it has a size
     draw(); play();
   }
 
@@ -1604,7 +1730,9 @@ html.dark .stage{
     if(hoverId){ hoverId = null; hoverSide = 0; if(!raf) draw(); }
   });
   addEventListener("keydown", function(e){
-    if(!active || e.key !== "Escape") return;
+    if(e.key !== "Escape" || (!picked && !hoverId)) return;
+    /* Escape inside the concept map belongs to the concept map */
+    if(conceptStage && conceptStage.contains(document.activeElement)) return;
     picked = null; pickedSide = 0; hoverId = null; hoverSide = 0; emptyPanel(); if(!raf) draw();
   });
   cv.addEventListener("pointerup", up);
@@ -1664,49 +1792,70 @@ html.dark .stage{
     else { picked=null; pickedSide=0; emptyPanel(); draw(); }
   });
 
-  function setView(anatomy){
-    active = anatomy;
-    col.classList.toggle("anatomy", anatomy);
-    tabA.setAttribute("aria-selected", anatomy ? "true" : "false");
-    tabC.setAttribute("aria-selected", anatomy ? "false" : "true");
-    if(anatomy){
-      /* Park the constellation's own panel as NODES, not markup: that script
-         wires click handlers onto its related chips, and restoring an innerHTML
-         string would hand back dead chips. Detached nodes keep their listeners. */
-      if(parked === null) parked = Array.prototype.slice.call(detail.childNodes);
-      picked = null; pickedSide = 0; hoverId = null; emptyPanel(); syncSpin(); start();
-    } else {
-      stop();
-      detail.innerHTML = "";
-      if(parked){ for(var i=0;i<parked.length;i++) detail.appendChild(parked[i]); parked = null; }
-    }
-  }
-  tabA.addEventListener("click", function(){ setView(true); if(history.replaceState) history.replaceState(null,"","#core-user"); });
-  tabC.addEventListener("click", function(){ setView(false); if(history.replaceState) history.replaceState(null,"",location.pathname); });
+  /* Both stages stand on the page at once now, so the anatomy owns its own
+     panel and is live from the start. It sizes itself whenever its box has a
+     size: on load, on resize, and when a phone layout that hid it shows it. */
+  active = true;
   if(spinBtn) spinBtn.addEventListener("click", function(){
     spinning = !spinning && !reduceMQ.matches;
     syncSpin(); spinning ? play() : stop();
   });
 
-  var rt;
-  addEventListener("resize", function(){ clearTimeout(rt); rt=setTimeout(function(){ if(active) start(); }, 160); });
+  var rt, lastW = 0, lastH = 0;
+  function resized(){
+    var w = wrap.clientWidth, h = wrap.clientHeight;
+    if(!w || !h || (w === lastW && h === lastH)) return;
+    lastW = w; lastH = h; start();
+  }
+  if("ResizeObserver" in window){
+    new ResizeObserver(function(){ clearTimeout(rt); rt = setTimeout(resized, 60); }).observe(wrap);
+  } else {
+    addEventListener("resize", function(){ clearTimeout(rt); rt = setTimeout(resized, 160); });
+  }
+  /* Theme and language both redraw. The canvas reads its colours from CSS
+     variables each frame, so flipping html.dark needs only this redraw, even
+     while the drift is paused. */
   new MutationObserver(function(){
-    if(!active || !W) return;
     syncSpin();
     if(picked) show(picked); else emptyPanel();
-    draw();
+    if(W) draw();
   }).observe(root, {attributes:true, attributeFilter:["class","data-active-lang"]});
-  if(reduceMQ.addEventListener){ reduceMQ.addEventListener("change", function(){ if(reduceMQ.matches){ spinning=false; stop(); } syncSpin(); if(active) start(); }); }
+  if(reduceMQ.addEventListener){ reduceMQ.addEventListener("change", function(){ if(reduceMQ.matches){ spinning=false; stop(); } syncSpin(); start(); }); }
   if("IntersectionObserver" in window){
     new IntersectionObserver(function(es){
-      es.forEach(function(e){ onScreen=e.isIntersecting; onScreen ? play() : stop(); });
+      es.forEach(function(e){
+        onScreen=e.isIntersecting;
+        if(onScreen){ resized(); play(); } else { stop(); }
+      });
     },{threshold:0.05}).observe(cv);
   }
   document.addEventListener("visibilitychange", function(){ document.hidden ? stop() : play(); });
-  if(location.hash === "#core-user") setView(true);
+  emptyPanel(); syncSpin(); resized();
 })();
 </script>
 
+<!-- Hero guide: steps 1 and 2 scroll to their stage. Both stages are always on
+     the page, so a plain anchor would do; this adds the smooth scroll and moves
+     focus to the stage heading for keyboard readers. -->
+<script>
+(function(){
+  "use strict";
+  [].slice.call(document.querySelectorAll(".ex-how a[data-view]")).forEach(function(a){
+    a.addEventListener("click", function(ev){
+      var id = a.getAttribute("data-view") === "anatomy" ? "core-user" : "explore-map";
+      var sec = document.getElementById(id);
+      if(!sec || sec.offsetParent === null) return;   /* hidden: let the plain anchor act */
+      ev.preventDefault();
+      var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      sec.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
+      if(history.replaceState) history.replaceState(null, "", "#" + id);
+      var h = sec.querySelector("h2[tabindex]");
+      if(h) h.focus({ preventScroll: true });
+    });
+  });
+})();
+</script>
+<script defer src="assets/page-motion.js"></script>
   <script defer src="assets/agent-config.js"></script>
   <script defer src="assets/agent-widget.js"></script>
 </body>

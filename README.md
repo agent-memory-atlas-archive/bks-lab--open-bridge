@@ -32,25 +32,15 @@ Your data needs a private home before you write any of it: your own private repo
 <summary><b>Paste this into Claude Code, Codex or Copilot CLI</b></summary>
 
 ```text
-Set up BKS open-bridge for me: https://github.com/bks-lab/open-bridge
-(a plain-text git repo a coding agent reads at the start of every session,
-full steps in its docs/install.md).
-Before you touch anything: check git and gh, ask me what to call my private
-copy (default: my-bridge), show me your plan and wait for my go. Then:
-1. git clone https://github.com/bks-lab/open-bridge.git <name> && cd <name>
-   git remote rename origin upstream
-   gh repo create <me>/<name> --private --source=. --remote=origin --push
-   (no gh: ask me to create an empty PRIVATE repo, then add it as origin)
-2. ./bin/setup                  (native Windows: bin/setup.ps1)
-3. printf 'repo: <me>/<name>\nis_public: false\n' > .bridge-origin
-4. Show me: git remote -v, git config core.hooksPath, cat .bridge-origin
-5. Tell me to restart you inside <name>. The new session greets me and
-   offers the setup lanes; if not, run /bridge-onboard.
-Never push anything to bks-lab/open-bridge, never write a secret into a file,
-ask me before anything destructive.
+Set up BKS open-bridge for me by following this guide:
+https://github.com/bks-lab/open-bridge/blob/main/SETUP.md
+Read all of it first, then show me your plan and wait for my go
+before you change anything.
+If you can't open links: git clone https://github.com/bks-lab/open-bridge.git my-bridge,
+then read my-bridge/SETUP.md and follow it.
 ```
 
-The longer prompt with the reasoning behind each step, the same steps by hand, and why setup ends with a restart: [docs/install.md](docs/install.md).
+Every step the agent takes is in [SETUP.md](SETUP.md): check your tools, show you the plan, re-home the remotes to your private repo, arm the push guard, prove it, then ask you to restart it inside the new folder. Why setup ends with a restart: [docs/install.md](docs/install.md).
 
 </details>
 

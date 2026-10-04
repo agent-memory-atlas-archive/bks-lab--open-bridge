@@ -59,81 +59,173 @@
 :target{scroll-margin-top:84px}
 [id]{scroll-margin-top:84px}
 
-/* ---- intro / hero of the page ---- */
+/* ---- hero: text left, the day figure right (>= 1100px), stacked below ---- */
+.uc-hero{display:grid;gap:8px}
+.uc-hero .lede{max-width:38em}
+.uc-hero p.lede + p.lede{margin-top:12px;font-size:16.5px;color:var(--muted)}
+.uc-def{
+  margin-top:28px;max-width:38em;
+  border:1px solid var(--line);border-left:3px solid var(--accent-text);
+  border-radius:var(--r-lg);background:var(--surface-subtle);padding:20px 24px;
+}
+.uc-def .k{font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent-text)}
+.uc-def .def{margin-top:8px;font-size:17px;line-height:1.5;color:var(--ink)}
+.uc-facts{display:flex;flex-wrap:wrap;gap:10px 28px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+.uc-facts a{display:flex;align-items:baseline;gap:10px;text-decoration:none;color:var(--on-surface)}
+.uc-facts a:hover .t{text-decoration:underline}
+.uc-facts .n{font-family:var(--font-display);font-size:34px;line-height:1;color:var(--accent-text);min-width:.7em}
+.uc-facts .t{font-size:14.5px}
+.uc-day-fig{max-width:60rem}
+.uc-fig-cap{font-size:14px;color:var(--muted);text-align:center;margin-bottom:16px}
+.uc-fig-cap a{margin-left:6px;white-space:nowrap;text-decoration:none}
+.uc-fig-cap a:hover{text-decoration:underline}
+.uc-fig-tall{display:none!important}
+@media (max-width:640px){
+  .uc-fig-wide{display:none!important}
+  .uc-fig-tall{display:block!important}
+}
+@media (min-width:1100px){
+  /* SVG and legend side by side keep the figure short enough to finish
+     building while the hero is still on screen */
+  .uc-hero{grid-template-columns:minmax(0,1fr) minmax(0,36rem);gap:44px;align-items:start}
+  .uc-hero .prose{max-width:none;margin:0}
+  .uc-hero .uc-day-fig{margin:0;max-width:none;padding:18px 20px 18px;
+    display:grid;grid-template-columns:272px minmax(0,1fr);column-gap:20px;align-items:center}
+  .uc-hero .uc-fig-cap{grid-column:1 / -1;font-size:13px;margin-bottom:14px}
+  .uc-hero .uc-fig-wide{display:none!important}
+  .uc-hero .uc-fig-tall{display:block!important;width:100%}
+  .uc-hero .steps-legend{margin:0;flex-direction:column;align-items:stretch;gap:6px}
+  .uc-hero .steps-legend li{border-radius:10px;font-size:12.5px;line-height:1.35;padding:6px 10px 6px 6px;align-items:flex-start}
+  .uc-hero .steps-legend li b{flex:none;margin-top:-1px}
+}
 
-/* ---- use-case grid ---- */
-.uc-section{padding-block:8px 96px}
-#a-day-with-it{padding-top:var(--section-y)}
-.uc-grid{
-  max-width:var(--container);margin:0 auto;
-  display:grid;grid-template-columns:repeat(2,1fr);gap:24px;
+/* ---- section rhythm: eyebrow, h2, short intro ---- */
+.uc-section{padding-block:var(--section-y)}
+.uc-section .sec-head{margin-bottom:48px}
+.uc-section .sec-head .eyebrow{color:var(--accent-text)}
+.uc-section .sec-head .h2{margin-top:10px}
+.uc-section .sec-head p{max-width:36em;margin-inline:auto}
+
+/* ---- the eight jobs: sticky index (desktop) + card grid ---- */
+.uc-layout{max-width:var(--container);margin:0 auto}
+.uc-index{display:none}
+@media (min-width:1100px){
+  .uc-layout{display:grid;grid-template-columns:14.5rem minmax(0,1fr);gap:40px;align-items:start}
+  .uc-index{display:block;position:sticky;top:124px}
 }
+.uc-index .k{font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.uc-index ol{list-style:none;margin:0;padding:0;border-left:1px solid var(--line)}
+.uc-index a{
+  display:flex;gap:10px;align-items:baseline;padding:7px 10px 7px 14px;margin-left:-1px;
+  border-left:2px solid transparent;font-size:13.5px;line-height:1.35;color:var(--muted);text-decoration:none;
+  transition:color .25s,border-color .25s,background .25s;
+}
+.uc-index a .n{font-family:var(--mono);font-size:11.5px;color:var(--accent-text)}
+.uc-index a:hover{color:var(--ink)}
+.uc-index a.on{color:var(--ink);border-left-color:var(--accent-text);background:var(--accent-soft)}
+.uc-index .uc-index-day{margin-top:14px;padding-left:15px;font-size:13.5px}
+.uc-index .uc-index-day a{display:inline;padding:0;border:0;margin:0;color:var(--accent-text)}
+.uc-index .uc-index-day a:hover{text-decoration:underline;background:none}
+
+.uc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
 .uc{
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--r-lg);box-shadow:var(--shadow-soft);
-  padding:30px 32px;display:flex;flex-direction:column;
-  transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;
+  background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r-lg);padding:26px 28px 22px;display:flex;flex-direction:column;
+  transition:border-color .2s ease;
 }
-.uc:hover{
-  transform:translateY(-2px);box-shadow:var(--shadow-hover);
-  border-color:color-mix(in srgb,var(--accent-text) 30%,var(--border));
-}
-.uc-head{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.uc:hover{border-color:color-mix(in srgb,var(--accent-text) 45%,var(--line))}
+.uc-head{display:flex;align-items:center;gap:12px;margin-bottom:10px}
 .uc-num{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--accent-text);letter-spacing:0.04em}
 .uc-badge{
-  font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;
-  color:var(--on-primary);background:linear-gradient(120deg,var(--accent-from),var(--accent-to));
-  padding:4px 11px;border-radius:var(--r-full);
+  font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;
+  color:var(--accent-text);border:1px solid var(--accent-text);
+  padding:3px 10px;border-radius:var(--r-full);
 }
-.uc h3.uc-title{font-size:21px;font-weight:600;line-height:1.25;color:var(--primary);margin-bottom:16px}
+.uc h3.uc-title{font-size:20px;font-weight:600;line-height:1.28;color:var(--ink);margin-bottom:16px}
 .uc .lab{
-  display:block;font-size:11.5px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;
-  color:var(--secondary);margin-bottom:5px;
+  display:block;font-size:11px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:5px;
 }
-.uc .uc-problem{font-size:15.5px;line-height:1.55;color:var(--primary);font-weight:500;margin-bottom:18px}
-.uc .uc-solution{font-size:15.5px;line-height:1.65;color:var(--on-surface);margin-bottom:18px}
+/* problem first: the line you recognise, set apart by a hairline */
+.uc .uc-problem{
+  font-size:16px;line-height:1.5;color:var(--ink);font-weight:500;
+  border-left:2px solid var(--accent-text);padding-left:14px;margin-bottom:18px;
+}
+.uc .uc-problem .lab{color:var(--accent-text)}
+.uc .uc-solution{font-size:15px;line-height:1.65;color:var(--on-surface);margin-bottom:20px;max-width:68ch}
 .uc .uc-solution code,.uc .uc-problem code{
   font-family:var(--mono);font-size:0.85em;background:var(--code-bg);
-  border:1px solid var(--border-subtle);border-radius:var(--r-sm);padding:1px 6px;color:var(--on-surface);
+  border:1px solid var(--line-subtle);border-radius:var(--r-sm);padding:1px 6px;color:var(--on-surface);
 }
-.uc .uc-prim{margin-bottom:22px}
-.uc .uc-prim .chips{display:flex;flex-wrap:wrap;gap:7px}
+.uc-foot{
+  margin-top:auto;padding-top:14px;border-top:1px solid var(--line);
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 16px;
+}
+.uc .uc-prim{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;min-width:0}
+.uc .uc-prim .lab{display:inline;margin:0}
+.uc .uc-prim .chips{display:flex;flex-wrap:wrap;gap:6px}
 .uc .uc-prim code{
-  font-family:var(--mono);font-size:12.5px;background:var(--code-bg);
-  border:1px solid var(--border-subtle);border-radius:var(--r-sm);padding:3px 8px;color:var(--on-surface);
+  font-family:var(--mono);font-size:12px;background:var(--code-bg);
+  border:1px solid var(--line);border-radius:var(--r-full);padding:3px 10px;color:var(--on-surface);
+  overflow-wrap:anywhere;
 }
 .uc .uc-prim .pchip{
   font-family:var(--font-sans);font-size:12.5px;background:var(--surface-muted);
-  border:1px solid var(--border);border-radius:var(--r-full);padding:3px 11px;color:var(--on-surface);
+  border:1px solid var(--line);border-radius:var(--r-full);padding:3px 11px;color:var(--on-surface);
 }
 .uc .uc-more{
-  margin-top:auto;align-self:flex-start;
-  font-size:14.5px;font-weight:500;text-decoration:none;color:var(--accent-text);
-  display:inline-flex;align-items:center;gap:6px;
+  font-size:14px;font-weight:500;text-decoration:none;color:var(--accent-text);
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
 }
 .uc .uc-more .arrow{transition:transform .2s ease}
 .uc .uc-more:hover{text-decoration:underline}
 .uc .uc-more:hover .arrow{transform:translateX(3px)}
 
-/* ---- flagship card (#1) ---- */
-.uc.flagship{
-  grid-column:1 / -1;
-  border-left:3px solid var(--accent-text);
-  /* A tint of the accent over the card surface, not a coloured panel: in
-     dark mode --accent-soft is a saturated indigo that turned the card purple. */
-  background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 7%,var(--surface)),var(--surface) 70%);
+/* ---- flagship card (#1): full width, problem + figure left, solution right ---- */
+.uc.flagship{grid-column:1 / -1;border-left:3px solid var(--accent-text);background:var(--surface)}
+.uc.flagship h3.uc-title{font-size:25px}
+.uc.flagship .uc-problem{font-size:17px}
+.uc.flagship .uc-solution{font-size:16px}
+.uc-ov-fig{margin:0 0 20px;max-width:none;padding:16px 16px 12px;background:var(--surface-subtle)}
+.uc-ov-fig .steps-legend{justify-content:flex-start}
+.uc-ov-fig .steps-legend li{font-size:12px}
+@media (min-width:900px){
+  .uc.flagship{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);column-gap:40px;align-items:start}
+  .uc.flagship > .uc-head,.uc.flagship > .uc-title,.uc.flagship > .uc-problem,.uc.flagship > .uc-ov-fig{grid-column:1}
+  .uc.flagship > .uc-solution{grid-column:2;grid-row:1 / span 4;align-self:center;margin:0}
+  .uc.flagship > .uc-foot{grid-column:1 / -1}
 }
-.uc.flagship h3.uc-title{font-size:26px}
-.uc.flagship .uc-problem,.uc.flagship .uc-solution{font-size:16.5px}
-.uc.flagship .uc-solution{max-width:62ch}
+
+/* ---- a day with it: one rail, five moments in the figure's order ---- */
+.uc-timeline{max-width:64rem;margin:0 auto;position:relative;padding-left:34px;display:grid;gap:18px}
+.uc-timeline::before{content:"";position:absolute;left:9px;top:12px;bottom:12px;border-left:1px dashed var(--line)}
+.uc-timeline > .uc{position:relative}
+.uc-timeline > .uc::before{
+  content:"";position:absolute;left:-30px;top:30px;width:9px;height:9px;border-radius:9999px;
+  background:var(--accent-text);box-sizing:border-box;
+}
+@media (min-width:860px){
+  .uc.moment{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);column-gap:36px;align-items:start}
+  .uc.moment > .uc-head,.uc.moment > .uc-title,.uc.moment > .uc-problem{grid-column:1}
+  .uc.moment > .uc-problem{margin-bottom:0}
+  .uc.moment > .uc-solution{grid-column:2;grid-row:1 / span 3;margin-bottom:16px}
+  .uc.moment > .uc-foot{grid-column:2}
+}
 
 @media (max-width:780px){
   .uc-grid{grid-template-columns:1fr}
   .uc.flagship{grid-column:auto}
 }
 @media (max-width:560px){
-  .uc{padding:24px 22px}
+  .uc{padding:22px 20px 18px}
+  .uc-timeline{padding-left:22px}
+  .uc-timeline::before{left:5px}
+  .uc-timeline > .uc::before{left:-21px}
+  .uc-facts .n{font-size:30px}
 }
+.uc-more-line{text-align:center;margin-top:40px;font-size:15px}
+.uc-more-line a{text-decoration:none}
+.uc-more-line a:hover{text-decoration:underline}
 </style>
 </head>
 <body>
@@ -179,7 +271,7 @@
 
   <!-- ---- intro ---- -->
   <section class="page-hero">
-    <div class="container">
+    <div class="container uc-hero">
       <div class="prose">
         <p class="eyebrow" data-lang="en">Use cases &amp; solutions</p>
         <p class="eyebrow" data-lang="de">Anwendungsfälle &amp; Lösungen</p>
@@ -187,19 +279,187 @@
           <span data-lang="en">What teams actually do with it.</span>
           <span data-lang="de">Was Teams wirklich damit tun.</span>
         </h1>
-        <p class="lede" data-lang="en">BKS open-bridge is a framework, not a product with one fixed workflow. Below are eight concrete jobs teams run on it, then five moments from a day with a long-running instance. Each names a problem you'll recognise, what your bridge does about it, the primitives involved, and where to read more. Everything here works on plain files in git: nothing to host, and the agent never sends or merges anything without a human gate.</p>
-        <p class="lede" data-lang="de">BKS open-bridge ist ein Framework, kein Produkt mit einem festen Ablauf. Unten stehen acht konkrete Aufgaben, die Teams damit erledigen, danach fünf Momente aus einem Tag mit einer lange laufenden Instanz. Jede nennt ein Problem, das du wiedererkennst, was deine Bridge dagegen tut, die beteiligten Primitive und einen Link zum Weiterlesen. Alles hier läuft auf schlichten Dateien in Git: nichts zu hosten, und der Agent sendet oder merged nie etwas ohne menschliches Gate.</p>
+        <p class="lede" data-lang="en">BKS open-bridge is a framework, not a product with one fixed workflow. Below are eight concrete jobs teams run on it, then five moments from a day with a long-running instance.</p>
+        <p class="lede" data-lang="de">BKS open-bridge ist ein Framework, kein Produkt mit einem festen Ablauf. Unten stehen acht konkrete Aufgaben, die Teams damit erledigen, danach fünf Momente aus einem Tag mit einer lange laufenden Instanz.</p>
+        <p class="lede" data-lang="en">Each names a problem you'll recognise, what your bridge does about it, the primitives involved, and where to read more.</p>
+        <p class="lede" data-lang="de">Jede nennt ein Problem, das du wiedererkennst, was deine Bridge dagegen tut, die beteiligten Primitive und einen Link zum Weiterlesen.</p>
+
+        <div class="uc-def" data-reveal>
+          <div class="k"><span data-lang="en">Under every card</span><span data-lang="de">Unter jeder Karte</span></div>
+          <p class="def" data-lang="en">Everything here works on plain files in git: nothing to host, and the agent never sends or merges anything without a human gate.</p>
+          <p class="def" data-lang="de">Alles hier läuft auf schlichten Dateien in Git: nichts zu hosten, und der Agent sendet oder merged nie etwas ohne menschliches Gate.</p>
+          <div class="uc-facts">
+            <a href="#jobs"><span class="n" data-count="8">8</span><span class="t"><span data-lang="en">concrete jobs ↓</span><span data-lang="de">konkrete Aufgaben ↓</span></span></a>
+            <a href="#a-day-with-it"><span class="n" data-count="5">5</span><span class="t"><span data-lang="en">moments from a day ↓</span><span data-lang="de">Momente aus einem Tag ↓</span></span></a>
+          </div>
+        </div>
       </div>
+
+      <!-- "A day with it" at a glance: the five moments from #a-day-with-it on
+           one timeline, each reading or writing the same plain files in git.
+           Only the files each card names as its primitives are drawn. Two SVGs:
+           a wide one, and a stacked one for phones (CSS picks one). -->
+      <figure class="steps-fig uc-day-fig" data-steps>
+        <figcaption class="uc-fig-cap">
+          <span data-lang="en">A day with it, at a glance: five moments, one set of plain files.</span>
+          <span data-lang="de">Ein Tag damit, auf einen Blick: fünf Momente, ein Satz schlichter Dateien.</span>
+          <a href="#a-day-with-it"><span data-lang="en">The moments in detail</span><span data-lang="de">Die Momente im Detail</span> ↓</a>
+        </figcaption>
+
+        <svg class="uc-fig-wide" viewBox="0 0 880 322" role="img" aria-label="A day as one timeline of five moments: morning triage reads work/log.md and infra/backups; after a call a mail draft and proposed board items wait outside the bridge for you to send or approve; an incident finding is written to STATUS.md and work/log.md; wearing another hat switches identity/personas and workflow/contexts, and STATUS.md keeps a private task local; the quiet server reads workflow/workloads and checks the live service manager. All of it sits on plain markdown and YAML in git.">
+          <!-- step 3 lives partly up here: the outside zone -->
+          <g data-step="3">
+            <rect class="sf-zone" x="150" y="12" width="420" height="62" rx="10"/>
+            <text class="sf-lbl" x="360" y="37" text-anchor="middle"><tspan data-lang="en">outside the bridge: nothing leaves without you</tspan><tspan data-lang="de">außerhalb der Bridge: nichts geht ohne dich raus</tspan></text>
+            <text class="sf-sub" x="360" y="57" text-anchor="middle"><tspan data-lang="en">mail draft → you press send · items → you approve</tspan><tspan data-lang="de">Mail-Entwurf → du sendest · Einträge → du gibst frei</tspan></text>
+          </g>
+          <path class="sf-line soft" data-step="3" data-draw d="M266 112 V78"/>
+
+          <!-- step 1: the substrate and the day axis -->
+          <g data-step="1">
+            <path class="sf-line soft" d="M16 96 H864"/>
+            <text class="sf-sub" x="16" y="90"><tspan data-lang="en">morning</tspan><tspan data-lang="de">morgens</tspan></text>
+            <text class="sf-sub" x="864" y="90" text-anchor="end"><tspan data-lang="en">around the clock</tspan><tspan data-lang="de">rund um die Uhr</tspan></text>
+            <rect class="sf-box hi" x="8" y="226" width="864" height="88" rx="12"/>
+            <text class="sf-sub" x="440" y="300" text-anchor="middle"><tspan data-lang="en">your bridge · plain markdown and YAML in git</tspan><tspan data-lang="de">deine Bridge · schlichtes Markdown und YAML in Git</tspan></text>
+            <rect class="sf-box" x="19" y="238" width="132" height="30" rx="7"/><text class="sf-mono" x="85" y="257" text-anchor="middle">infra/backups</text>
+            <rect class="sf-box" x="161" y="238" width="132" height="30" rx="7"/><text class="sf-mono" x="227" y="257" text-anchor="middle">work/log.md</text>
+            <rect class="sf-box" x="303" y="238" width="132" height="30" rx="7"/><text class="sf-mono" x="369" y="257" text-anchor="middle">STATUS.md</text>
+            <rect class="sf-box" x="445" y="238" width="132" height="30" rx="7"/><text class="sf-mono" x="511" y="257" text-anchor="middle">identity/personas</text>
+            <rect class="sf-box" x="587" y="238" width="132" height="30" rx="7"/><text class="sf-mono" x="653" y="257" text-anchor="middle">workflow/contexts</text>
+            <rect class="sf-box" x="729" y="238" width="132" height="30" rx="7"/><text class="sf-mono" x="795" y="257" text-anchor="middle">workflow/workloads</text>
+          </g>
+
+          <!-- step 2: morning triage -->
+          <g data-step="2">
+            <rect class="sf-box" x="12" y="112" width="160" height="78" rx="10"/>
+            <text class="sf-lbl" x="26" y="146"><tspan data-lang="en">Morning triage</tspan><tspan data-lang="de">Morgen-Triage</tspan></text>
+            <text class="sf-sub" x="26" y="170"><tspan data-lang="en">just one list</tspan><tspan data-lang="de">nur eine Liste</tspan></text>
+          </g>
+          <path class="sf-line" data-step="2" data-draw d="M85 234 C85 214 88 214 88 194"/>
+          <path class="sf-line" data-step="2" data-draw d="M227 234 C227 214 104 214 104 194"/>
+
+          <!-- step 3: after a call -->
+          <g data-step="3">
+            <rect class="sf-box" x="186" y="112" width="160" height="78" rx="10"/>
+            <text class="sf-lbl" x="200" y="146"><tspan data-lang="en">After a call</tspan><tspan data-lang="de">Nach einem Gespräch</tspan></text>
+            <text class="sf-sub" x="200" y="170"><tspan data-lang="en">draft + proposals</tspan><tspan data-lang="de">Entwurf + Vorschläge</tspan></text>
+          </g>
+
+          <!-- step 4: an incident -->
+          <g data-step="4">
+            <rect class="sf-box" x="360" y="112" width="160" height="78" rx="10"/>
+            <text class="sf-lbl" x="374" y="146"><tspan data-lang="en">An incident</tspan><tspan data-lang="de">Ein Vorfall</tspan></text>
+            <text class="sf-sub" x="374" y="170"><tspan data-lang="en">finding persists</tspan><tspan data-lang="de">Befund bleibt</tspan></text>
+          </g>
+          <path class="sf-line" data-step="4" data-draw d="M424 194 C424 214 243 214 243 234"/>
+          <path class="sf-line" data-step="4" data-draw d="M440 194 C440 214 369 214 369 234"/>
+
+          <!-- step 5: another hat -->
+          <g data-step="5">
+            <rect class="sf-box" x="534" y="112" width="160" height="78" rx="10"/>
+            <text class="sf-lbl" x="548" y="146"><tspan data-lang="en">Another hat</tspan><tspan data-lang="de">Ein anderer Hut</tspan></text>
+            <text class="sf-sub" x="548" y="170"><tspan data-lang="en">persona + context</tspan><tspan data-lang="de">Persona + Kontext</tspan></text>
+          </g>
+          <path class="sf-line" data-step="5" data-draw d="M598 194 C598 214 385 214 385 234"/>
+          <path class="sf-line" data-step="5" data-draw d="M614 194 C614 214 511 214 511 234"/>
+          <path class="sf-line" data-step="5" data-draw d="M630 194 C630 214 653 214 653 234"/>
+
+          <!-- step 6: the quiet server -->
+          <g data-step="6">
+            <rect class="sf-box" x="708" y="112" width="160" height="78" rx="10"/>
+            <text class="sf-lbl" x="722" y="146"><tspan data-lang="en">The quiet server</tspan><tspan data-lang="de">Der ruhige Server</tspan></text>
+            <text class="sf-sub" x="722" y="170"><tspan data-lang="en">checked live</tspan><tspan data-lang="de">live geprüft</tspan></text>
+          </g>
+          <path class="sf-line" data-step="6" data-draw d="M795 234 C795 214 788 214 788 194"/>
+        </svg>
+
+        <svg class="uc-fig-tall" viewBox="0 0 340 486" role="img" aria-label="Five moments of a day, each with the plain files it reads or writes: morning triage, work/log.md and infra/backups; after a call, a draft you send yourself; an incident, STATUS.md and work/log.md; another hat, identity/personas, workflow/contexts and STATUS.md; the quiet server, workflow/workloads.">
+          <g data-step="1">
+            <rect class="sf-box hi" x="2" y="2" width="336" height="94" rx="12"/>
+            <text class="sf-sub" x="16" y="22"><tspan data-lang="en">your bridge · markdown + YAML in git</tspan><tspan data-lang="de">deine Bridge · Markdown + YAML in Git</tspan></text>
+            <text class="sf-mono" x="16" y="44">infra/backups</text><text class="sf-mono" x="176" y="44">work/log.md</text>
+            <text class="sf-mono" x="16" y="64">STATUS.md</text><text class="sf-mono" x="176" y="64">identity/personas</text>
+            <text class="sf-mono" x="16" y="84">workflow/contexts</text><text class="sf-mono" x="176" y="84">workflow/workloads</text>
+            <path class="sf-line soft" d="M14 106 V480"/>
+          </g>
+          <g data-step="2">
+            <circle cx="14" cy="141" r="4" fill="var(--accent-text)"/>
+            <rect class="sf-box" x="28" y="112" width="310" height="62" rx="10"/>
+            <text class="sf-lbl" x="42" y="136"><tspan data-lang="en">Morning triage</tspan><tspan data-lang="de">Morgen-Triage</tspan></text>
+            <text class="sf-mono" x="42" y="158">work/log.md · infra/backups</text>
+          </g>
+          <g data-step="3">
+            <circle cx="14" cy="215" r="4" fill="var(--accent-text)"/>
+            <rect class="sf-box" x="28" y="186" width="310" height="62" rx="10"/>
+            <text class="sf-lbl" x="42" y="210"><tspan data-lang="en">After a call</tspan><tspan data-lang="de">Nach einem Gespräch</tspan></text>
+            <text class="sf-sub" x="42" y="232"><tspan data-lang="en">draft → you press send</tspan><tspan data-lang="de">Entwurf → du sendest</tspan></text>
+          </g>
+          <g data-step="4">
+            <circle cx="14" cy="289" r="4" fill="var(--accent-text)"/>
+            <rect class="sf-box" x="28" y="260" width="310" height="62" rx="10"/>
+            <text class="sf-lbl" x="42" y="284"><tspan data-lang="en">An incident</tspan><tspan data-lang="de">Ein Vorfall</tspan></text>
+            <text class="sf-mono" x="42" y="306">STATUS.md · work/log.md</text>
+          </g>
+          <g data-step="5">
+            <circle cx="14" cy="363" r="4" fill="var(--accent-text)"/>
+            <rect class="sf-box" x="28" y="334" width="310" height="62" rx="10"/>
+            <text class="sf-lbl" x="42" y="358"><tspan data-lang="en">Another hat</tspan><tspan data-lang="de">Ein anderer Hut</tspan></text>
+            <text class="sf-mono" x="42" y="380">personas · contexts · STATUS.md</text>
+          </g>
+          <g data-step="6">
+            <circle cx="14" cy="437" r="4" fill="var(--accent-text)"/>
+            <rect class="sf-box" x="28" y="408" width="310" height="62" rx="10"/>
+            <text class="sf-lbl" x="42" y="432"><tspan data-lang="en">The quiet server</tspan><tspan data-lang="de">Der ruhige Server</tspan></text>
+            <text class="sf-mono" x="42" y="454">workflow/workloads</text>
+          </g>
+        </svg>
+
+        <ol class="steps-legend">
+          <li data-step="1"><b>1</b><span data-lang="en">One substrate: plain files in git</span><span data-lang="de">Ein Substrat: schlichte Dateien in Git</span></li>
+          <li data-step="2"><b>2</b><span data-lang="en">Morning triage reads the log and backup state</span><span data-lang="de">Morgen-Triage liest Log und Backup-Stand</span></li>
+          <li data-step="3"><b>3</b><span data-lang="en">After a call: drafts wait for your gate</span><span data-lang="de">Nach einem Gespräch: Entwürfe warten auf dein Gate</span></li>
+          <li data-step="4"><b>4</b><span data-lang="en">An incident: the finding is written down</span><span data-lang="de">Ein Vorfall: der Befund wird festgehalten</span></li>
+          <li data-step="5"><b>5</b><span data-lang="en">Another hat: persona and context switch</span><span data-lang="de">Ein anderer Hut: Persona und Kontext wechseln</span></li>
+          <li data-step="6"><b>6</b><span data-lang="en">The quiet server: declared jobs, checked live</span><span data-lang="de">Der ruhige Server: deklarierte Jobs, live geprüft</span></li>
+        </ol>
+      </figure>
     </div>
   </section>
 
   <!-- ---- the eight use cases, then a day with it ---- -->
-  <section class="uc-section alt">
+  <section class="uc-section alt" id="jobs">
     <div class="container">
-      <div class="uc-grid">
+      <div class="sec-head" data-reveal>
+        <p class="eyebrow"><span data-lang="en">Eight jobs</span><span data-lang="de">Acht Aufgaben</span></p>
+        <h2 class="h2">
+          <span data-lang="en">Eight concrete jobs teams run on it</span>
+          <span data-lang="de">Acht konkrete Aufgaben, die Teams damit erledigen</span>
+        </h2>
+        <p>
+          <span data-lang="en">Each card reads top down: the problem you'll recognise, what your bridge does about it, then the primitives involved and where to read more.</span>
+          <span data-lang="de">Jede Karte liest sich von oben nach unten: das Problem, das du wiedererkennst, was deine Bridge dagegen tut, dann die beteiligten Primitive und wo du weiterliest.</span>
+        </p>
+      </div>
+      <div class="uc-layout">
+      <nav class="uc-index" aria-label="Use cases / Anwendungsfälle">
+        <p class="k"><span data-lang="en">The eight</span><span data-lang="de">Die acht</span></p>
+        <ol>
+          <li><a href="#org-aware"><span class="n">01</span><span><span data-lang="en">Org-aware without forking</span><span data-lang="de">Org-bewusst ohne Fork</span></span></a></li>
+          <li><a href="#client-updates"><span class="n">02</span><span><span data-lang="en">Client status updates with sender discipline</span><span data-lang="de">Kunden-Status-Updates mit Absender-Disziplin</span></span></a></li>
+          <li><a href="#meeting-to-tasks"><span class="n">03</span><span><span data-lang="en">Meeting → protocol → tasks</span><span data-lang="de">Meeting → Protokoll → Tasks</span></span></a></li>
+          <li><a href="#doc-intake"><span class="n">04</span><span><span data-lang="en">Document intake &amp; filing</span><span data-lang="de">Dokumenten-Intake &amp; Ablage</span></span></a></li>
+          <li><a href="#multi-instance"><span class="n">05</span><span><span data-lang="en">Multi-instance data isolation</span><span data-lang="de">Multi-Instanz-Datentrennung</span></span></a></li>
+          <li><a href="#self-growing-knowledge"><span class="n">06</span><span><span data-lang="en">Knowledge that grows itself</span><span data-lang="de">Wissen, das sich selbst aufbaut</span></span></a></li>
+          <li><a href="#cross-tool-skills"><span class="n">07</span><span><span data-lang="en">Cross-tool skills, private by default</span><span data-lang="de">Tool-übergreifende Skills, privat per Default</span></span></a></li>
+          <li><a href="#workspaces"><span class="n">08</span><span><span data-lang="en">Multi-repo client/engagement work</span><span data-lang="de">Multi-Repo-Kunden-/Engagement-Arbeit</span></span></a></li>
+        </ol>
+        <p class="uc-index-day"><a href="#a-day-with-it"><span data-lang="en">Then: a day with it ↓</span><span data-lang="de">Danach: ein Tag damit ↓</span></a></p>
+      </nav>
+      <div class="uc-grid" data-reveal="stagger">
 
         <!-- ① FLAGSHIP: Org-aware without forking -->
-        <article class="uc flagship reveal" id="org-aware">
+        <article class="uc flagship" id="org-aware">
           <div class="uc-head">
             <span class="uc-num">01</span>
             <span class="uc-badge"><span data-lang="en">Flagship</span><span data-lang="de">Flaggschiff</span></span>
@@ -213,25 +473,58 @@
             <span data-lang="en">Every teammate needs your org's customizations (skills, configs, accounts), but forking a tailored bridge per person is unmaintainable.</span>
             <span data-lang="de">Jede:r im Team braucht die Anpassungen deiner Organisation (Skills, Configs, Accounts), aber pro Person eine angepasste Bridge zu forken ist nicht wartbar.</span>
           </p>
+          <!-- How an overlay lands, in three steps. Every label is taken from this
+               card's own text (and docs/org-overlays.md). -->
+          <figure class="steps-fig uc-ov-fig" data-steps>
+            <svg viewBox="0 0 360 252" role="img" aria-label="A private org-config repo is subscribed with /overlay add and its files land in your bridge as tracked copies, recorded in a manifest and a lockfile. CORE files are never overridable, and your own edits win on conflict.">
+              <g data-step="1">
+                <rect class="sf-box" x="10" y="8" width="340" height="52" rx="10"/>
+                <text class="sf-lbl" x="180" y="30" text-anchor="middle"><tspan data-lang="en">org-config repo</tspan><tspan data-lang="de">Org-Config-Repo</tspan></text>
+                <text class="sf-sub" x="180" y="48" text-anchor="middle"><tspan data-lang="en">private · one git URL</tspan><tspan data-lang="de">privat · eine Git-URL</tspan></text>
+                <rect class="sf-box hi" x="10" y="122" width="340" height="122" rx="12"/>
+                <text class="sf-sub" x="24" y="142"><tspan data-lang="en">your bridge</tspan><tspan data-lang="de">deine Bridge</tspan></text>
+                <rect class="sf-box" x="24" y="154" width="136" height="76" rx="8"/>
+                <text class="sf-lbl" x="92" y="182" text-anchor="middle">CORE</text>
+              </g>
+              <path class="sf-line" data-step="2" data-draw d="M254 62 V150"/>
+              <g data-step="2">
+                <text class="sf-mono" x="246" y="100" text-anchor="end">/overlay add &lt;git-url&gt;</text>
+                <rect class="sf-box" x="172" y="154" width="164" height="76" rx="8"/>
+                <text class="sf-lbl" x="254" y="180" text-anchor="middle"><tspan data-lang="en">tracked copies</tspan><tspan data-lang="de">getrackte Kopien</tspan></text>
+                <text class="sf-sub" x="254" y="198" text-anchor="middle"><tspan data-lang="en">manifest + lockfile</tspan><tspan data-lang="de">Manifest + Lockfile</tspan></text>
+              </g>
+              <g data-step="3">
+                <text class="sf-sub" x="92" y="204" text-anchor="middle"><tspan data-lang="en">never overridable</tspan><tspan data-lang="de">nie überschreibbar</tspan></text>
+                <text class="sf-mono" x="254" y="218" text-anchor="middle"><tspan data-lang="en">your edits win</tspan><tspan data-lang="de">deine Edits gewinnen</tspan></text>
+              </g>
+            </svg>
+            <ol class="steps-legend">
+              <li data-step="1"><b>1</b><span data-lang="en">A private org repo and your bridge</span><span data-lang="de">Ein privates Org-Repo und deine Bridge</span></li>
+              <li data-step="2"><b>2</b><span data-lang="en">One URL lands tracked copies</span><span data-lang="de">Eine URL bringt getrackte Kopien</span></li>
+              <li data-step="3"><b>3</b><span data-lang="en">CORE stays fixed, your edits win</span><span data-lang="de">CORE bleibt fest, deine Edits gewinnen</span></li>
+            </ol>
+          </figure>
           <p class="uc-solution">
             <span class="lab"><span data-lang="en">What the bridge does</span><span data-lang="de">Was die Bridge tut</span></span>
             <span data-lang="en"><code>/overlay add &lt;git-url&gt;</code> subscribes a vanilla bridge to a private org-config repo and materializes its files across your tree as tracked copies, recorded in a manifest and a lockfile. It is the downstream inverse of <code>/bridge-promote</code>. CORE files are never overridable; managed files stay public-fork-safe; and your own edits always win on conflict. One URL gives a teammate a full org bridge: no fork, no per-person drift.</span>
             <span data-lang="de"><code>/overlay add &lt;git-url&gt;</code> abonniert für eine unveränderte Bridge ein privates Org-Config-Repo und materialisiert dessen Dateien über deinen Baum verteilt als getrackte Kopien, festgehalten in einem Manifest und einem Lockfile. Es ist die Downstream-Umkehrung von <code>/bridge-promote</code>. CORE-Dateien sind nie überschreibbar; verwaltete Dateien bleiben public-fork-sicher; und bei Konflikt gewinnen stets deine eigenen Edits. Eine URL gibt einem Teammitglied eine vollständige Org-Bridge: kein Fork, kein Drift pro Person.</span>
           </p>
-          <div class="uc-prim">
-            <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
-            <div class="chips">
-              <code>bridge-overlay</code>
-              <code>scripts/overlay.py</code>
+          <div class="uc-foot">
+            <div class="uc-prim">
+              <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
+              <div class="chips">
+                <code>bridge-overlay</code>
+                <code>scripts/overlay.py</code>
+              </div>
             </div>
+            <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/org-overlays.md" target="_blank" rel="noopener">
+              <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
+            </a>
           </div>
-          <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/org-overlays.md" target="_blank" rel="noopener">
-            <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
-          </a>
         </article>
 
         <!-- ② Client status updates with sender discipline -->
-        <article class="uc reveal" id="client-updates">
+        <article class="uc" id="client-updates">
           <div class="uc-head"><span class="uc-num">02</span></div>
           <h3 class="uc-title">
             <span data-lang="en">Client status updates with sender discipline</span>
@@ -247,20 +540,22 @@
             <span data-lang="en">Turn a task or board item into a styled email routed to the right recipient group, optionally scheduled for later. The sender is always you; recipients are kept in the third person by construction, so attribution never slips.</span>
             <span data-lang="de">Verwandle einen Task oder ein Board-Item in eine gestylte E-Mail, geroutet an die richtige Empfängergruppe, optional für später geplant. Absender bist immer du; Empfänger bleiben konstruktionsbedingt in der dritten Person. Der Absender verrutscht nie.</span>
           </p>
-          <div class="uc-prim">
-            <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
-            <div class="chips">
-              <code>mandants</code>
-              <code>calendar</code>
+          <div class="uc-foot">
+            <div class="uc-prim">
+              <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
+              <div class="chips">
+                <code>mandants</code>
+                <code>calendar</code>
+              </div>
             </div>
+            <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/mandants.md" target="_blank" rel="noopener">
+              <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
+            </a>
           </div>
-          <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/mandants.md" target="_blank" rel="noopener">
-            <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
-          </a>
         </article>
 
         <!-- ③ Meeting → protocol → tasks -->
-        <article class="uc reveal" id="meeting-to-tasks">
+        <article class="uc" id="meeting-to-tasks">
           <div class="uc-head"><span class="uc-num">03</span></div>
           <h3 class="uc-title">
             <span data-lang="en">Meeting → protocol → tasks</span>
@@ -276,20 +571,22 @@
             <span data-lang="en">A debrief step takes your meeting notes, classifies the meeting, extracts insights across categories, and proposes board-mapped tasks you approve, so a conversation becomes tracked work instead of a fading memory.</span>
             <span data-lang="de">Ein Debrief-Schritt nimmt deine Meeting-Notizen, klassifiziert das Meeting, extrahiert Erkenntnisse über Kategorien hinweg und schlägt board-zugeordnete Tasks vor, die du freigibst. Aus einem Gespräch wird getrackte Arbeit statt verblassender Erinnerung.</span>
           </p>
-          <div class="uc-prim">
-            <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
-            <div class="chips">
-              <code>debrief</code>
-              <code>github-projects-manager</code>
+          <div class="uc-foot">
+            <div class="uc-prim">
+              <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
+              <div class="chips">
+                <code>debrief</code>
+                <code>github-projects-manager</code>
+              </div>
             </div>
+            <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/work-system.md" target="_blank" rel="noopener">
+              <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
+            </a>
           </div>
-          <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/work-system.md" target="_blank" rel="noopener">
-            <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
-          </a>
         </article>
 
         <!-- ④ Document intake & filing -->
-        <article class="uc reveal" id="doc-intake">
+        <article class="uc" id="doc-intake">
           <div class="uc-head"><span class="uc-num">04</span></div>
           <h3 class="uc-title">
             <span data-lang="en">Document intake &amp; filing</span>
@@ -305,20 +602,22 @@
             <span data-lang="en">The doc-system scans your sources (filesystem inboxes and flagged mail), categorizes each document, and files it using routing rules plus per-persona destinations, for example a PARA tree. Renamed, tagged, filed, and audited.</span>
             <span data-lang="de">Das Doc-System scannt deine Quellen (Dateisystem-Inboxen und geflaggte Mails), kategorisiert jedes Dokument und legt es per Routing-Regeln plus Persona-Zielpfaden ab, etwa einem PARA-Baum. Umbenannt, getaggt, abgelegt und auditiert.</span>
           </p>
-          <div class="uc-prim">
-            <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
-            <div class="chips">
-              <code>doc-system</code>
-              <code>personas</code>
+          <div class="uc-foot">
+            <div class="uc-prim">
+              <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
+              <div class="chips">
+                <code>doc-system</code>
+                <code>personas</code>
+              </div>
             </div>
+            <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/doc-system.md" target="_blank" rel="noopener">
+              <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
+            </a>
           </div>
-          <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/doc-system.md" target="_blank" rel="noopener">
-            <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
-          </a>
         </article>
 
         <!-- ⑤ Multi-instance data isolation -->
-        <article class="uc reveal" id="multi-instance">
+        <article class="uc" id="multi-instance">
           <div class="uc-head"><span class="uc-num">05</span></div>
           <h3 class="uc-title">
             <span data-lang="en">Multi-instance data isolation</span>
@@ -334,20 +633,22 @@
             <span data-lang="en">Run a separate bridge instance per org: each its own clone with its own user branch, some pushed to a remote, some kept local-only. A registry indexes them all, so you stay aware of every instance without ever cross-contaminating their data.</span>
             <span data-lang="de">Betreibe eine eigene Bridge-Instanz pro Organisation: jede ein eigener Clone mit eigenem User-Branch, manche zu einem Remote gepusht, manche nur lokal. Eine Registry indiziert sie alle, sodass du jede Instanz im Blick hast, ohne dass sich ihre Daten je vermischen.</span>
           </p>
-          <div class="uc-prim">
-            <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
-            <div class="chips">
-              <span class="pchip"><span data-lang="en">multi-instance model</span><span data-lang="de">Multi-Instanz-Modell</span></span>
-              <code>infra/instances</code>
+          <div class="uc-foot">
+            <div class="uc-prim">
+              <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
+              <div class="chips">
+                <span class="pchip"><span data-lang="en">multi-instance model</span><span data-lang="de">Multi-Instanz-Modell</span></span>
+                <code>infra/instances</code>
+              </div>
             </div>
+            <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/multi-instance.md" target="_blank" rel="noopener">
+              <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
+            </a>
           </div>
-          <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/multi-instance.md" target="_blank" rel="noopener">
-            <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
-          </a>
         </article>
 
         <!-- ⑥ Knowledge that grows itself -->
-        <article class="uc reveal" id="self-growing-knowledge">
+        <article class="uc" id="self-growing-knowledge">
           <div class="uc-head"><span class="uc-num">06</span></div>
           <h3 class="uc-title">
             <span data-lang="en">Knowledge that grows itself</span>
@@ -363,21 +664,23 @@
             <span data-lang="en">A file-based memory keeps durable facts as plain text the agent reads back later. A learning loop closes the gap: postmortems and audits emit improvement proposals you review, and a curator consolidates recurring patterns, so the system compounds instead of forgetting.</span>
             <span data-lang="de">Ein dateibasiertes Gedächtnis hält dauerhafte Fakten als Klartext, den der Agent später wieder liest. Eine Lernschleife schließt die Lücke: Postmortems und Audits erzeugen Verbesserungsvorschläge, die du prüfst, und ein Kurator konsolidiert wiederkehrende Muster. Das System wächst, statt zu vergessen.</span>
           </p>
-          <div class="uc-prim">
-            <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
-            <div class="chips">
-              <code>memory</code>
-              <code>bridge-learn</code>
-              <code>bridge-curator</code>
+          <div class="uc-foot">
+            <div class="uc-prim">
+              <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
+              <div class="chips">
+                <code>memory</code>
+                <code>bridge-learn</code>
+                <code>bridge-curator</code>
+              </div>
             </div>
+            <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/memory.md" target="_blank" rel="noopener">
+              <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
+            </a>
           </div>
-          <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/memory.md" target="_blank" rel="noopener">
-            <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
-          </a>
         </article>
 
         <!-- ⑦ Cross-tool skills + private-by-default contribution -->
-        <article class="uc reveal" id="cross-tool-skills">
+        <article class="uc" id="cross-tool-skills">
           <div class="uc-head"><span class="uc-num">07</span></div>
           <h3 class="uc-title">
             <span data-lang="en">Cross-tool skills, private by default</span>
@@ -393,21 +696,23 @@
             <span data-lang="en">Agent Skills follow the open SKILL.md standard, discoverable by Claude Code, Codex and Copilot CLI through one shared tree, symlinked into <code>.claude/</code>, <code>.agents/</code> and <code>.github/</code>. A three-tier promote/contribute flow routes every change by its scope, so private content stays local while generic CORE content flows upstream, decided by structure, not by a tag you can forget.</span>
             <span data-lang="de">Agent-Skills folgen dem offenen SKILL.md-Standard, auffindbar für Claude Code, Codex und Copilot CLI über einen gemeinsamen Baum, verlinkt nach <code>.claude/</code>, <code>.agents/</code> und <code>.github/</code>. Ein dreistufiger Promote/Contribute-Fluss routet jede Änderung nach ihrem Scope, sodass private Inhalte lokal bleiben und generische CORE-Inhalte upstream fließen, entschieden durch Struktur, nicht durch ein Tag, das man vergessen kann.</span>
           </p>
-          <div class="uc-prim">
-            <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
-            <div class="chips">
-              <code>skills/</code>
-              <code>/bridge-promote</code>
-              <code>/contribute</code>
+          <div class="uc-foot">
+            <div class="uc-prim">
+              <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
+              <div class="chips">
+                <code>skills/</code>
+                <code>/bridge-promote</code>
+                <code>/contribute</code>
+              </div>
             </div>
+            <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/extension-model.md" target="_blank" rel="noopener">
+              <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
+            </a>
           </div>
-          <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/extension-model.md" target="_blank" rel="noopener">
-            <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
-          </a>
         </article>
 
         <!-- ⑧ Multi-repo client/engagement work -->
-        <article class="uc reveal" id="workspaces">
+        <article class="uc" id="workspaces">
           <div class="uc-head"><span class="uc-num">08</span></div>
           <h3 class="uc-title">
             <span data-lang="en">Multi-repo client/engagement work</span>
@@ -423,18 +728,21 @@
             <span data-lang="en">A workspace names the binding: the member repos plus the org config overlay it draws on. Clones live in the gitignored <code>.bridge/</code> tree, public-fork-safe by construction, and <code>status</code> shows at a glance whether any member has drifted from its pinned ref.</span>
             <span data-lang="de">Ein Workspace benennt die Bindung: die Mitgliedsrepos plus das Org-Config-Overlay, auf das er sich stützt. Clones liegen im gitignorten <code>.bridge/</code>-Baum, konstruktionsbedingt sicher für öffentliche Forks, und <code>status</code> zeigt auf einen Blick, ob ein Mitglied vom gepinnten Ref abgewichen ist.</span>
           </p>
-          <div class="uc-prim">
-            <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
-            <div class="chips">
-              <code>/workspace</code>
-              <code>workflow/workspaces</code>
+          <div class="uc-foot">
+            <div class="uc-prim">
+              <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
+              <div class="chips">
+                <code>/workspace</code>
+                <code>workflow/workspaces</code>
+              </div>
             </div>
+            <a class="uc-more" href="workspaces.html">
+              <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
+            </a>
           </div>
-          <a class="uc-more" href="workspaces.html">
-            <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
-          </a>
         </article>
 
+      </div>
       </div>
     </div>
   </section>
@@ -442,7 +750,8 @@
   <!-- ---- a day with it: five moments from a long-running instance ---- -->
   <section class="uc-section" id="a-day-with-it" aria-label="A day with it / Ein Tag damit">
     <div class="container">
-      <div class="sec-head">
+      <div class="sec-head" data-reveal>
+        <p class="eyebrow"><span data-lang="en">Five moments</span><span data-lang="de">Fünf Momente</span></p>
         <h2 class="h2">
           <span data-lang="en">A day with it</span>
           <span data-lang="de">Ein Tag damit</span>
@@ -452,9 +761,9 @@
           <span data-lang="de">Fünf Momente aus einer lange laufenden Instanz, allgemein erzählt. Jeder beruht auf einem Mechanismus, der in CORE mitgeliefert wird.</span>
         </p>
       </div>
-      <div class="uc-grid">
+      <div class="uc-timeline" data-reveal="stagger">
 
-        <article class="uc reveal" id="morning-triage">
+        <article class="uc moment" id="morning-triage">
           <div class="uc-head">
             <span class="uc-num">09</span>
             <span class="uc-badge"><span data-lang="en">A day with it</span><span data-lang="de">Ein Tag damit</span></span>
@@ -473,20 +782,22 @@
             <span data-lang="en">“good morning” returns one list: a client’s overnight error report has two new failure clusters, a backup target is three days stale, a tax document is due Friday, two applications have had no reply for over ten days. Nothing else is shown, because the rest is green.</span>
             <span data-lang="de">„Guten Morgen“ liefert eine Liste: der nächtliche Fehlerbericht eines Kunden hat zwei neue Fehlercluster, ein Backup-Ziel ist drei Tage alt, ein Steuerdokument ist Freitag fällig, zwei Bewerbungen sind seit über zehn Tagen unbeantwortet. Mehr wird nicht gezeigt, weil der Rest grün ist.</span>
           </p>
-          <div class="uc-prim">
-            <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
-            <div class="chips">
-              <code>briefing</code>
-              <code>work/log.md</code>
-              <code>infra/backups</code>
+          <div class="uc-foot">
+            <div class="uc-prim">
+              <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
+              <div class="chips">
+                <code>briefing</code>
+                <code>work/log.md</code>
+                <code>infra/backups</code>
+              </div>
             </div>
+            <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/skills/briefing/SKILL.md" target="_blank" rel="noopener">
+              <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
+            </a>
           </div>
-          <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/skills/briefing/SKILL.md" target="_blank" rel="noopener">
-            <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
-          </a>
         </article>
 
-        <article class="uc reveal" id="after-a-call">
+        <article class="uc moment" id="after-a-call">
           <div class="uc-head">
             <span class="uc-num">10</span>
             <span class="uc-badge"><span data-lang="en">A day with it</span><span data-lang="de">Ein Tag damit</span></span>
@@ -505,19 +816,21 @@
             <span data-lang="en">The recording becomes a transcript, the transcript a protocol in the team wiki, three proposed board items waiting for your approval, and a recap mail as a draft. The agent does not send it; you press send.</span>
             <span data-lang="de">Aus der Aufnahme wird ein Transkript, daraus ein Protokoll im Team-Wiki, drei vorgeschlagene Board-Einträge, die auf deine Freigabe warten, und eine Zusammenfassungs-Mail als Entwurf. Der Agent sendet sie nicht; du drückst auf Senden.</span>
           </p>
-          <div class="uc-prim">
-            <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
-            <div class="chips">
-              <code>debrief</code>
-              <code>meeting-transcription</code>
+          <div class="uc-foot">
+            <div class="uc-prim">
+              <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
+              <div class="chips">
+                <code>debrief</code>
+                <code>meeting-transcription</code>
+              </div>
             </div>
+            <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/transcription-worker.md" target="_blank" rel="noopener">
+              <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
+            </a>
           </div>
-          <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/transcription-worker.md" target="_blank" rel="noopener">
-            <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
-          </a>
         </article>
 
-        <article class="uc reveal" id="incident-context">
+        <article class="uc moment" id="incident-context">
           <div class="uc-head">
             <span class="uc-num">11</span>
             <span class="uc-badge"><span data-lang="en">A day with it</span><span data-lang="de">Ein Tag damit</span></span>
@@ -536,53 +849,24 @@
             <span data-lang="en">“What happened to invoice X?” A sub-agent searches the logs and returns a short delta table instead of a log dump. The finding lands in the task’s <code>STATUS.md</code> and a log row, so tomorrow’s session resumes mid-thought.</span>
             <span data-lang="de">„Was ist mit Rechnung X passiert?“ Ein Sub-Agent durchsucht die Logs und liefert eine kurze Delta-Tabelle statt eines Log-Dumps. Der Befund landet in der <code>STATUS.md</code> der Aufgabe und in einer Log-Zeile, sodass die Session morgen mitten im Gedanken weitermacht.</span>
           </p>
-          <div class="uc-prim">
-            <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
-            <div class="chips">
-              <code>.claude/agents</code>
-              <code>STATUS.md</code>
-              <code>work/log.md</code>
+          <div class="uc-foot">
+            <div class="uc-prim">
+              <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
+              <div class="chips">
+                <code>.claude/agents</code>
+                <code>STATUS.md</code>
+                <code>work/log.md</code>
+              </div>
             </div>
+            <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/work-system.md" target="_blank" rel="noopener">
+              <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
+            </a>
           </div>
-          <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/work-system.md" target="_blank" rel="noopener">
-            <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
-          </a>
         </article>
 
-        <article class="uc reveal" id="quiet-server">
+        <article class="uc moment" id="another-hat">
           <div class="uc-head">
             <span class="uc-num">12</span>
-            <span class="uc-badge"><span data-lang="en">A day with it</span><span data-lang="de">Ein Tag damit</span></span>
-          </div>
-          <h3 class="uc-title">
-            <span data-lang="en">The quiet server</span>
-            <span data-lang="de">Der ruhige Server</span>
-          </h3>
-          <p class="uc-problem">
-            <span class="lab"><span data-lang="en">Problem</span><span data-lang="de">Problem</span></span>
-            <span data-lang="en">Dozens of scheduled jobs run on a small home server, and a config file that says “running” proves nothing.</span>
-            <span data-lang="de">Dutzende geplante Jobs laufen auf einem kleinen Heimserver, und eine Config-Datei, in der „running“ steht, beweist nichts.</span>
-          </p>
-          <p class="uc-solution">
-            <span class="lab"><span data-lang="en">What the bridge does</span><span data-lang="de">Was die Bridge tut</span></span>
-            <span data-lang="en">Every job is declared in one file. The agent never trusts a status field; it asks the service manager, and only a broken or stale job becomes a morning line with a fix hint.</span>
-            <span data-lang="de">Jeder Job ist in einer Datei deklariert. Der Agent vertraut nie einem Statusfeld; er fragt den Service-Manager, und nur ein kaputter oder veralteter Job wird zu einer Morgenzeile mit Reparaturhinweis.</span>
-          </p>
-          <div class="uc-prim">
-            <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
-            <div class="chips">
-              <code>workload</code>
-              <code>workflow/workloads</code>
-            </div>
-          </div>
-          <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/workloads.md" target="_blank" rel="noopener">
-            <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
-          </a>
-        </article>
-
-        <article class="uc reveal" id="another-hat">
-          <div class="uc-head">
-            <span class="uc-num">13</span>
             <span class="uc-badge"><span data-lang="en">A day with it</span><span data-lang="de">Ein Tag damit</span></span>
           </div>
           <h3 class="uc-title">
@@ -599,50 +883,65 @@
             <span data-lang="en">Switching to a freelance client swaps the signature, the filing path and the board. A private task never syncs to any tracker, because its <code>STATUS.md</code> says <code>bridge_only: true</code>.</span>
             <span data-lang="de">Der Wechsel zu einem Freelance-Kunden tauscht Signatur, Ablagepfad und Board. Eine private Aufgabe synchronisiert nie mit einem Tracker, weil in ihrer <code>STATUS.md</code> <code>bridge_only: true</code> steht.</span>
           </p>
-          <div class="uc-prim">
-            <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
-            <div class="chips">
-              <code>identity/personas</code>
-              <code>workflow/contexts</code>
-              <code>task-sync</code>
+          <div class="uc-foot">
+            <div class="uc-prim">
+              <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
+              <div class="chips">
+                <code>identity/personas</code>
+                <code>workflow/contexts</code>
+                <code>task-sync</code>
+              </div>
             </div>
+            <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/personas.md" target="_blank" rel="noopener">
+              <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
+            </a>
           </div>
-          <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/personas.md" target="_blank" rel="noopener">
-            <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
-          </a>
+        </article>
+
+        <article class="uc moment" id="quiet-server">
+          <div class="uc-head">
+            <span class="uc-num">13</span>
+            <span class="uc-badge"><span data-lang="en">A day with it</span><span data-lang="de">Ein Tag damit</span></span>
+          </div>
+          <h3 class="uc-title">
+            <span data-lang="en">The quiet server</span>
+            <span data-lang="de">Der ruhige Server</span>
+          </h3>
+          <p class="uc-problem">
+            <span class="lab"><span data-lang="en">Problem</span><span data-lang="de">Problem</span></span>
+            <span data-lang="en">Dozens of scheduled jobs run on a small home server, and a config file that says “running” proves nothing.</span>
+            <span data-lang="de">Dutzende geplante Jobs laufen auf einem kleinen Heimserver, und eine Config-Datei, in der „running“ steht, beweist nichts.</span>
+          </p>
+          <p class="uc-solution">
+            <span class="lab"><span data-lang="en">What the bridge does</span><span data-lang="de">Was die Bridge tut</span></span>
+            <span data-lang="en">Every job is declared in one file. The agent never trusts a status field; it asks the service manager, and only a broken or stale job becomes a morning line with a fix hint.</span>
+            <span data-lang="de">Jeder Job ist in einer Datei deklariert. Der Agent vertraut nie einem Statusfeld; er fragt den Service-Manager, und nur ein kaputter oder veralteter Job wird zu einer Morgenzeile mit Reparaturhinweis.</span>
+          </p>
+          <div class="uc-foot">
+            <div class="uc-prim">
+              <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
+              <div class="chips">
+                <code>workload</code>
+                <code>workflow/workloads</code>
+              </div>
+            </div>
+            <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/workloads.md" target="_blank" rel="noopener">
+              <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
+            </a>
+          </div>
         </article>
 
       </div>
+      <p class="uc-more-line"><a href="concepts.html"><span data-lang="en">How the concepts fit together</span><span data-lang="de">Wie die Konzepte zusammenspielen</span> <span class="arrow">→</span></a></p>
     </div>
   </section>
 
-  <!-- ---- funnel CTA ---- -->
-  <section aria-label="Next steps / Nächste Schritte">
-    <div class="container">
-      <div class="sec-head" style="margin-bottom:0">
-        <h2 class="h2">
-          <span data-lang="en">Recognise your own workday?</span>
-          <span data-lang="de">Deinen eigenen Arbeitstag wiedererkannt?</span>
-        </h2>
-        <p>
-          <span data-lang="en">Everything above runs on plain files in git. One prompt to your agent sets up your own.</span>
-          <span data-lang="de">Alles oben läuft auf schlichten Dateien in Git. Ein Prompt an deinen Agenten richtet deine eigene ein.</span>
-        </p>
-        <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:30px">
-          <a class="btn btn-primary" href="index.html#get-started">
-            <span data-lang="en">Set up your own</span>
-            <span data-lang="de">Eigene Bridge einrichten</span>
-            <span class="arrow">→</span>
-          </a>
-          <a class="btn btn-secondary" href="concepts.html">
-            <span data-lang="en">How the concepts fit together</span>
-            <span data-lang="de">Wie die Konzepte zusammenspielen</span>
-            <span class="arrow">→</span>
-          </a>
-        </div>
-      </div>
-    </div>
-  </section>
+  <section class="cta-band"><div class="container">
+    <p class="eyebrow"><span data-lang="en">Get started</span><span data-lang="de">Loslegen</span></p>
+    <h2><span data-lang="en">One prompt. Your own private bridge.</span><span data-lang="de">Ein Prompt. Deine eigene, private Bridge.</span></h2>
+    <p><span data-lang="en">Paste it into Claude Code, Codex or Copilot CLI. Your agent follows SETUP.md, shows you its plan and waits for your go.</span><span data-lang="de">Kopier ihn in Claude Code, Codex oder Copilot CLI. Dein Agent folgt SETUP.md, zeigt dir seinen Plan und wartet auf dein Go.</span></p>
+    <div class="cta-row"><a class="btn btn-primary" href="index.html#get-started"><span data-lang="en">Get the prompt</span><span data-lang="de">Zum Prompt</span> <span class="arrow">→</span></a><a class="btn btn-secondary" href="demo.html"><span data-lang="en">See it work</span><span data-lang="de">Sieh es arbeiten</span></a></div>
+  </div></section>
 
 </main>
 <!-- ========================== END PAGE CONTENT ============================== -->
@@ -802,6 +1101,31 @@
 })();
 </script>
 
+<!-- the sticky index of the eight jobs marks the card in the middle band of the screen -->
+<script>
+(function(){
+  "use strict";
+  var nav = document.querySelector(".uc-index");
+  if(!nav || !("IntersectionObserver" in window)) return;
+  var links = {};
+  [].slice.call(nav.querySelectorAll("ol a[href^='#']")).forEach(function(a){ links[a.getAttribute("href").slice(1)] = a; });
+  var seen = {};
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ seen[e.target.id] = e.isIntersecting ? e.intersectionRect.height : 0; });
+    var best = null, most = 0;
+    Object.keys(links).forEach(function(id){ if((seen[id] || 0) > most){ most = seen[id]; best = id; } });
+    Object.keys(links).forEach(function(id){
+      var on = id === best;
+      links[id].classList.toggle("on", on);
+      if(on){ links[id].setAttribute("aria-current", "true"); } else { links[id].removeAttribute("aria-current"); }
+    });
+  }, { rootMargin: "-30% 0px -45% 0px", threshold: [0, 0.1, 0.25, 0.5, 0.75, 1] });
+  Object.keys(links).forEach(function(id){ var el = document.getElementById(id); if(el){ io.observe(el); } });
+})();
+</script>
+
+  <script defer src="assets/page-motion.js"></script>
+  <script defer src="assets/diagram-steps.js"></script>
   <script defer src="assets/agent-config.js"></script>
   <script defer src="assets/agent-widget.js"></script>
 </body>
