@@ -25,6 +25,7 @@ Daily and on-demand briefing. Read the referenced file ONLY when triggered.
 | Phase | default | `--quick` | `--skip-trackers` |
 |-------|---------|-----------|-------------------|
 | Phase 0 (smart detection + day block) | ✅ | ✅ | ✅ |
+| Phase 0.5 (inbox: check + run released) | ✅ | ✅ | ✅ |
 | Stream A (local state) | ✅ | ✅ | ✅ |
 | Stream B (trackers fan-out) | ✅ | ❌ | ❌ |
 | Stream C (companion: calendar, imports) | ✅ | ❌ | ✅ |
@@ -46,8 +47,12 @@ Daily and on-demand briefing. Read the referenced file ONLY when triggered.
 
 ```
 User wants to...
-├── Full daily briefing              → Read references/workflow.md
+├── Full daily briefing              → Read references/workflow.md, then
+│                                       references/control.md (inbox first,
+│                                       one thing first, levers)
 ├── Quick local-only briefing        → Read references/workflow.md (--quick path)
+├── Steer: yes/later/drop, "yes once green", open the day's tabs,
+│   status of all tabs, tell a tab   → Read references/control.md
 ├── Detailed commit analysis         → Read references/commit-analysis.md
 ├── Are we behind on anything?       → Read references/upstream-summary.md
 │                                       (covers BOTH inbound channels: CORE from
