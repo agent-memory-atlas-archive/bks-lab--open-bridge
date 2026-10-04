@@ -53,7 +53,10 @@ def wait_for_item(repo: Path, seconds: float = 10) -> str:
 
 
 def finish(proc) -> dict:
-    out, err = proc.communicate(timeout=20)
+    # stdin was closed in start(); communicate() would try to flush it again,
+    # which Python 3.12 rejects ("I/O operation on closed file").
+    proc.wait(timeout=20)
+    out, err = proc.stdout.read(), proc.stderr.read()
     assert proc.returncode == 0, err
     return json.loads(out.strip().splitlines()[-1])
 
