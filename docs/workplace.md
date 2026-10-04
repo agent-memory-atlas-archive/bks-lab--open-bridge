@@ -6,6 +6,7 @@ related:
   - ../scripts/workplace.py
   - inbox.md
   - ../skills/briefing/references/control.md
+  - ../skills/cmux/SKILL.md
 ---
 
 # Workplace
@@ -43,12 +44,36 @@ A driver is optional. Without one (`driver: none`) the plan prints the commands 
 start by hand, `status` has nothing to report and `send` says so: the same Bridge,
 the same plan, no dependency.
 
+## Which terminal: one you can steer through an API
+
+**Recommendation: a terminal the Bridge can drive through an API.** The workplace
+needs four things from the terminal: list the tabs that are open (and which agent
+waits for you), open a tab with a command in a named workspace, type into a tab, and
+rename one. A terminal that only a person can click through gives the Bridge none of
+them; it can then only print the commands (`driver: none`).
+
+| Terminal | Steerable through | Driver |
+|---|---|---|
+| [cmux](https://github.com/manaflow-ai/cmux) (macOS) | CLI and socket API: workspaces, tabs, splits, sidebar status, notifications | ships as [`skills/cmux`](../skills/cmux/SKILL.md), the reference driver |
+| tmux | `tmux` commands (sessions, windows, `send-keys`, `list-panes`) | write one (below) |
+| WezTerm | `wezterm cli` (spawn, send-text, list) | write one (below) |
+| kitty | remote control (`kitten @ launch`, `send-text`, `ls`) | write one (below) |
+| none of these | | `driver: none`: the plan prints the commands to start by hand |
+
+cmux is the recommendation because it was built for running many coding agents
+side by side: workspaces with colors, tab status the agent itself reports (working,
+waiting, needs you), notifications, and an API for all of it. It is also the driver
+that ships and is tested. The others are good choices too; their driver is a small
+program speaking the protocol below, and the plan, the briefing and the inbox stay
+exactly the same.
+
 ## Configuration
 
 ```yaml
 workplace:
   driver: none                       # or {command: ["python3", "path/to/driver.py"]}
-  control: {name: Control}           # the tab that steers the others
+  control: {name: Control}           # the tab that steers the others; optional `command:`
+                                     # starts an agent there when a driver creates it
   workspaces:
     - {name: Bigcorp, contexts: [bigcorp], color: "#1565C0"}
     - {name: Platform, slugs: ["platform-*"]}
@@ -79,8 +104,24 @@ Rules every driver keeps: it never closes a tab or a workspace; a tab that is al
 open is reused, never opened twice; `here` is the calling tab, which becomes the
 control tab and moves last so no workspace is ever left empty. A driver that fails or
 answers something unreadable is reported as a line, never raised, so the plan always
-stands. A driver ships with the tool it drives (a plugin, a separate repo), not in
-CORE; `driver: {command: [...]}` may use `${root}` for the repository root.
+stands. A step the terminal refused is a report line starting with `ERROR`, never a
+success line; `open --yes`, `send` and `adopt` then exit 1, so a script or workload
+sees the failure the person reads. A driver ships as an optional skill or with the tool itself; the plan never
+imports it. `skills/cmux` is the reference driver, active only where cmux is
+installed:
+
+```yaml
+workplace:
+  driver: {command: ["python3", "${root}/skills/cmux/scripts/cmux_driver.py"]}
+```
+
+`driver: {command: [...]}` may use `${root}` for the repository root.
+
+## From the briefing to open tabs
+
+With a driver configured, the briefing's `workplace` section proposes one tab per
+task, grouped into workspaces. On the person's yes, `workplace.py open --yes`
+opens them through the driver; `status`, `send` and `adopt` steer them afterwards.
 
 ## Where tab state comes from
 

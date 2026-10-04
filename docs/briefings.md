@@ -55,8 +55,9 @@ python3 scripts/briefing.py validate              # every profile; exit 1 on a p
 5. Several and none chosen: `collect` exits 2 and names them; the agent asks.
 6. No profile at all: the **built-in** one, equal to the briefing before
    profiles existed (inbox, advise, tasks, the trackers enabled under
-   `integrations.*`, calendar when a tool is installed, activity). Existing
-   Bridges keep working without a file.
+   `integrations.*`, calendar when a tool is installed, activity, and the
+   day's tabs when a `workplace:` block is configured). Existing Bridges keep
+   working without a file.
 
 `offer_on` lists phrases on which the Bridge proposes a profile by name
 ("good morning" → morning, "acme" → acme). That is how a Bridge with several
@@ -68,7 +69,7 @@ profiles offers the right one instead of the person having to remember ids.
 |---|---|---|
 | `inbox` | open inbox items, most urgent first ([inbox](inbox.md)) | `max` |
 | `advise` | the advice checks: collisions, quiet and blocked tasks, WIP | `max` |
-| `workplace` | the day's tab plan ([workplace](workplace.md)) | `max` |
+| `workplace` | the day's tab plan: one tab per task, grouped into workspaces, opened on your yes through the configured driver (cmux ships as `skills/cmux`) ([workplace](workplace.md)) | `max` |
 | `tasks` | `work/tasks/*/STATUS.md` | `status` (default doing, review), `contexts`, `max` |
 | `activity` | `work/log.md` rows of the last days | `days` (default 7), `max` |
 | `calendar` | events in local time; also handed to `advise` for collisions. `ics` converts UTC and `TZID` times but lists a recurring event (RRULE) on its first date only: use `icalbuddy` or a `command` for recurring calendars | `provider` (auto, icalbuddy, ics, command), `days`, `path` (ics), `argv` (command), `exclude_calendars` (icalbuddy) |

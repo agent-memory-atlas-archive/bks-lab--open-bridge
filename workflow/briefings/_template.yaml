@@ -64,6 +64,10 @@ sections:
   - kind: activity
     days: 7
 
+  # The day's tabs: one per task, grouped into workspaces, opened on your yes
+  # through the configured driver (docs/workplace.md; cmux ships as skills/cmux).
+  # - kind: workplace
+
   # Anything else: a program printing a JSON list of normalized items.
   # - kind: command
   #   title: "My source"

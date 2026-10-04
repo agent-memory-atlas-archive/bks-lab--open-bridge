@@ -480,6 +480,28 @@ On `[y]` or `[c]`:
   - `[only here]` → no tracker section; the built-in sections are the whole profile.
   - Run `python3 scripts/briefing.py validate` and `briefing.py collect morning` once;
     an error line for a tracker is a setup hint to show, not a failure to hide.
+- **D1d: offer the workplace** (one agent tab per task, grouped into workspaces,
+  opened from the briefing on the person's yes; `docs/workplace.md`). Only ask when a
+  terminal tool with a driver is installed: today cmux (driver `skills/cmux`), found
+  by `command -v cmux` OR the app bundle `/Applications/cmux.app/Contents/Resources/bin/cmux`
+  (a plain app install puts the CLI on PATH only inside cmux's own shells, so the
+  first check alone misses it when onboarding runs elsewhere). Nothing installed →
+  no question, one line instead: "Tip: with a terminal the Bridge can steer through an
+  API (cmux recommended, docs/workplace.md), your briefing can open one agent tab per
+  task." `driver: none` still prints the plan, so it can be added any time.
+  > cmux is installed. Should your briefing open one tab per task in cmux, grouped
+  > by customer or project? `[y]` `[later]`
+  - `[y]` → write a `workplace:` block to `bridge-config.yaml`: `driver: {command:
+    ["python3", "${root}/skills/cmux/scripts/cmux_driver.py"]}`, one `workspaces`
+    entry per `workflow/contexts/<id>.yaml` the person has (`contexts: [<id>]`) plus
+    one `default: true` entry. Leave `agent` out: the defaults start Claude Code. For
+    another agent CLI write `agent: {new: "<cli> ... {prompt}", resume: "<cli> ... {session}"}`
+    using only the placeholders `{slug}`, `{prompt}` and `{session}`; `{prompt}` arrives
+    already shell-quoted, so never wrap it in quotes, and any other placeholder breaks
+    the plan.
+    Add `- kind: workplace` to `workflow/briefings/morning.yaml`.
+  - Show `python3 scripts/workplace.py propose` once, never `open --yes` here: opening
+    tabs is the person's call in their first briefing.
 
 On `[n]`: leave `work.enabled: false` (still write `work.transcript_retention_days` as above: memory facts exist without task management, so the choice is recorded either way), explicitly mention that
 `/briefing`, `/debrief`, `/archive`, and **`feature-discovery`** are
