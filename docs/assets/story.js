@@ -34,7 +34,7 @@
   /* ---------- the script ---------- */
   var TOTAL = 11.8;
   var story = E.create({
-    section: section, stage: stage, screens: 8.5, total: TOTAL,
+    section: section, stage: stage, screens: +section.dataset.screens || 8.5, total: TOTAL,
     offset: function () { return topbar ? Math.round(topbar.getBoundingClientRect().height) : 0; },
     initial: { tilt: .55, cam: 1, lift: .52, hub: 1, draw: 1, flow: .35, stOther: 1, chaos: 0, gather: 0, sub: 0, tags: 0, rwAmp: 0, rw: 0, log: 0, fleet: 0 },
     tweens: [

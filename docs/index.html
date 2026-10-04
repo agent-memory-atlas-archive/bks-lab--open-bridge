@@ -698,15 +698,16 @@ html.story-static .story-list{display:flex;flex-wrap:wrap;gap:10px;justify-conte
 <!-- ======================= IN-PAGE SECTION NAV (landing only) ======================= -->
 <nav class="page-nav" id="page-nav" aria-label="On this page / Auf dieser Seite">
   <div class="page-nav-inner">
-    <a href="#problem"><span data-lang="en">Problem</span><span data-lang="de">Problem</span></a>
-    <a href="#substrate"><span data-lang="en">The substrate</span><span data-lang="de">Das Substrat</span></a>
-    <a href="#mechanic-viz"><span data-lang="en">How it works</span><span data-lang="de">So funktioniert es</span></a>
-    <a href="#properties"><span data-lang="en">What you get</span><span data-lang="de">Was du bekommst</span></a>
+    <a href="#substrate"><span data-lang="en">Proof</span><span data-lang="de">Beweis</span></a>
+    <a href="#install-early"><span data-lang="en">Install</span><span data-lang="de">Installieren</span></a>
     <a href="#usecases"><span data-lang="en">Use cases</span><span data-lang="de">Anwendungsfälle</span></a>
+    <a href="#what-runs"><span data-lang="en">What runs</span><span data-lang="de">Was läuft</span></a>
+    <a href="#objection"><span data-lang="en">Why not a CLAUDE.md</span><span data-lang="de">Warum nicht CLAUDE.md</span></a>
     <a href="#honesty"><span data-lang="en">Status</span><span data-lang="de">Status</span></a>
-    <a href="#concept"><span data-lang="en">Concept</span><span data-lang="de">Konzept</span></a>
-    <a href="#faq"><span data-lang="en">FAQ</span><span data-lang="de">FAQ</span></a>
+    <a href="#concept"><span data-lang="en">What it reads</span><span data-lang="de">Was es liest</span></a>
+    <a href="#model"><span data-lang="en">Is it safe?</span><span data-lang="de">Ist das sicher?</span></a>
     <a href="#start"><span data-lang="en">Get started</span><span data-lang="de">Loslegen</span></a>
+    <a href="#faq"><span data-lang="en">FAQ</span><span data-lang="de">FAQ</span></a>
   </div>
 </nav>
 </div><!-- /.topbar -->
@@ -717,7 +718,7 @@ html.story-static .story-list{display:flex;flex-wrap:wrap;gap:10px;justify-conte
      A pinned stage tells what open-bridge is in six scenes, driven by scroll.
      Reduced motion or no WebGL: html.story-static stacks the captions and shows
      the station list instead of the scene. -->
-<section id="story" class="story" aria-label="open-bridge">
+<section id="story" class="story" data-screens="7" aria-label="open-bridge">
   <div class="story-stage" id="story-stage">
     <canvas id="story-gl" aria-hidden="true"></canvas>
     <div id="story-labels" aria-hidden="true"></div>
@@ -826,89 +827,10 @@ html.story-static .story-list{display:flex;flex-wrap:wrap;gap:10px;justify-conte
   </div>
 </section>
 
-<!-- ======================= THE COLD-START PROBLEM ======================= -->
-<section class="alt" id="problem">
+<section id="substrate" class="alt">
   <div class="container">
-    <div class="sec-head reveal">
-      <p class="eyebrow"><span data-lang="en">The cold-start problem</span><span data-lang="de">Das Kaltstart-Problem</span></p>
-      <h2 class="h1"><span data-lang="en">Every session starts from scratch.</span><span data-lang="de">Jede Session beginnt bei null.</span></h2>
-    </div>
-
-    <div class="reset-lines">
-      <div class="reset-line"><span class="x">✕</span><span data-lang="en">Re-explain your conventions to the agent, again.</span><span data-lang="de">Dem Agenten deine Konventionen wieder neu erklären.</span></div>
-      <div class="reset-line"><span class="x">✕</span><span data-lang="en">Load the wrong client's context and only notice halfway through.</span><span data-lang="de">Den falschen Kunden-Kontext laden und es erst auf halbem Weg merken.</span></div>
-      <div class="reset-line"><span class="x">✕</span><span data-lang="en">No record of what you decided last week.</span><span data-lang="de">Kein Protokoll dessen, was du letzte Woche entschieden hast.</span></div>
-    </div>
-
-    <div class="split reveal">
-      <div class="doc-card card">
-        <h4 class="h4"><span data-lang="en">Most AI work today</span><span data-lang="de">KI-Arbeit heute</span></h4>
-        <div class="flat-dump" aria-hidden="true">
-<span class="f">chat-export-final.txt</span>
-<span class="f">notes (3).md</span>
-<span class="f">prompt that worked.txt</span>
-<span class="f">todo-maybe.md</span>
-<span class="f">client stuff.docx</span>
-<span class="f">chat-export-final-v2.txt</span>
-<span class="f">untitled.md</span>
-        </div>
-        <p class="cap"><span data-lang="en">A bare My-Documents folder: everyone piling up their own chaos, every conversation rebuilding context and structure from scratch.</span><span data-lang="de">Ein nackter My-Documents-Ordner. Jeder häuft sein eigenes Chaos an, jede Unterhaltung baut Kontext und Struktur von Grund auf neu.</span></p>
-      </div>
-      <div class="doc-card card">
-        <h4 class="h4"><span data-lang="en">With BKS open-bridge</span><span data-lang="de">Mit BKS open-bridge</span></h4>
-        <div class="code" aria-hidden="true"><span class="dir">identity/</span>          who you are, who you send to
-<span class="dir">workflow/</span>          per-context worlds
-<span class="dir">work/</span>
-  <span class="dir">tasks/</span>           finite tasks in flight
-  <span class="dir">streams/</span>         long-running streams
-  <span class="dir">done/</span>            closed, archived
-  board.md           live task board
-  log.md             the persistent record</div>
-        <p class="cap"><span data-lang="en">A clear, separated layout the agent files into (shipped as example structures, not reinvented by every user).</span><span data-lang="de">Ein klares, getrenntes Layout, in das der Agent ablegt. Als Beispielstrukturen mitgeliefert, nicht von jedem Nutzer neu erfunden.</span></p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ======================= THE SUBSTRATE, SHOWN ======================= -->
-<section id="substrate">
-  <div class="container">
-    <div class="sec-head reveal">
-      <p class="eyebrow"><span data-lang="en">The substrate, shown</span><span data-lang="de">Das Substrat, gezeigt</span></p>
-      <h2 class="h1"><span data-lang="en">Plain text in git. Clone it and look.</span><span data-lang="de">Plain Text in Git: Klone es und schau rein.</span></h2>
-      <p><span data-lang="en">No adjectives. <code>examples/agency/</code> is a real, complete config you can clone today; the <code>STATUS</code> and work log below are the shape your own <code>work/</code> takes once you start logging.</span><span data-lang="de">Keine Adjektive. <code>examples/agency/</code> ist eine echte, vollständige Config, die du heute klonen kannst; der <code>STATUS</code> und das Arbeitslog unten sind die Form, die dein eigenes <code>work/</code> annimmt, sobald du anfängst zu loggen.</span></p>
-    </div>
-
     <div class="split reveal">
       <div>
-        <div class="code-label"><span>examples/agency/</span><span data-lang="en">2 separated clients</span><span data-lang="de">2 getrennte Kunden</span></div>
-        <div class="code"><span class="dir">examples/agency/</span>
-├── ecosystem.yaml            <span class="cmt"># repo + client registry</span>
-├── bridge-config.yaml
-├── <span class="dir">identity/</span>
-│   ├── <span class="dir">accounts/</span>             <span class="cmt"># cloud/mail inventory</span>
-│   └── <span class="dir">mandants/</span>             <span class="cmt"># recipient groups</span>
-├── <span class="dir">workflow/</span>
-│   ├── <span class="dir">calendars/</span>
-│   └── <span class="dir">contexts/</span>webapp/      <span class="cmt"># per-engagement world</span>
-├── <span class="dir">infra/</span>
-│   ├── <span class="dir">channels/</span>  <span class="dir">remotes/</span>  <span class="dir">backups/</span>
-└── <span class="dir">.claude/agents/</span>          <span class="cmt"># ops-officer, code-analyst …</span></div>
-
-        <div style="height:24px"></div>
-
-        <!-- Verbatim README STATUS.md (README lines 203-207) -->
-        <div class="code-label"><span>work/tasks/bigcorp-migration/STATUS.md</span><span data-lang="en">verbatim from the README</span><span data-lang="de">wortgetreu aus dem README</span></div>
-        <div class="artifact" aria-label="STATUS.md, the shape a task takes">
-          <div class="row add"><span class="gut">+</span><span class="ln"><span class="cmt"># STATUS: bigcorp-migration</span></span></div>
-          <div class="row add"><span class="gut">+</span><span class="ln"><span class="k">status:</span> doing</span></div>
-          <div class="row add"><span class="gut">+</span><span class="ln"><span class="k">context:</span> bigcorp</span></div>
-          <div class="row add"><span class="gut">+</span><span class="ln"><span class="k">last:</span> Migrated the invoice pipeline to the new schema; one test still red.</span></div>
-          <div class="row add"><span class="gut">+</span><span class="ln"><span class="k">next:</span> Fix the failing UBL-validation case, then open the PR.</span></div>
-        </div>
-
-        <div style="height:24px"></div>
-
         <!-- Verbatim README log row (README line 211), the same row the hero canvas types -->
         <div class="code-label"><span>work/log.md</span><span>$ cat work/log.md</span></div>
         <div class="artifact" aria-label="A work log row, diff-able plain text">
@@ -927,18 +849,6 @@ html.story-static .story-list{display:flex;flex-wrap:wrap;gap:10px;justify-conte
           <span class="chip" data-lang="en">no SaaS</span><span class="chip" data-lang="de">kein SaaS</span>
           <span class="chip" data-lang="en">no daemon</span><span class="chip" data-lang="de">kein Daemon</span>
         </div>
-      </div>
-    </div>
-
-    <!-- The full interactive knowledge constellation lives on explore.html;
-         the landing points to it instead of duplicating the static graph. -->
-
-    <!-- ===== POINTER to the mini-site (explore + concepts) ===== -->
-    <div class="reveal sub-cta" style="margin-top:36px;text-align:center">
-      <p style="font-size:16px;line-height:1.7;margin-bottom:18px"><span data-lang="en">BKS open-bridge's pieces form one connected web. Click through them on the interactive map, or read the plain-language guide.</span><span data-lang="de">Die Bausteine von BKS open-bridge bilden ein verbundenes Netz. Sieh jeden einzelnen auf einer interaktiven Karte zum Klicken, oder lies den Leitfaden in einfacher Sprache.</span></p>
-      <div class="cta-row" style="justify-content:center">
-        <a class="btn btn-primary" href="explore.html"><span data-lang="en">Explore the concepts</span><span data-lang="de">Konzepte erkunden</span><span class="arrow">→</span></a>
-        <a class="btn btn-secondary" href="concepts.html"><span data-lang="en">Read the concept guide</span><span data-lang="de">Konzept-Leitfaden lesen</span><span class="arrow">→</span></a>
       </div>
     </div>
 
@@ -1079,55 +989,22 @@ html.story-static .story-list{display:flex;flex-wrap:wrap;gap:10px;justify-conte
   </div>
 </section>
 
-<!-- ======================= TWO PROPERTIES (TILES) ======================= -->
-<section class="alt" id="properties">
-  <div class="container">
-    <div class="sec-head reveal">
-      <p class="eyebrow"><span data-lang="en">What your agent gains</span><span data-lang="de">Was dein Agent gewinnt</span></p>
-      <h2 class="h1"><span data-lang="en">Two things this gives your agent: more context, less chaos.</span><span data-lang="de">Zwei Dinge, die das deinem Agenten gibt: mehr Kontext, weniger Chaos.</span></h2>
-      <p><span data-lang="en">Both were coined by the team at BKS-Lab. The plain meaning leads, the name follows.</span><span data-lang="de">Beide wurden im Team bei BKS-Lab geprägt. Die schlichte Bedeutung führt, der Name folgt.</span></p>
+<section id="install-early">
+  <div class="container" style="text-align:center">
+    <p class="eyebrow"><span data-lang="en">Ready?</span><span data-lang="de">Bereit?</span></p>
+    <h2 class="h1"><span data-lang="en">One prompt. Your own private bridge.</span><span data-lang="de">Ein Prompt. Deine eigene, private Bridge.</span></h2>
+    <p style="max-width:40rem;margin:16px auto 0;color:var(--muted)"><span data-lang="en">Paste it into Claude Code, Codex or Copilot CLI. Your agent follows SETUP.md, shows you its plan and waits for your go.</span><span data-lang="de">Kopier ihn in Claude Code, Codex oder Copilot CLI. Dein Agent folgt SETUP.md, zeigt dir seinen Plan und wartet auf dein Go.</span></p>
+    <div class="cta-row" style="justify-content:center;margin-top:24px">
+      <button class="btn btn-primary js-setup-cta" id="early-setup" type="button">
+          <span data-lang="en">Set it up: copy the prompt</span><span data-lang="de">Einrichten: Prompt kopieren</span>
+          <span class="arrow">→</span>
+        </button>
+      <a class="btn btn-secondary" href="#get-started"><span data-lang="en">See the prompt</span><span data-lang="de">Prompt ansehen</span></a>
     </div>
-
-    <div class="tiles">
-      <!-- Tile 1: helm / scan motif (page-chrome tokens, flat) -->
-      <div class="tile reveal">
-        <svg class="tile-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="24" cy="24" r="16"/>
-          <circle cx="24" cy="24" r="4" fill="currentColor" stroke="none"/>
-          <path d="M24 8v6M24 34v6M8 24h6M34 24h6M12.7 12.7l4.2 4.2M31.1 31.1l4.2 4.2M35.3 12.7l-4.2 4.2M16.9 31.1l-4.2 4.2"/>
-        </svg>
-        <h3><span data-lang="en">Persistent context, always loaded</span><span data-lang="de">Bleibender Kontext, immer geladen</span></h3>
-        <p class="attrib"><span data-lang="en">An independent "third side" beside your model and your tool. BKS-Lab calls this a Context Booster.</span><span data-lang="de">Eine modell- und frontend-unabhängige „dritte Seite". Bei BKS-Lab „Context Booster" genannt.</span></p>
-        <p><span data-lang="en">You work with whatever model and whatever frontend you like. BKS open-bridge layers in persistent context about your world (your repos and clients, your machines, what you worked on yesterday), so the agent stops loading the wrong client. The boost comes from a layer beside both. It doesn't care what you run, because the substrate is plain text every runtime can read.</span><span data-lang="de">Du arbeitest mit dem Modell und dem Frontend, das du willst. BKS open-bridge legt persistenten Kontext über deine Welt darüber: deine Repos und Kunden, deine Maschinen, woran du gestern gearbeitet hast. Damit hört der Agent auf, den falschen Kunden zu laden. Der Boost kommt von einer dritten Seite, der egal ist, was du nutzt. Denn das Substrat ist Plain Text, den jede Runtime lesen kann.</span></p>
-      </div>
-
-      <!-- Tile 2: four-room / filing grid motif -->
-      <div class="tile reveal">
-        <svg class="tile-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
-          <rect x="7" y="7" width="14" height="14" rx="2" fill="currentColor" stroke="none"/>
-          <rect x="27" y="7" width="14" height="14" rx="2"/>
-          <rect x="7" y="27" width="14" height="14" rx="2"/>
-          <rect x="27" y="27" width="14" height="14" rx="2" fill="currentColor" stroke="none"/>
-        </svg>
-        <h3><span data-lang="en">Ready-made structure for AI work</span><span data-lang="de">Fertige Struktur für KI-Arbeit</span></h3>
-        <p class="attrib"><span data-lang="en">Structuring unstructured AI dialogues. BKS-Lab calls this a Chaos Tamer.</span><span data-lang="de">„Strukturierung unstrukturierter KI-Dialoge". Bei BKS-Lab „Chaos Tamer" genannt.</span></p>
-        <p><span data-lang="en">It ships ready-made structure you don't have to invent: a board, a log, and per-task status (<code>backlog → doing → review → done</code> over <code>tasks/</code> and <code>streams/</code>). Decisions, findings and status get filed in plain text as you work. Unstructured sessions become a persistent, compounding record instead of another My-Documents pile.</span><span data-lang="de">Es liefert fertige Struktur mit, die du nicht erfinden musst: ein Board, ein Log und Per-Task-Status (<code>backlog → doing → review → done</code> über <code>tasks/</code> und <code>streams/</code>). Entscheidungen, Erkenntnisse und Status werden als Plain Text abgelegt, während du arbeitest: Aus unstrukturierten Sessions wird ein persistentes, wachsendes Protokoll statt des nächsten My-Documents-Haufens.</span></p>
-        <div class="demo" aria-hidden="true">work/board.md
-  Doing (2) · bigcorp-checkout · startupxyz-handover
-  Streams (1) · infra-hardening
-  Done this month (7)</div>
-      </div>
-    </div>
-
-    <p class="stance-note reveal">
-      <span class="tag-bet">Bet / Roadmap</span>
-      <span data-lang="en"><strong>Workspace separation as the default</strong> is the intended stance: agreed in principle, not yet built (labelled honestly below).</span>
-      <span data-lang="de"><strong>Workspace-Trennung als Default</strong> ist die beabsichtigte Haltung. Im Prinzip vereinbart, noch nicht gebaut (unten ehrlich gekennzeichnet).</span>
-    </p>
+    <p style="margin-top:14px;font-size:14px"><a href="concepts.html"><span data-lang="en">Want the whole concept first? Concepts →</span><span data-lang="de">Erst das ganze Konzept? Konzepte →</span></a></p>
   </div>
 </section>
 
-<!-- ======================= USE-CASES: A DAY WITH IT ======================= -->
 <section id="usecases">
   <div class="container">
     <div class="sec-head reveal">
@@ -1164,31 +1041,6 @@ html.story-static .story-list{display:flex;flex-wrap:wrap;gap:10px;justify-conte
   </div>
 </section>
 
-<!-- ======================= THE ONE LARGE-TYPE MOMENT =======================
-     Twelve sections all ran the same shape: centred eyebrow, heading, lead,
-     then a grid. Nothing on 1900 lines stood on its own at size. This sits
-     between the two tile grids, which is both where the wall was longest and
-     where the surface alternation had a gap. The words come up from a muted
-     tone in reading order, staggered off --i, using the existing .reveal
-     observer rather than a third one of its own. -->
-<section class="alt" id="tagline">
-  <div class="container">
-    <div class="tagline-block reveal">
-      <p class="tagline-line" data-lang="en">
-        <span class="tl">Say it once.</span>
-        <span class="tl">Six months later the decision is still there,</span>
-        <span class="tl">and so is the reason for it.</span>
-      </p>
-      <p class="tagline-line" data-lang="de">
-        <span class="tl">Sag es einmal.</span>
-        <span class="tl">Sechs Monate später steht die Entscheidung noch da,</span>
-        <span class="tl">und der Grund dafür auch.</span>
-      </p>
-    </div>
-  </div>
-</section>
-
-<!-- ======================= WHAT PEOPLE RUN ON IT (tile strip → use-cases.html) ======================= -->
 <section id="what-runs" class="uc-strip">
   <div class="container">
     <div class="sec-head reveal">
@@ -1231,78 +1083,6 @@ html.story-static .story-list{display:flex;flex-wrap:wrap;gap:10px;justify-conte
   </div>
 </section>
 
-<!-- ======================= WHAT ELSE IT CAN DO (merged appendix under Use-cases) ======================= -->
-<section class="alt" id="capabilities">
-  <div class="container">
-    <div class="sec-head reveal" style="margin-bottom:40px">
-      <p class="eyebrow"><span data-lang="en">What else it can do</span><span data-lang="de">Was es noch kann</span></p>
-      <h2 class="h2"><span data-lang="en">The four core pieces stand on their own. The rest is optional.</span><span data-lang="de">Schon die vier Kernteile bringen dir etwas. Der Rest ist optional.</span></h2>
-    </div>
-
-    <p class="cap-intro reveal" style="margin-bottom:28px"><span data-lang="en">The four core pieces (<strong>context registry</strong>, <strong>task management</strong>, <strong>skills &amp; commands</strong>, <strong>standing orders</strong>) run from a fresh clone; they're what powered the day above. Everything below is optional, USER-scope, off until you turn it on.</span><span data-lang="de">Die vier Kernteile: <strong>Kontext-Registry</strong>, <strong>Task-Management</strong>, <strong>Skills &amp; Befehle</strong>, <strong>Standing Orders</strong>. Sie laufen direkt aus einem frischen Clone heraus (du hast sie oben im Tagesablauf gesehen). Alles darunter ist optional, USER-scope, und bleibt aus, bis du es einschaltest.</span></p>
-
-    <div class="cap-group reveal">
-      <!-- The heading two lines up calls this list optional, so the page now
-           treats it as optional instead of stacking nine more cards on the
-           reader. One <summary> with inner spans, never two with data-lang:
-           [data-lang]{display:none} would hide the first, and <details> takes
-           its FIRST summary child as the control, so the German one would
-           never become clickable. .cap-group keeps .reveal and stays outside,
-           or the IntersectionObserver has nothing left to see. -->
-      <details class="cap-fold">
-        <summary class="cap-grouphead">
-          <span class="cap-fold-mark" aria-hidden="true"></span>
-          <span data-lang="en">Optional: turn on when you want it</span><span data-lang="de">Optional: einschalten, wenn du es brauchst</span>
-          <span class="cap-fold-n">9</span>
-        </summary>
-      <div class="cap-grid">
-        <div class="cap-item">
-          <div class="cap-label"><span data-lang="en">Channels</span><span data-lang="de">Channels</span><a class="cap-docs" href="https://github.com/bks-lab/open-bridge/blob/main/docs/channels.md" target="_blank" rel="noopener">docs →</a></div>
-          <p class="cap-benefit"><span data-lang="en">Declare email, Telegram, Signal or iMessage once; the agent drafts, you send.</span><span data-lang="de">E-Mail, Telegram, Signal oder iMessage einmal deklarieren; der Agent entwirft, du sendest.</span></p>
-        </div>
-        <div class="cap-item">
-          <div class="cap-label"><span data-lang="en">Remotes</span><span data-lang="de">Remotes</span><a class="cap-docs" href="https://github.com/bks-lab/open-bridge/blob/main/docs/remotes.md" target="_blank" rel="noopener">docs →</a></div>
-          <p class="cap-benefit"><span data-lang="en">One source of truth for your machines. Wake, ssh, check, deploy, Tailscale-first.</span><span data-lang="de">Eine Wahrheitsquelle für deine Maschinen: wecken, ssh, prüfen, deployen, Tailscale zuerst.</span></p>
-        </div>
-        <div class="cap-item">
-          <div class="cap-label"><span data-lang="en">Document filing</span><span data-lang="de">Dokumente ablegen</span><a class="cap-docs" href="https://github.com/bks-lab/open-bridge/blob/main/docs/doc-system.md" target="_blank" rel="noopener">docs →</a></div>
-          <p class="cap-benefit"><span data-lang="en">Point it at an inbox; it names, files and logs each doc, and never deletes.</span><span data-lang="de">Richte es auf einen Posteingang; es benennt, legt ab und protokolliert jedes Dokument, löscht aber nichts.</span></p>
-        </div>
-        <div class="cap-item">
-          <div class="cap-label"><span data-lang="en">Personas</span><span data-lang="de">Personas</span><a class="cap-docs" href="https://github.com/bks-lab/open-bridge/blob/main/docs/personas.md" target="_blank" rel="noopener">docs →</a></div>
-          <p class="cap-benefit"><span data-lang="en">The identities you hold (signatures, tax data, filing paths), so things land in the right place.</span><span data-lang="de">Die Identitäten, die du hast (Signaturen, Steuerdaten, Ablagepfade), damit alles am richtigen Ort landet.</span></p>
-        </div>
-        <div class="cap-item">
-          <div class="cap-label"><span data-lang="en">Sub-agents</span><span data-lang="de">Sub-Agenten</span><a class="cap-docs" href="https://github.com/bks-lab/open-bridge/blob/main/README.md#sub-agents" target="_blank" rel="noopener">docs →</a></div>
-          <p class="cap-benefit"><span data-lang="en">Offload heavy or parallel work; it returns a clean summary. Native on Claude Code; inline elsewhere.</span><span data-lang="de">Schwere oder parallele Arbeit auslagern; es liefert eine saubere Zusammenfassung. Nativ in Claude Code; anderswo läuft es inline.</span></p>
-        </div>
-        <div class="cap-item">
-          <div class="cap-label"><span data-lang="en">Tracker sync</span><span data-lang="de">Tracker-Sync</span><a class="cap-docs" href="https://github.com/bks-lab/open-bridge/blob/main/trackers/README.md" target="_blank" rel="noopener">docs →</a></div>
-          <p class="cap-benefit"><span data-lang="en">Read work items from GitHub Projects; the agent keeps your board and tasks aligned. Gated, never auto.</span><span data-lang="de">Work-Items aus GitHub Projects lesen; der Agent hält Board und Tasks abgeglichen, immer mit Freigabe, nie automatisch.</span></p>
-        </div>
-        <div class="cap-item">
-          <div class="cap-label"><span data-lang="en">Workspaces</span><span data-lang="de">Workspaces</span><a class="cap-docs" href="workspaces.html">docs →</a></div>
-          <p class="cap-benefit"><span data-lang="en">A named binding of member repos and config overlays, cloned into a public-fork-safe path and indexed in a shared machine-global registry.</span><span data-lang="de">Eine benannte Bindung aus Mitgliedsrepos und Config-Overlays, geklont in einen für öffentliche Forks sicheren Pfad und in einer geteilten maschinenweiten Registry indiziert.</span></p>
-        </div>
-        <div class="cap-item">
-          <div class="cap-label"><span data-lang="en">Workloads</span><span data-lang="de">Workloads</span><a class="cap-docs" href="workloads.html">docs →</a></div>
-          <p class="cap-benefit"><span data-lang="en">One declared run on one machine, in one file: report, poller, daemon, watcher or agent. Provisioned from the declaration and reconciled against the live service manager, never against a status field.</span><span data-lang="de">Ein deklarierter Lauf auf einer Maschine, in einer Datei: Bericht, Poller, Daemon, Wächter oder Agent. Aus der Deklaration eingerichtet und gegen den lebenden Dienstverwalter abgeglichen, nie gegen ein Statusfeld.</span></p>
-        </div>
-        <div class="cap-item">
-          <div class="cap-label"><span data-lang="en">Agents</span><span data-lang="de">Agents</span><a class="cap-docs" href="agents.html">docs →</a></div>
-          <p class="cap-benefit"><span data-lang="en">Bridge-Agents are persistent, addressable A2A endpoints that front one persona to the outside world; the MCP→A2A gateway makes them reachable from MCP-only frontends too, always under a human gate.</span><span data-lang="de">Bridge-Agents sind persistente, adressierbare A2A-Endpunkte, die eine Persona nach außen vertreten; das MCP→A2A-Gateway macht sie auch aus reinen MCP-Frontends erreichbar. Das läuft immer unter menschlicher Freigabe.</span></p>
-        </div>
-      </div>
-      </details>
-    </div>
-
-    <p class="cap-more reveal"><a href="https://github.com/bks-lab/open-bridge/tree/main/docs" target="_blank" rel="noopener"><span data-lang="en">And the full layout (every path, the CORE/USER split, the rest) is in the docs →</span><span data-lang="de">Und das ganze Layout (jeder Pfad, der CORE/USER-Split, der Rest) steht in den Docs →</span></a></p>
-
-    <p class="cap-honesty reveal"><span data-lang="en">Everything here ships and runs today. What is not built yet (workspace separation as the default, and more) is in the status section below, labelled as a bet or open, not as a feature.</span><span data-lang="de">Alles hier wird mitgeliefert und läuft heute. Was noch nicht gebaut ist, etwa die Workspace-Trennung als Default, steht unten im Status-Abschnitt, als Wette oder offen gekennzeichnet, nicht als Feature.</span></p>
-  </div>
-</section>
-
-<!-- ======================= OBJECTION: WHY NOT A CLAUDE.md ======================= -->
 <section id="objection">
   <div class="container">
     <div class="sec-head reveal">
@@ -1338,7 +1118,23 @@ html.story-static .story-list{display:flex;flex-wrap:wrap;gap:10px;justify-conte
   </div>
 </section>
 
-<!-- ======================= PROVEN / BET / OPEN ======================= -->
+<section class="alt" id="tagline">
+  <div class="container">
+    <div class="tagline-block reveal">
+      <p class="tagline-line" data-lang="en">
+        <span class="tl">Say it once.</span>
+        <span class="tl">Six months later the decision is still there,</span>
+        <span class="tl">and so is the reason for it.</span>
+      </p>
+      <p class="tagline-line" data-lang="de">
+        <span class="tl">Sag es einmal.</span>
+        <span class="tl">Sechs Monate später steht die Entscheidung noch da,</span>
+        <span class="tl">und der Grund dafür auch.</span>
+      </p>
+    </div>
+  </div>
+</section>
+
 <section class="alt" id="honesty">
   <div class="container">
     <div class="sec-head reveal">
@@ -1355,85 +1151,12 @@ html.story-static .story-list{display:flex;flex-wrap:wrap;gap:10px;justify-conte
   </div>
 </section>
 
-<!-- ======================= CONCEPT (collapsed: bridge · CORE/USER · runtimes) ======================= -->
 <section id="concept">
   <div class="container">
-    <div class="sec-head reveal">
-      <p class="eyebrow"><span data-lang="en">The concept, in brief</span><span data-lang="de">Das Konzept, kurz</span></p>
-      <h2 class="h1"><span data-lang="en">A bridge. And you can run many, safely.</span><span data-lang="de">Eine Bridge. Und du kannst viele betreiben, sicher.</span></h2>
-      <p><span data-lang="en">A bridge is what your agent knows about your world, plain markdown and YAML in git it reads at session start. You can run many: one per client or context, all on one shared CORE (one foundation, separate private rooms). It compounds safely because your data and the shipped templates live on different paths.</span><span data-lang="de">Eine Bridge ist das, was dein Agent über deine Welt weiß, gespeichert als Plain-Markdown und YAML in Git, das er zum Session-Start liest. Du kannst viele betreiben: eine pro Kunde oder Kontext, alle auf einem gemeinsamen CORE (ein Fundament, getrennte private Räume). Es wächst sicher, weil deine Daten und die mitgelieferten Templates auf verschiedenen Pfaden liegen.</span></p>
-    </div>
-
-    <!-- One picture of the CORE/USER model: a public line across the middle.
-         Above it the public upstream, below it your private repo: main (CORE)
-         and one bridge per client or context. Updates flow down, only scope:core
-         goes up with /bridge-promote, scope:user stops at the line. -->
-    <div class="diagram-frame reveal bridge-model" role="img"
-         aria-label="Above a dashed line the public upstream bks-lab/open-bridge, read-only. Below it your private repository: main carries the shipped CORE templates (skills, docs, schemas, standing orders), and one bridge per client or context carries your own files (bridge-config, work/, personas) on its own user branch. Updates flow down from upstream into main and from main into every bridge, a conflict-free merge because the paths never overlap. Only a file marked scope:core goes up, through /bridge-promote. A scope:user file stops at the line: the push guard refuses it.">
-      <svg viewBox="0 0 800 400" preserveAspectRatio="xMidYMid meet">
-        <defs>
-          <marker id="bmArr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--accent-text)"/></marker>
-          <marker id="bmArrM" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--muted)"/></marker>
-        </defs>
-
-        <!-- public: upstream -->
-        <text class="dg-cap bm-zone" x="24" y="30"><tspan data-lang="en">PUBLIC</tspan><tspan data-lang="de">ÖFFENTLICH</tspan></text>
-        <rect class="dg-box" x="250" y="34" width="300" height="58" rx="10"/>
-        <text class="dg-mono" x="400" y="58" text-anchor="middle" fill="var(--accent-text)">bks-lab/open-bridge</text>
-        <text class="dg-sub" x="400" y="78" text-anchor="middle"><tspan data-lang="en">upstream · read-only for you</tspan><tspan data-lang="de">upstream · für dich nur lesend</tspan></text>
-
-        <!-- the line -->
-        <path class="dg-bound bm-line" d="M16 128 H784"/>
-        <text class="dg-cap bm-zone" x="76" y="152"><tspan data-lang="en">PRIVATE · your origin</tspan><tspan data-lang="de">PRIVAT · dein origin</tspan></text>
-
-        <!-- private: main (CORE) -->
-        <rect class="dg-box" x="240" y="170" width="320" height="58" rx="10"/>
-        <text class="dg-mono" x="400" y="194" text-anchor="middle" fill="var(--accent-text)">main (CORE)</text>
-        <text class="dg-sub" x="400" y="214" text-anchor="middle">skills · docs · schemas · standing orders</text>
-
-        <!-- updates flow down -->
-        <path class="dg-flow core" d="M400 92 V166" marker-end="url(#bmArr)"/>
-        <text class="dg-cap" x="412" y="114"><tspan data-lang="en">updates: git merge upstream/main</tspan><tspan data-lang="de">Updates: git merge upstream/main</tspan></text>
-        <path class="dg-flow core" d="M340 228 C340 262 140 262 140 296" marker-end="url(#bmArr)"/>
-        <path class="dg-flow core" d="M400 228 V296" marker-end="url(#bmArr)"/>
-        <path class="dg-flow core" d="M460 228 C460 262 660 262 660 296" marker-end="url(#bmArr)"/>
-        <text class="dg-cap bm-note" x="400" y="252" text-anchor="middle" stroke="var(--surface)" stroke-width="6" paint-order="stroke"><tspan data-lang="en">conflict-free merge: the paths never overlap</tspan><tspan data-lang="de">konfliktfreier Merge: die Pfade überlappen nie</tspan></text>
-
-        <!-- one bridge per client or context -->
-        <rect class="dg-box" x="30" y="300" width="220" height="74" rx="10"/>
-        <text class="dg-lbl" x="46" y="324"><tspan data-lang="en">Bridge client A</tspan><tspan data-lang="de">Bridge Kunde A</tspan></text>
-        <text class="dg-mono" x="46" y="344" fill="var(--accent-text)">user/client-a</text>
-        <text class="dg-sub" x="46" y="362">config · work/ · personas</text>
-        <rect class="dg-box" x="290" y="300" width="220" height="74" rx="10"/>
-        <text class="dg-lbl" x="306" y="324"><tspan data-lang="en">Bridge client B</tspan><tspan data-lang="de">Bridge Kunde B</tspan></text>
-        <text class="dg-mono" x="306" y="344" fill="var(--accent-text)">user/client-b</text>
-        <text class="dg-sub" x="306" y="362">config · work/ · personas</text>
-        <rect class="dg-box me" x="550" y="300" width="220" height="74" rx="10"/>
-        <text class="dg-lbl" x="566" y="324"><tspan data-lang="en">Your bridge</tspan><tspan data-lang="de">Deine Bridge</tspan></text>
-        <text class="dg-mono" x="566" y="344" fill="var(--accent-text)">user/you</text>
-        <text class="dg-sub" x="566" y="362">config · work/ · personas</text>
-
-        <!-- only scope:core goes up -->
-        <path class="dg-flow promote" d="M752 296 C792 220 772 70 556 62" marker-end="url(#bmArr)"/>
-        <text class="dg-mono" x="748" y="176" text-anchor="end" fill="var(--accent-text)">/bridge-promote</text>
-        <text class="dg-sub" x="748" y="192" text-anchor="end"><tspan data-lang="en">only scope:core</tspan><tspan data-lang="de">nur scope:core</tspan></text>
-        <text class="dg-sub" x="748" y="206" text-anchor="end"><tspan data-lang="en">goes up</tspan><tspan data-lang="de">geht hoch</tspan></text>
-
-        <!-- scope:user stops at the line -->
-        <path class="dg-flow blocked" d="M60 296 V140" marker-end="url(#bmArrM)"/>
-        <text class="dg-x" x="60" y="133" text-anchor="middle">✕</text>
-        <text class="dg-mono" x="76" y="196" fill="var(--accent-text)">scope:user</text>
-        <text class="dg-sub" x="76" y="212"><tspan data-lang="en">stops here:</tspan><tspan data-lang="de">stoppt hier:</tspan></text>
-        <text class="dg-sub" x="76" y="226"><tspan data-lang="en">the push guard</tspan><tspan data-lang="de">der Push-Guard</tspan></text>
-        <text class="dg-sub" x="76" y="240"><tspan data-lang="en">refuses it</tspan><tspan data-lang="de">verweigert es</tspan></text>
-      </svg>
-    </div>
-
-    <p class="cu-foot"><span data-lang="en">Improvements go upstream with <code>/bridge-promote</code>. And it's runtime-agnostic: one <code>skills/</code> tree symlinks into each tool. Tested on Claude Code, working via <code>AGENTS.md</code> elsewhere, honestly labelled.</span><span data-lang="de">Verbesserungen gehen mit <code>/bridge-promote</code> nach upstream. Und es ist runtime-unabhängig: ein <code>skills/</code>-Baum wird per Symlink in jedes Tool eingebunden. Getestet auf Claude Code, anderswo via <code>AGENTS.md</code>, ehrlich gekennzeichnet.</span></p>
     <!-- What a session reads, and when. The drawing below is generated: edit
          docs/data-model.yaml and run `python3 scripts/data-model.py --write`. -->
-    <h3 class="h3" data-lang="en" style="text-align:center;margin:72px auto 22px">What a session reads, and when</h3>
-    <h3 class="h3" data-lang="de" style="text-align:center;margin:72px auto 22px">Was eine Sitzung liest, und wann</h3>
+    <h3 class="h3" data-lang="en" style="text-align:center;margin:0 auto 22px">What a session reads, and when</h3>
+    <h3 class="h3" data-lang="de" style="text-align:center;margin:0 auto 22px">Was eine Sitzung liest, und wann</h3>
     <!-- Order of reading, animated by assets/reads.js over the generated ring below.
          .reads-wrap/.reads-pin hold steps and ring in place while it plays; they sit
          outside the generated markers on purpose. -->
@@ -1531,48 +1254,84 @@ html.story-static .story-list{display:flex;flex-wrap:wrap;gap:10px;justify-conte
   </div>
 </section>
 
-<!-- ======================= OBJECTIONS, ANSWERED =======================
-     Open question and answer, not a row of <details>. An objection section
-     that shows a skimmer six questions with the answers folded away works
-     against itself. Sits directly before the final CTA, which is where A2
-     puts objection handling. Every answer rests on something the page already
-     states above it. -->
-<section class="alt" id="faq">
+<section id="model" class="alt">
   <div class="container">
     <div class="sec-head reveal">
-      <p class="eyebrow"><span data-lang="en">Before you clone it</span><span data-lang="de">Bevor du es klonst</span></p>
-      <h2 class="h1"><span data-lang="en">The six questions people actually ask.</span><span data-lang="de">Die sechs Fragen, die wirklich kommen.</span></h2>
+      <p class="eyebrow"><span data-lang="en">The concept, in brief</span><span data-lang="de">Das Konzept, kurz</span></p>
+      <h2 class="h1"><span data-lang="en">A bridge. And you can run many, safely.</span><span data-lang="de">Eine Bridge. Und du kannst viele betreiben, sicher.</span></h2>
+      <p><span data-lang="en">A bridge is what your agent knows about your world, plain markdown and YAML in git it reads at session start. You can run many: one per client or context, all on one shared CORE (one foundation, separate private rooms). It compounds safely because your data and the shipped templates live on different paths.</span><span data-lang="de">Eine Bridge ist das, was dein Agent über deine Welt weiß, gespeichert als Plain-Markdown und YAML in Git, das er zum Session-Start liest. Du kannst viele betreiben: eine pro Kunde oder Kontext, alle auf einem gemeinsamen CORE (ein Fundament, getrennte private Räume). Es wächst sicher, weil deine Daten und die mitgelieferten Templates auf verschiedenen Pfaden liegen.</span></p>
     </div>
-    <div class="faq-list">
-      <div class="faq-item reveal">
-        <h3 class="faq-q"><span data-lang="en">Does it work outside Claude Code?</span><span data-lang="de">Läuft es außerhalb von Claude Code?</span></h3>
-        <p class="faq-a"><span data-lang="en">One <code>skills/</code> tree symlinks into each tool. It is tested on Claude Code and works elsewhere through <code>AGENTS.md</code>, which Codex, Cursor, Copilot CLI and Gemini read natively. Sub-agents are the one Claude Code specific piece; everywhere else that logic runs inline.</span><span data-lang="de">Ein <code>skills/</code>-Baum wird per Symlink in jedes Tool eingebunden. Getestet ist es auf Claude Code, anderswo läuft es über <code>AGENTS.md</code>, das Codex, Cursor, Copilot CLI und Gemini nativ lesen. Sub-Agenten sind das einzige Claude-Code-spezifische Stück, überall sonst läuft dieselbe Logik inline.</span></p>
-      </div>
-      <div class="faq-item reveal">
-        <h3 class="faq-q"><span data-lang="en">What happens to my files when CORE updates?</span><span data-lang="de">Was passiert mit meinen Dateien, wenn CORE sich aktualisiert?</span></h3>
-        <p class="faq-a"><span data-lang="en">Nothing. Your files and the shipped templates sit on paths that never overlap, so the two merge without conflict by construction. Your config, your <code>work/</code> directory and every instance file live on your own branch; the templates live on the default branch.</span><span data-lang="de">Nichts. Deine Dateien und die mitgelieferten Templates liegen auf Pfaden, die sich nie überschneiden, also mergen die beiden konfliktfrei, schon vom Aufbau her. Deine Config, dein <code>work/</code>-Verzeichnis und jede Instanzdatei leben auf deinem eigenen Branch, die Templates auf dem Default-Branch.</span></p>
-      </div>
-      <div class="faq-item reveal">
-        <h3 class="faq-q"><span data-lang="en">What does it cost?</span><span data-lang="de">Was kostet es?</span></h3>
-        <p class="faq-a"><span data-lang="en">The repo is MIT and there is nothing to host, no account and no waitlist. What you do pay for is the coding agent you already run: this is a layer of plain files beside it, not a replacement for it.</span><span data-lang="de">Das Repo ist MIT, es gibt nichts zu hosten, kein Konto und keine Warteliste. Was du zahlst, ist der Coding-Agent, den du ohnehin fährst: das hier ist eine Schicht aus Plain-Text daneben, kein Ersatz dafür.</span></p>
-      </div>
-      <div class="faq-item reveal">
-        <h3 class="faq-q"><span data-lang="en">How does a public repo keep my work private?</span><span data-lang="de">Wie hält ein öffentliches Repo meine Arbeit privat?</span></h3>
-        <p class="faq-a"><span data-lang="en">Your copy has a private origin from the first command, and the public repo is only a read-only upstream. A push guard refuses to send a user branch anywhere public, and the same split is drawn in the diagram above: <code>scope:core</code> travels upstream, <code>scope:user</code> stops at the edge.</span><span data-lang="de">Deine Kopie hat vom ersten Befehl an ein privates Origin, und das öffentliche Repo ist nur ein Upstream zum Lesen. Ein Push-Guard weigert sich, einen User-Branch irgendwohin öffentlich zu schicken, und dieselbe Trennung ist oben gezeichnet: <code>scope:core</code> geht nach upstream, <code>scope:user</code> bleibt an der Kante stehen.</span></p>
-      </div>
-      <div class="faq-item reveal">
-        <h3 class="faq-q"><span data-lang="en">How many bridges can I run?</span><span data-lang="de">Wie viele Bridges kann ich betreiben?</span></h3>
-        <p class="faq-a"><span data-lang="en">As many as you have worlds to keep apart, typically one per client or context. They share one CORE and keep separate private rooms, so data from one never bleeds into another.</span><span data-lang="de">So viele, wie du Welten auseinanderhalten musst, üblicherweise eine pro Kunde oder Kontext. Sie teilen sich ein CORE und behalten getrennte private Räume, damit Daten der einen nie in die andere laufen.</span></p>
-      </div>
-      <div class="faq-item reveal">
-        <h3 class="faq-q"><span data-lang="en">How early is this, really?</span><span data-lang="de">Wie früh ist das wirklich?</span></h3>
-        <p class="faq-a"><span data-lang="en">Early. It is newly public. The first outside contribution was merged on 24 September 2026. Beyond that, nobody outside the BKS-Lab team's own instances and the closed instances it runs for other companies has reported using it yet. That is the honest pair: proven in daily use there, unproven anywhere else. The ledger in ROADMAP.md labels each piece as proven, a bet, or open.</span><span data-lang="de">Früh. Es ist frisch öffentlich. Der erste externe Beitrag wurde am 24. September 2026 gemerged. Darüber hinaus hat bisher niemand außerhalb der eigenen Instanzen des BKS-Lab-Teams und der geschlossenen Instanzen, die es für andere Firmen betreibt, eine Nutzung gemeldet. Das ist das ehrliche Paar: dort im täglichen Gebrauch bewährt, anderswo unbewiesen. Das Verzeichnis in ROADMAP.md kennzeichnet jedes Stück als bewiesen, als Wette oder als offen.</span></p>
-      </div>
+
+    <!-- One picture of the CORE/USER model: a public line across the middle.
+         Above it the public upstream, below it your private repo: main (CORE)
+         and one bridge per client or context. Updates flow down, only scope:core
+         goes up with /bridge-promote, scope:user stops at the line. -->
+    <div class="diagram-frame reveal bridge-model" role="img"
+         aria-label="Above a dashed line the public upstream bks-lab/open-bridge, read-only. Below it your private repository: main carries the shipped CORE templates (skills, docs, schemas, standing orders), and one bridge per client or context carries your own files (bridge-config, work/, personas) on its own user branch. Updates flow down from upstream into main and from main into every bridge, a conflict-free merge because the paths never overlap. Only a file marked scope:core goes up, through /bridge-promote. A scope:user file stops at the line: the push guard refuses it.">
+      <svg viewBox="0 0 800 400" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <marker id="bmArr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--accent-text)"/></marker>
+          <marker id="bmArrM" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--muted)"/></marker>
+        </defs>
+
+        <!-- public: upstream -->
+        <text class="dg-cap bm-zone" x="24" y="30"><tspan data-lang="en">PUBLIC</tspan><tspan data-lang="de">ÖFFENTLICH</tspan></text>
+        <rect class="dg-box" x="250" y="34" width="300" height="58" rx="10"/>
+        <text class="dg-mono" x="400" y="58" text-anchor="middle" fill="var(--accent-text)">bks-lab/open-bridge</text>
+        <text class="dg-sub" x="400" y="78" text-anchor="middle"><tspan data-lang="en">upstream · read-only for you</tspan><tspan data-lang="de">upstream · für dich nur lesend</tspan></text>
+
+        <!-- the line -->
+        <path class="dg-bound bm-line" d="M16 128 H784"/>
+        <text class="dg-cap bm-zone" x="76" y="152"><tspan data-lang="en">PRIVATE · your origin</tspan><tspan data-lang="de">PRIVAT · dein origin</tspan></text>
+
+        <!-- private: main (CORE) -->
+        <rect class="dg-box" x="240" y="170" width="320" height="58" rx="10"/>
+        <text class="dg-mono" x="400" y="194" text-anchor="middle" fill="var(--accent-text)">main (CORE)</text>
+        <text class="dg-sub" x="400" y="214" text-anchor="middle">skills · docs · schemas · standing orders</text>
+
+        <!-- updates flow down -->
+        <path class="dg-flow core" d="M400 92 V166" marker-end="url(#bmArr)"/>
+        <text class="dg-cap" x="412" y="114"><tspan data-lang="en">updates: git merge upstream/main</tspan><tspan data-lang="de">Updates: git merge upstream/main</tspan></text>
+        <path class="dg-flow core" d="M340 228 C340 262 140 262 140 296" marker-end="url(#bmArr)"/>
+        <path class="dg-flow core" d="M400 228 V296" marker-end="url(#bmArr)"/>
+        <path class="dg-flow core" d="M460 228 C460 262 660 262 660 296" marker-end="url(#bmArr)"/>
+        <text class="dg-cap bm-note" x="400" y="252" text-anchor="middle" stroke="var(--surface)" stroke-width="6" paint-order="stroke"><tspan data-lang="en">conflict-free merge: the paths never overlap</tspan><tspan data-lang="de">konfliktfreier Merge: die Pfade überlappen nie</tspan></text>
+
+        <!-- one bridge per client or context -->
+        <rect class="dg-box" x="30" y="300" width="220" height="74" rx="10"/>
+        <text class="dg-lbl" x="46" y="324"><tspan data-lang="en">Bridge client A</tspan><tspan data-lang="de">Bridge Kunde A</tspan></text>
+        <text class="dg-mono" x="46" y="344" fill="var(--accent-text)">user/client-a</text>
+        <text class="dg-sub" x="46" y="362">config · work/ · personas</text>
+        <rect class="dg-box" x="290" y="300" width="220" height="74" rx="10"/>
+        <text class="dg-lbl" x="306" y="324"><tspan data-lang="en">Bridge client B</tspan><tspan data-lang="de">Bridge Kunde B</tspan></text>
+        <text class="dg-mono" x="306" y="344" fill="var(--accent-text)">user/client-b</text>
+        <text class="dg-sub" x="306" y="362">config · work/ · personas</text>
+        <rect class="dg-box me" x="550" y="300" width="220" height="74" rx="10"/>
+        <text class="dg-lbl" x="566" y="324"><tspan data-lang="en">Your bridge</tspan><tspan data-lang="de">Deine Bridge</tspan></text>
+        <text class="dg-mono" x="566" y="344" fill="var(--accent-text)">user/you</text>
+        <text class="dg-sub" x="566" y="362">config · work/ · personas</text>
+
+        <!-- only scope:core goes up -->
+        <path class="dg-flow promote" d="M752 296 C792 220 772 70 556 62" marker-end="url(#bmArr)"/>
+        <text class="dg-mono" x="748" y="176" text-anchor="end" fill="var(--accent-text)">/bridge-promote</text>
+        <text class="dg-sub" x="748" y="192" text-anchor="end"><tspan data-lang="en">only scope:core</tspan><tspan data-lang="de">nur scope:core</tspan></text>
+        <text class="dg-sub" x="748" y="206" text-anchor="end"><tspan data-lang="en">goes up</tspan><tspan data-lang="de">geht hoch</tspan></text>
+
+        <!-- scope:user stops at the line -->
+        <path class="dg-flow blocked" d="M60 296 V140" marker-end="url(#bmArrM)"/>
+        <text class="dg-x" x="60" y="133" text-anchor="middle">✕</text>
+        <text class="dg-mono" x="76" y="196" fill="var(--accent-text)">scope:user</text>
+        <text class="dg-sub" x="76" y="212"><tspan data-lang="en">stops here:</tspan><tspan data-lang="de">stoppt hier:</tspan></text>
+        <text class="dg-sub" x="76" y="226"><tspan data-lang="en">the push guard</tspan><tspan data-lang="de">der Push-Guard</tspan></text>
+        <text class="dg-sub" x="76" y="240"><tspan data-lang="en">refuses it</tspan><tspan data-lang="de">verweigert es</tspan></text>
+      </svg>
     </div>
+
+    <p class="cu-foot"><span data-lang="en">Improvements go upstream with <code>/bridge-promote</code>. And it's runtime-agnostic: one <code>skills/</code> tree symlinks into each tool. Tested on Claude Code, working via <code>AGENTS.md</code> elsewhere, honestly labelled.</span><span data-lang="de">Verbesserungen gehen mit <code>/bridge-promote</code> nach upstream. Und es ist runtime-unabhängig: ein <code>skills/</code>-Baum wird per Symlink in jedes Tool eingebunden. Getestet auf Claude Code, anderswo via <code>AGENTS.md</code>, ehrlich gekennzeichnet.</span></p>
+    
   </div>
 </section>
 
-<!-- ======================= GET STARTED (Set up your own | Look first) ======================= -->
 <section id="start" class="steps">
   <span id="get-started" aria-hidden="true"></span>
   <div class="container">
@@ -1618,6 +1377,41 @@ claude        <span class="cmt"># or: codex, copilot</span></div>
     </div>
 
     <p class="tertiary-cta reveal"><span data-lang="en">Found a rough edge? <a href="https://github.com/bks-lab/open-bridge/issues" target="_blank" rel="noopener">Open an issue</a>. It's the most useful thing you can do right now.</span><span data-lang="de">Irgendwo hakt es? <a href="https://github.com/bks-lab/open-bridge/issues" target="_blank" rel="noopener">Öffne ein Issue</a>. Das ist das Nützlichste, was du gerade tun kannst.</span></p>
+  </div>
+</section>
+
+<section class="alt" id="faq">
+  <div class="container">
+    <div class="sec-head reveal">
+      <p class="eyebrow"><span data-lang="en">Before you clone it</span><span data-lang="de">Bevor du es klonst</span></p>
+      <h2 class="h1"><span data-lang="en">The six questions people actually ask.</span><span data-lang="de">Die sechs Fragen, die wirklich kommen.</span></h2>
+    </div>
+    <div class="faq-list">
+      <div class="faq-item reveal">
+        <h3 class="faq-q"><span data-lang="en">Does it work outside Claude Code?</span><span data-lang="de">Läuft es außerhalb von Claude Code?</span></h3>
+        <p class="faq-a"><span data-lang="en">One <code>skills/</code> tree symlinks into each tool. It is tested on Claude Code and works elsewhere through <code>AGENTS.md</code>, which Codex, Cursor, Copilot CLI and Gemini read natively. Sub-agents are the one Claude Code specific piece; everywhere else that logic runs inline.</span><span data-lang="de">Ein <code>skills/</code>-Baum wird per Symlink in jedes Tool eingebunden. Getestet ist es auf Claude Code, anderswo läuft es über <code>AGENTS.md</code>, das Codex, Cursor, Copilot CLI und Gemini nativ lesen. Sub-Agenten sind das einzige Claude-Code-spezifische Stück, überall sonst läuft dieselbe Logik inline.</span></p>
+      </div>
+      <div class="faq-item reveal">
+        <h3 class="faq-q"><span data-lang="en">What happens to my files when CORE updates?</span><span data-lang="de">Was passiert mit meinen Dateien, wenn CORE sich aktualisiert?</span></h3>
+        <p class="faq-a"><span data-lang="en">Nothing. Your files and the shipped templates sit on paths that never overlap, so the two merge without conflict by construction. Your config, your <code>work/</code> directory and every instance file live on your own branch; the templates live on the default branch.</span><span data-lang="de">Nichts. Deine Dateien und die mitgelieferten Templates liegen auf Pfaden, die sich nie überschneiden, also mergen die beiden konfliktfrei, schon vom Aufbau her. Deine Config, dein <code>work/</code>-Verzeichnis und jede Instanzdatei leben auf deinem eigenen Branch, die Templates auf dem Default-Branch.</span></p>
+      </div>
+      <div class="faq-item reveal">
+        <h3 class="faq-q"><span data-lang="en">What does it cost?</span><span data-lang="de">Was kostet es?</span></h3>
+        <p class="faq-a"><span data-lang="en">The repo is MIT and there is nothing to host, no account and no waitlist. What you do pay for is the coding agent you already run: this is a layer of plain files beside it, not a replacement for it.</span><span data-lang="de">Das Repo ist MIT, es gibt nichts zu hosten, kein Konto und keine Warteliste. Was du zahlst, ist der Coding-Agent, den du ohnehin fährst: das hier ist eine Schicht aus Plain-Text daneben, kein Ersatz dafür.</span></p>
+      </div>
+      <div class="faq-item reveal">
+        <h3 class="faq-q"><span data-lang="en">How does a public repo keep my work private?</span><span data-lang="de">Wie hält ein öffentliches Repo meine Arbeit privat?</span></h3>
+        <p class="faq-a"><span data-lang="en">Your copy has a private origin from the first command, and the public repo is only a read-only upstream. A push guard refuses to send a user branch anywhere public, and the same split is drawn in the diagram above: <code>scope:core</code> travels upstream, <code>scope:user</code> stops at the edge.</span><span data-lang="de">Deine Kopie hat vom ersten Befehl an ein privates Origin, und das öffentliche Repo ist nur ein Upstream zum Lesen. Ein Push-Guard weigert sich, einen User-Branch irgendwohin öffentlich zu schicken, und dieselbe Trennung ist oben gezeichnet: <code>scope:core</code> geht nach upstream, <code>scope:user</code> bleibt an der Kante stehen.</span></p>
+      </div>
+      <div class="faq-item reveal">
+        <h3 class="faq-q"><span data-lang="en">How many bridges can I run?</span><span data-lang="de">Wie viele Bridges kann ich betreiben?</span></h3>
+        <p class="faq-a"><span data-lang="en">As many as you have worlds to keep apart, typically one per client or context. They share one CORE and keep separate private rooms, so data from one never bleeds into another.</span><span data-lang="de">So viele, wie du Welten auseinanderhalten musst, üblicherweise eine pro Kunde oder Kontext. Sie teilen sich ein CORE und behalten getrennte private Räume, damit Daten der einen nie in die andere laufen.</span></p>
+      </div>
+      <div class="faq-item reveal">
+        <h3 class="faq-q"><span data-lang="en">How early is this, really?</span><span data-lang="de">Wie früh ist das wirklich?</span></h3>
+        <p class="faq-a"><span data-lang="en">Early. It is newly public. The first outside contribution was merged on 24 September 2026. Beyond that, nobody outside the BKS-Lab team's own instances and the closed instances it runs for other companies has reported using it yet. That is the honest pair: proven in daily use there, unproven anywhere else. The ledger in ROADMAP.md labels each piece as proven, a bet, or open.</span><span data-lang="de">Früh. Es ist frisch öffentlich. Der erste externe Beitrag wurde am 24. September 2026 gemerged. Darüber hinaus hat bisher niemand außerhalb der eigenen Instanzen des BKS-Lab-Teams und der geschlossenen Instanzen, die es für andere Firmen betreibt, eine Nutzung gemeldet. Das ist das ehrliche Paar: dort im täglichen Gebrauch bewährt, anderswo unbewiesen. Das Verzeichnis in ROADMAP.md kennzeichnet jedes Stück als bewiesen, als Wette oder als offen.</span></p>
+      </div>
+    </div>
   </div>
 </section>
 

@@ -153,6 +153,104 @@
   .toc{padding:22px 20px}
 }
 </style>
+<style id="from-landing-css">
+/* Lifted from index.html with the sections below (problem, substrate, properties,
+   capabilities) when the landing page was shortened. */
+.reveal,.reset-line{opacity:1!important;transform:none!important}
+.cta-row{display:flex;flex-wrap:wrap;gap:14px;margin-top:32px}
+.code{font-family:var(--mono);font-size:14px;line-height:1.7;
+  background:var(--surface-subtle);border:1px solid var(--border);
+  border-radius:var(--r-lg);padding:20px 22px;overflow-x:auto;color:var(--on-surface);
+  white-space:pre;}
+html.dark .code{background:var(--code-bg)}
+.code .dir{color:var(--accent-secondary);font-weight:500}
+.code .cmt{color:var(--secondary)}
+.code .k{color:var(--info-text)}
+.code .ok{color:var(--ok-text)}
+.code-label{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  font-family:var(--mono);font-size:12px;color:var(--secondary);
+  padding:0 4px 8px;}
+.artifact{font-family:var(--mono);font-size:14px;line-height:1.75;
+  background:var(--surface-subtle);border:1px solid var(--border);
+  border-radius:var(--r-lg);padding:0;overflow:hidden;color:var(--on-surface);}
+html.dark .artifact{background:var(--code-bg)}
+.artifact .row{display:flex;white-space:pre;align-items:flex-start}
+.artifact .gut{flex:0 0 26px;text-align:center;color:var(--secondary);
+  user-select:none;padding:2px 0;}
+.artifact .ln{padding:2px 14px 2px 4px;flex:1;min-width:0}
+.artifact .row.add{background:color-mix(in srgb,var(--ok) 10%, transparent)}
+.artifact .row.add .gut{color:var(--ok-text);font-weight:600}
+.artifact .row.hl{background:color-mix(in srgb,var(--accent) 9%, transparent)}
+.artifact .k{color:var(--info-text)}
+.artifact .who{color:var(--accent-secondary)}
+.artifact .tm{color:var(--accent-text);font-weight:500}
+.artifact .cmt{color:var(--secondary)}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:stretch}
+.reset-lines{display:flex;flex-direction:column;gap:12px;max-width:46rem;margin:0 auto 48px}
+.reset-line{display:flex;align-items:center;gap:12px;font-size:16px;color:var(--on-surface);
+  opacity:0;transform:translateY(8px);transition:opacity .5s ease,transform .5s ease;}
+.reset-line.in{opacity:1;transform:none}
+.reset-line .x{color:var(--attention-text);font-family:var(--mono);flex:none;font-weight:600}
+.doc-card h4{margin-bottom:14px}
+.doc-card .cap{margin-top:14px;font-size:13px;color:var(--secondary)}
+.flat-dump{font-family:var(--mono);font-size:13px;line-height:1.9;color:var(--secondary)}
+.flat-dump .f{display:block;opacity:.7}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:32px}
+.tile{background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);padding:36px;box-shadow:var(--shadow-soft);
+  position:relative;overflow:hidden;display:flex;flex-direction:column;}
+.tile-icon{width:46px;height:46px;margin-bottom:22px;color:var(--accent-text)}
+.tile h3{font-size:26px;font-weight:300;letter-spacing:-0.01em;color:var(--primary)}
+.tile .coined{font-weight:400}
+.attrib{font-size:13px;color:var(--secondary);margin-top:6px}
+.tile p{margin-top:16px;font-size:16px}
+.tile .demo{margin-top:auto;font-family:var(--mono);font-size:12.5px;line-height:1.7;
+  background:var(--surface-subtle);border:1px solid var(--border);
+  border-radius:var(--r-md);padding:14px 16px;color:var(--on-surface);margin-top:24px;white-space:pre-wrap;}
+html.dark .tile .demo{background:var(--code-bg)}
+.stance-note{margin-top:48px;max-width:46rem;margin-inline:auto;text-align:center;
+  font-size:14px;color:var(--secondary);}
+.tag-bet{display:inline-block;font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;
+  color:var(--attention-text);border:1px solid var(--attention-text);border-radius:var(--r-full);
+  padding:2px 9px;margin-right:8px;}
+.cap-intro{max-width:46rem;margin:0 auto 40px;text-align:center;font-size:16px;color:var(--secondary)}
+.cap-grouphead{font-size:13px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--secondary);margin:0 0 20px}
+.cap-group + .cap-group{margin-top:48px}
+.cap-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.cap-fold > summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;
+  font-size:13px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;
+  color:var(--secondary);margin:0 0 20px;padding:6px 2px;border-radius:var(--r-sm);}
+.cap-fold > summary::-webkit-details-marker{display:none}
+.cap-fold > summary:hover{color:var(--accent-text)}
+.cap-fold-mark{width:9px;height:9px;flex:0 0 auto;border-right:1.6px solid currentColor;
+  border-bottom:1.6px solid currentColor;transform:rotate(-45deg) translate(-1px,-1px);
+  transition:transform .3s ease-out;}
+.cap-fold[open] .cap-fold-mark{transform:rotate(45deg) translate(-2px,-2px)}
+.cap-fold-n{font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:0;
+  color:var(--muted);border:1px solid var(--line);border-radius:var(--r-full);
+  padding:1px 8px;}
+@media (prefers-reduced-motion:reduce){.cap-fold-mark{transition:none}}
+.cap-item{background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);padding:24px 26px;box-shadow:var(--shadow-soft);}
+.cap-item .cap-label{font-size:17px;font-weight:500;color:var(--primary);letter-spacing:-0.01em;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.cap-item .cap-benefit{margin-top:10px;font-size:14.5px;line-height:1.6;color:var(--on-surface)}
+.cap-item .cap-docs{font-size:12px;font-weight:500;color:var(--accent-text);text-decoration:none;white-space:nowrap}
+.cap-item .cap-docs:hover{text-decoration:underline}
+.cap-more{margin-top:40px;text-align:center;font-size:15px}
+.cap-more a{color:var(--accent-text);font-weight:500;text-decoration:none}
+.cap-more a:hover{text-decoration:underline}
+.cap-honesty{margin:28px auto 0;max-width:46rem;text-align:center;font-size:13px;color:var(--secondary)}
+.steps .code{max-width:42rem;margin:0 auto;position:relative}
+.uc-strip a.cap-item{display:block;text-decoration:none;transition:border-color .18s ease,box-shadow .18s ease}
+.uc-strip a.cap-item:hover{border-color:var(--accent);box-shadow:var(--shadow-hover)}
+.uc-strip .cap-benefit{color:var(--on-surface)}
+.path .code{position:relative;max-width:none;margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+@media (max-width:860px){.split,.tiles,.compare,.board3,.cap-grid{grid-template-columns:1fr}.split>*,.tiles>*,.compare>*,.board3>*,.foot-grid>*,.cap-grid>*{min-width:0}.code,.artifact{font-size:12.5px;min-width:0;overflow-x:auto}.artifact .row{min-width:max-content}}
+@media (prefers-reduced-motion:reduce){.reveal,.reset-line{opacity:1;transform:none}}
+@media print{.reveal,.reset-line{opacity:1!important;transform:none!important}}
+#from-landing .reveal,#from-landing .reset-line{opacity:1!important;transform:none!important}
+#from-landing>section{padding-block:var(--section-y)}
+</style>
 </head>
 <body>
 
@@ -241,6 +339,222 @@
       <!-- populated from data -->
     </div>
   </section>
+
+  <!-- ---- From the landing page: the cold start, the substrate shown, what you get, what else it does ---- -->
+  <div id="from-landing">
+<section class="alt" id="lp-problem">
+  <div class="container">
+    <div class="sec-head reveal">
+      <p class="eyebrow"><span data-lang="en">The cold-start problem</span><span data-lang="de">Das Kaltstart-Problem</span></p>
+      <h2 class="h1"><span data-lang="en">Every session starts from scratch.</span><span data-lang="de">Jede Session beginnt bei null.</span></h2>
+    </div>
+
+    <div class="reset-lines">
+      <div class="reset-line"><span class="x">✕</span><span data-lang="en">Re-explain your conventions to the agent, again.</span><span data-lang="de">Dem Agenten deine Konventionen wieder neu erklären.</span></div>
+      <div class="reset-line"><span class="x">✕</span><span data-lang="en">Load the wrong client's context and only notice halfway through.</span><span data-lang="de">Den falschen Kunden-Kontext laden und es erst auf halbem Weg merken.</span></div>
+      <div class="reset-line"><span class="x">✕</span><span data-lang="en">No record of what you decided last week.</span><span data-lang="de">Kein Protokoll dessen, was du letzte Woche entschieden hast.</span></div>
+    </div>
+
+    <div class="split reveal">
+      <div class="doc-card card">
+        <h4 class="h4"><span data-lang="en">Most AI work today</span><span data-lang="de">KI-Arbeit heute</span></h4>
+        <div class="flat-dump" aria-hidden="true">
+<span class="f">chat-export-final.txt</span>
+<span class="f">notes (3).md</span>
+<span class="f">prompt that worked.txt</span>
+<span class="f">todo-maybe.md</span>
+<span class="f">client stuff.docx</span>
+<span class="f">chat-export-final-v2.txt</span>
+<span class="f">untitled.md</span>
+        </div>
+        <p class="cap"><span data-lang="en">A bare My-Documents folder: everyone piling up their own chaos, every conversation rebuilding context and structure from scratch.</span><span data-lang="de">Ein nackter My-Documents-Ordner. Jeder häuft sein eigenes Chaos an, jede Unterhaltung baut Kontext und Struktur von Grund auf neu.</span></p>
+      </div>
+      <div class="doc-card card">
+        <h4 class="h4"><span data-lang="en">With BKS open-bridge</span><span data-lang="de">Mit BKS open-bridge</span></h4>
+        <div class="code" aria-hidden="true"><span class="dir">identity/</span>          who you are, who you send to
+<span class="dir">workflow/</span>          per-context worlds
+<span class="dir">work/</span>
+  <span class="dir">tasks/</span>           finite tasks in flight
+  <span class="dir">streams/</span>         long-running streams
+  <span class="dir">done/</span>            closed, archived
+  board.md           live task board
+  log.md             the persistent record</div>
+        <p class="cap"><span data-lang="en">A clear, separated layout the agent files into (shipped as example structures, not reinvented by every user).</span><span data-lang="de">Ein klares, getrenntes Layout, in das der Agent ablegt. Als Beispielstrukturen mitgeliefert, nicht von jedem Nutzer neu erfunden.</span></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="lp-substrate">
+  <div class="container">
+    <div class="sec-head reveal">
+      <p class="eyebrow"><span data-lang="en">The substrate, shown</span><span data-lang="de">Das Substrat, gezeigt</span></p>
+      <h2 class="h1"><span data-lang="en">Plain text in git. Clone it and look.</span><span data-lang="de">Plain Text in Git: Klone es und schau rein.</span></h2>
+      <p><span data-lang="en">No adjectives. <code>examples/agency/</code> is a real, complete config you can clone today; the <code>STATUS</code> and work log below are the shape your own <code>work/</code> takes once you start logging.</span><span data-lang="de">Keine Adjektive. <code>examples/agency/</code> ist eine echte, vollständige Config, die du heute klonen kannst; der <code>STATUS</code> und das Arbeitslog unten sind die Form, die dein eigenes <code>work/</code> annimmt, sobald du anfängst zu loggen.</span></p>
+    </div>
+
+    
+    <div class="reveal" style="max-width:46rem;margin:0 auto">
+        <div class="code-label"><span>examples/agency/</span><span data-lang="en">2 separated clients</span><span data-lang="de">2 getrennte Kunden</span></div>
+        <div class="code"><span class="dir">examples/agency/</span>
+├── ecosystem.yaml            <span class="cmt"># repo + client registry</span>
+├── bridge-config.yaml
+├── <span class="dir">identity/</span>
+│   ├── <span class="dir">accounts/</span>             <span class="cmt"># cloud/mail inventory</span>
+│   └── <span class="dir">mandants/</span>             <span class="cmt"># recipient groups</span>
+├── <span class="dir">workflow/</span>
+│   ├── <span class="dir">calendars/</span>
+│   └── <span class="dir">contexts/</span>webapp/      <span class="cmt"># per-engagement world</span>
+├── <span class="dir">infra/</span>
+│   ├── <span class="dir">channels/</span>  <span class="dir">remotes/</span>  <span class="dir">backups/</span>
+└── <span class="dir">.claude/agents/</span>          <span class="cmt"># ops-officer, code-analyst …</span></div>
+
+        <div style="height:24px"></div>
+
+        <!-- Verbatim README STATUS.md (README lines 203-207) -->
+        <div class="code-label"><span>work/tasks/bigcorp-migration/STATUS.md</span><span data-lang="en">verbatim from the README</span><span data-lang="de">wortgetreu aus dem README</span></div>
+        <div class="artifact" aria-label="STATUS.md, the shape a task takes">
+          <div class="row add"><span class="gut">+</span><span class="ln"><span class="cmt"># STATUS: bigcorp-migration</span></span></div>
+          <div class="row add"><span class="gut">+</span><span class="ln"><span class="k">status:</span> doing</span></div>
+          <div class="row add"><span class="gut">+</span><span class="ln"><span class="k">context:</span> bigcorp</span></div>
+          <div class="row add"><span class="gut">+</span><span class="ln"><span class="k">last:</span> Migrated the invoice pipeline to the new schema; one test still red.</span></div>
+          <div class="row add"><span class="gut">+</span><span class="ln"><span class="k">next:</span> Fix the failing UBL-validation case, then open the PR.</span></div>
+        </div>
+
+        <div style="height:24px"></div>
+
+        
+    </div>
+    <!-- ===== POINTER to the mini-site (explore + concepts) ===== -->
+    <div class="reveal sub-cta" style="margin-top:36px;text-align:center">
+      <p style="font-size:16px;line-height:1.7;margin-bottom:18px"><span data-lang="en">BKS open-bridge's pieces form one connected web. Click through them on the interactive map, or read the plain-language guide.</span><span data-lang="de">Die Bausteine von BKS open-bridge bilden ein verbundenes Netz. Sieh jeden einzelnen auf einer interaktiven Karte zum Klicken, oder lies den Leitfaden in einfacher Sprache.</span></p>
+      <div class="cta-row" style="justify-content:center">
+        <a class="btn btn-primary" href="explore.html"><span data-lang="en">Explore the concepts</span><span data-lang="de">Konzepte erkunden</span><span class="arrow">→</span></a>
+        <a class="btn btn-secondary" href="concepts.html"><span data-lang="en">Read the concept guide</span><span data-lang="de">Konzept-Leitfaden lesen</span><span class="arrow">→</span></a>
+      </div>
+    </div>
+
+    
+  </div>
+</section>
+
+<section class="alt" id="lp-properties">
+  <div class="container">
+    <div class="sec-head reveal">
+      <p class="eyebrow"><span data-lang="en">What your agent gains</span><span data-lang="de">Was dein Agent gewinnt</span></p>
+      <h2 class="h1"><span data-lang="en">Two things this gives your agent: more context, less chaos.</span><span data-lang="de">Zwei Dinge, die das deinem Agenten gibt: mehr Kontext, weniger Chaos.</span></h2>
+      <p><span data-lang="en">Both were coined by the team at BKS-Lab. The plain meaning leads, the name follows.</span><span data-lang="de">Beide wurden im Team bei BKS-Lab geprägt. Die schlichte Bedeutung führt, der Name folgt.</span></p>
+    </div>
+
+    <div class="tiles">
+      <!-- Tile 1: helm / scan motif (page-chrome tokens, flat) -->
+      <div class="tile reveal">
+        <svg class="tile-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="24" cy="24" r="16"/>
+          <circle cx="24" cy="24" r="4" fill="currentColor" stroke="none"/>
+          <path d="M24 8v6M24 34v6M8 24h6M34 24h6M12.7 12.7l4.2 4.2M31.1 31.1l4.2 4.2M35.3 12.7l-4.2 4.2M16.9 31.1l-4.2 4.2"/>
+        </svg>
+        <h3><span data-lang="en">Persistent context, always loaded</span><span data-lang="de">Bleibender Kontext, immer geladen</span></h3>
+        <p class="attrib"><span data-lang="en">An independent "third side" beside your model and your tool. BKS-Lab calls this a Context Booster.</span><span data-lang="de">Eine modell- und frontend-unabhängige „dritte Seite". Bei BKS-Lab „Context Booster" genannt.</span></p>
+        <p><span data-lang="en">You work with whatever model and whatever frontend you like. BKS open-bridge layers in persistent context about your world (your repos and clients, your machines, what you worked on yesterday), so the agent stops loading the wrong client. The boost comes from a layer beside both. It doesn't care what you run, because the substrate is plain text every runtime can read.</span><span data-lang="de">Du arbeitest mit dem Modell und dem Frontend, das du willst. BKS open-bridge legt persistenten Kontext über deine Welt darüber: deine Repos und Kunden, deine Maschinen, woran du gestern gearbeitet hast. Damit hört der Agent auf, den falschen Kunden zu laden. Der Boost kommt von einer dritten Seite, der egal ist, was du nutzt. Denn das Substrat ist Plain Text, den jede Runtime lesen kann.</span></p>
+      </div>
+
+      <!-- Tile 2: four-room / filing grid motif -->
+      <div class="tile reveal">
+        <svg class="tile-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
+          <rect x="7" y="7" width="14" height="14" rx="2" fill="currentColor" stroke="none"/>
+          <rect x="27" y="7" width="14" height="14" rx="2"/>
+          <rect x="7" y="27" width="14" height="14" rx="2"/>
+          <rect x="27" y="27" width="14" height="14" rx="2" fill="currentColor" stroke="none"/>
+        </svg>
+        <h3><span data-lang="en">Ready-made structure for AI work</span><span data-lang="de">Fertige Struktur für KI-Arbeit</span></h3>
+        <p class="attrib"><span data-lang="en">Structuring unstructured AI dialogues. BKS-Lab calls this a Chaos Tamer.</span><span data-lang="de">„Strukturierung unstrukturierter KI-Dialoge". Bei BKS-Lab „Chaos Tamer" genannt.</span></p>
+        <p><span data-lang="en">It ships ready-made structure you don't have to invent: a board, a log, and per-task status (<code>backlog → doing → review → done</code> over <code>tasks/</code> and <code>streams/</code>). Decisions, findings and status get filed in plain text as you work. Unstructured sessions become a persistent, compounding record instead of another My-Documents pile.</span><span data-lang="de">Es liefert fertige Struktur mit, die du nicht erfinden musst: ein Board, ein Log und Per-Task-Status (<code>backlog → doing → review → done</code> über <code>tasks/</code> und <code>streams/</code>). Entscheidungen, Erkenntnisse und Status werden als Plain Text abgelegt, während du arbeitest: Aus unstrukturierten Sessions wird ein persistentes, wachsendes Protokoll statt des nächsten My-Documents-Haufens.</span></p>
+        <div class="demo" aria-hidden="true">work/board.md
+  Doing (2) · bigcorp-checkout · startupxyz-handover
+  Streams (1) · infra-hardening
+  Done this month (7)</div>
+      </div>
+    </div>
+
+    <p class="stance-note reveal">
+      <span class="tag-bet">Bet / Roadmap</span>
+      <span data-lang="en"><strong>Workspace separation as the default</strong> is the intended stance: agreed in principle, not yet built (labelled honestly below).</span>
+      <span data-lang="de"><strong>Workspace-Trennung als Default</strong> ist die beabsichtigte Haltung. Im Prinzip vereinbart, noch nicht gebaut (unten ehrlich gekennzeichnet).</span>
+    </p>
+  </div>
+</section>
+
+<section class="alt" id="lp-capabilities">
+  <div class="container">
+    <div class="sec-head reveal" style="margin-bottom:40px">
+      <p class="eyebrow"><span data-lang="en">What else it can do</span><span data-lang="de">Was es noch kann</span></p>
+      <h2 class="h2"><span data-lang="en">The four core pieces stand on their own. The rest is optional.</span><span data-lang="de">Schon die vier Kernteile bringen dir etwas. Der Rest ist optional.</span></h2>
+    </div>
+
+    <p class="cap-intro reveal" style="margin-bottom:28px"><span data-lang="en">The four core pieces (<strong>context registry</strong>, <strong>task management</strong>, <strong>skills &amp; commands</strong>, <strong>standing orders</strong>) run from a fresh clone; they're what powered the day above. Everything below is optional, USER-scope, off until you turn it on.</span><span data-lang="de">Die vier Kernteile: <strong>Kontext-Registry</strong>, <strong>Task-Management</strong>, <strong>Skills &amp; Befehle</strong>, <strong>Standing Orders</strong>. Sie laufen direkt aus einem frischen Clone heraus (du hast sie oben im Tagesablauf gesehen). Alles darunter ist optional, USER-scope, und bleibt aus, bis du es einschaltest.</span></p>
+
+    <div class="cap-group reveal">
+      <!-- The heading two lines up calls this list optional, so the page now
+           treats it as optional instead of stacking nine more cards on the
+           reader. One <summary> with inner spans, never two with data-lang:
+           [data-lang]{display:none} would hide the first, and <details> takes
+           its FIRST summary child as the control, so the German one would
+           never become clickable. .cap-group keeps .reveal and stays outside,
+           or the IntersectionObserver has nothing left to see. -->
+      <details class="cap-fold">
+        <summary class="cap-grouphead">
+          <span class="cap-fold-mark" aria-hidden="true"></span>
+          <span data-lang="en">Optional: turn on when you want it</span><span data-lang="de">Optional: einschalten, wenn du es brauchst</span>
+          <span class="cap-fold-n">9</span>
+        </summary>
+      <div class="cap-grid">
+        <div class="cap-item">
+          <div class="cap-label"><span data-lang="en">Channels</span><span data-lang="de">Channels</span><a class="cap-docs" href="https://github.com/bks-lab/open-bridge/blob/main/docs/channels.md" target="_blank" rel="noopener">docs →</a></div>
+          <p class="cap-benefit"><span data-lang="en">Declare email, Telegram, Signal or iMessage once; the agent drafts, you send.</span><span data-lang="de">E-Mail, Telegram, Signal oder iMessage einmal deklarieren; der Agent entwirft, du sendest.</span></p>
+        </div>
+        <div class="cap-item">
+          <div class="cap-label"><span data-lang="en">Remotes</span><span data-lang="de">Remotes</span><a class="cap-docs" href="https://github.com/bks-lab/open-bridge/blob/main/docs/remotes.md" target="_blank" rel="noopener">docs →</a></div>
+          <p class="cap-benefit"><span data-lang="en">One source of truth for your machines. Wake, ssh, check, deploy, Tailscale-first.</span><span data-lang="de">Eine Wahrheitsquelle für deine Maschinen: wecken, ssh, prüfen, deployen, Tailscale zuerst.</span></p>
+        </div>
+        <div class="cap-item">
+          <div class="cap-label"><span data-lang="en">Document filing</span><span data-lang="de">Dokumente ablegen</span><a class="cap-docs" href="https://github.com/bks-lab/open-bridge/blob/main/docs/doc-system.md" target="_blank" rel="noopener">docs →</a></div>
+          <p class="cap-benefit"><span data-lang="en">Point it at an inbox; it names, files and logs each doc, and never deletes.</span><span data-lang="de">Richte es auf einen Posteingang; es benennt, legt ab und protokolliert jedes Dokument, löscht aber nichts.</span></p>
+        </div>
+        <div class="cap-item">
+          <div class="cap-label"><span data-lang="en">Personas</span><span data-lang="de">Personas</span><a class="cap-docs" href="https://github.com/bks-lab/open-bridge/blob/main/docs/personas.md" target="_blank" rel="noopener">docs →</a></div>
+          <p class="cap-benefit"><span data-lang="en">The identities you hold (signatures, tax data, filing paths), so things land in the right place.</span><span data-lang="de">Die Identitäten, die du hast (Signaturen, Steuerdaten, Ablagepfade), damit alles am richtigen Ort landet.</span></p>
+        </div>
+        <div class="cap-item">
+          <div class="cap-label"><span data-lang="en">Sub-agents</span><span data-lang="de">Sub-Agenten</span><a class="cap-docs" href="https://github.com/bks-lab/open-bridge/blob/main/README.md#sub-agents" target="_blank" rel="noopener">docs →</a></div>
+          <p class="cap-benefit"><span data-lang="en">Offload heavy or parallel work; it returns a clean summary. Native on Claude Code; inline elsewhere.</span><span data-lang="de">Schwere oder parallele Arbeit auslagern; es liefert eine saubere Zusammenfassung. Nativ in Claude Code; anderswo läuft es inline.</span></p>
+        </div>
+        <div class="cap-item">
+          <div class="cap-label"><span data-lang="en">Tracker sync</span><span data-lang="de">Tracker-Sync</span><a class="cap-docs" href="https://github.com/bks-lab/open-bridge/blob/main/trackers/README.md" target="_blank" rel="noopener">docs →</a></div>
+          <p class="cap-benefit"><span data-lang="en">Read work items from GitHub Projects; the agent keeps your board and tasks aligned. Gated, never auto.</span><span data-lang="de">Work-Items aus GitHub Projects lesen; der Agent hält Board und Tasks abgeglichen, immer mit Freigabe, nie automatisch.</span></p>
+        </div>
+        <div class="cap-item">
+          <div class="cap-label"><span data-lang="en">Workspaces</span><span data-lang="de">Workspaces</span><a class="cap-docs" href="workspaces.html">docs →</a></div>
+          <p class="cap-benefit"><span data-lang="en">A named binding of member repos and config overlays, cloned into a public-fork-safe path and indexed in a shared machine-global registry.</span><span data-lang="de">Eine benannte Bindung aus Mitgliedsrepos und Config-Overlays, geklont in einen für öffentliche Forks sicheren Pfad und in einer geteilten maschinenweiten Registry indiziert.</span></p>
+        </div>
+        <div class="cap-item">
+          <div class="cap-label"><span data-lang="en">Workloads</span><span data-lang="de">Workloads</span><a class="cap-docs" href="workloads.html">docs →</a></div>
+          <p class="cap-benefit"><span data-lang="en">One declared run on one machine, in one file: report, poller, daemon, watcher or agent. Provisioned from the declaration and reconciled against the live service manager, never against a status field.</span><span data-lang="de">Ein deklarierter Lauf auf einer Maschine, in einer Datei: Bericht, Poller, Daemon, Wächter oder Agent. Aus der Deklaration eingerichtet und gegen den lebenden Dienstverwalter abgeglichen, nie gegen ein Statusfeld.</span></p>
+        </div>
+        <div class="cap-item">
+          <div class="cap-label"><span data-lang="en">Agents</span><span data-lang="de">Agents</span><a class="cap-docs" href="agents.html">docs →</a></div>
+          <p class="cap-benefit"><span data-lang="en">Bridge-Agents are persistent, addressable A2A endpoints that front one persona to the outside world; the MCP→A2A gateway makes them reachable from MCP-only frontends too, always under a human gate.</span><span data-lang="de">Bridge-Agents sind persistente, adressierbare A2A-Endpunkte, die eine Persona nach außen vertreten; das MCP→A2A-Gateway macht sie auch aus reinen MCP-Frontends erreichbar. Das läuft immer unter menschlicher Freigabe.</span></p>
+        </div>
+      </div>
+      </details>
+    </div>
+
+    <p class="cap-more reveal"><a href="https://github.com/bks-lab/open-bridge/tree/main/docs" target="_blank" rel="noopener"><span data-lang="en">And the full layout (every path, the CORE/USER split, the rest) is in the docs →</span><span data-lang="de">Und das ganze Layout (jeder Pfad, der CORE/USER-Split, der Rest) steht in den Docs →</span></a></p>
+
+    <p class="cap-honesty reveal"><span data-lang="en">Everything here ships and runs today. What is not built yet (workspace separation as the default, and more) is in the status section below, labelled as a bet or open, not as a feature.</span><span data-lang="de">Alles hier wird mitgeliefert und läuft heute. Was noch nicht gebaut ist, etwa die Workspace-Trennung als Default, steht unten im Status-Abschnitt, als Wette oder offen gekennzeichnet, nicht als Feature.</span></p>
+  </div>
+</section>
+  </div>
 
   <!-- ---- end-of-page funnel CTA ---- -->
   <section style="padding-block:64px 88px">
