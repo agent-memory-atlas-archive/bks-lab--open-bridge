@@ -638,7 +638,7 @@ def load_declaration(path: Path) -> Workload:
         reconcile=reconcile,
         retired=retired,
         learned_from=raw.get("learned_from"),
-        reports_to=_enum(raw, "reports_to", raw.get("reports_to", "none"), REPORTS_TO, name),
+        reports_to=_enum(raw, "reports_to", raw.get("reports_to") or "none", REPORTS_TO, name),
         source_path=path,
         raw=dict(raw),
         has_schedule=schedule_raw is not None,

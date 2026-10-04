@@ -45,8 +45,9 @@ annotated example: [`work/templates/inbox-item.yaml`](../work/templates/inbox-it
 
 Every change is a **new event file**, never an edit. Verbs: `seen`, `note`,
 `approve`, `reject`, `drop`, `defer`, `close`, `executed`, `failed`. Two machines
-writing the same inbox through git therefore never touch the same file, so a
-pull never conflicts. This is the property the task folders already have, and
+writing the same inbox through git therefore never touch the same file, and an
+item id ends in a random tail, so two machines filing the same thing in the same
+minute still create two folders. This is the property the task folders already have, and
 `work/board.md` is derived from them for the same reason. The inbox state is
 derived from events and never stored.
 
@@ -95,7 +96,8 @@ A probe that cannot be evaluated (no network, a typo, a missing task) is
   a stale PR).
 - An agent or a terminal tab that reached a point where it needs a person.
 - The briefing's own checks, when they find something to act on.
-- A peer Bridge, through the shared repository.
+- A peer Bridge, but only through its own front door (an A2A request that a
+  local job files), never by writing into this repository.
 - The session itself, at the end of a unit of work (see the standing order
   [`inbox`](../protocols/standing-orders/inbox.md)).
 
@@ -138,11 +140,38 @@ attributed to. `add` takes `--due`, `--detail`, `--key`, `--urgency` (default
 
 ## Two machines, one inbox
 
-`inbox.py sync` stages **only** `work/inbox` and `work/inbox.md`, commits them,
-runs `git pull --rebase --autostash` and pushes. Nothing else in the working
-tree is committed. Because each change is its own new file, the rebase has
-nothing to merge. Run it from a scheduled job after `check` and `run`, and from
-a session before reading the inbox when another machine may have written.
+`inbox.py sync` stages and commits **only** `work/inbox/`, rebases onto the
+upstream and pushes. Nothing else in the working tree is committed, and the push
+is refused when the branch carries unpushed commits outside `work/inbox/`: syncing
+the inbox never ships unfinished work along with it. Because each change is its
+own new file, the rebase has nothing to merge; if it still fails it is aborted
+and the commit stays local for the next sync. The generated `work/inbox.md` is
+not part of a sync: every render rewrites its time stamp, so two machines
+committing it would conflict every time. Commit it like `work/board.md`, from
+the one machine you work on, or not at all.
+
+**Exactly one runner.** `run` executes on every machine that calls it, and two
+machines would both see an approved item before the other's `executed` event
+arrived. Name the one that acts in `bridge-config.yaml`:
+
+```yaml
+inbox:
+  runner: homebox      # the actor (--by / $BRIDGE_ACTOR / host name) that executes actions
+```
+
+Everywhere else `run` prints "not running" and does nothing. Without the key
+every machine runs, which is right for a Bridge on one machine only.
+
+**Trust.** An item can carry a command (`action.argv`, a `command` probe). Anyone
+who can push into `work/inbox/` can therefore make the runner execute something,
+exactly as anyone who can push a script the runner calls already can: the inbox
+is as trusted as the repository, and no more. Peer Bridges never write here.
+`list`, `show` and `work/inbox.md` always print the command a yes would run, and
+an `only-you` item executes nothing at all, not even a `command` probe.
+
+**Time.** Events are stamped in UTC with an offset and ordered by that, so a
+laptop in one time zone and an always-on machine in another agree on what came
+first.
 
 ## Relation to the approval runtime
 

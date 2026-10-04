@@ -21,7 +21,10 @@ python3 scripts/inbox.py run              # execute it (free, a yes, or a yes wh
 ```
 
 `run` never executes an `only-you` item (send, publish, pay), whatever was recorded,
-and never anything nobody released. Report every `ran` line in the output.
+and never anything nobody released. Report every `ran` and every `failed` line
+in the output; a `failed` item is back to open and belongs on top. When
+`inbox.runner` names another machine, `run` says "not running" and the briefing
+shows the `--dry-run` list as "ready, waiting for <runner>" instead.
 No `work/inbox/` yet: skip silently; the first item creates it.
 
 ## After the streams: advise

@@ -97,9 +97,17 @@ key or a token scoped to this one private repository). Two reasons:
 - **The push is conflict-free by construction.** An inbox item is written once,
   and every later change is a new file under its `events/` folder. Two machines
   and you can all write the same inbox and never touch the same file.
-  `python3 scripts/inbox.py sync` commits only `work/inbox`, pulls with rebase and
-  pushes. It never stages anything else, so a watcher cannot push half-finished
-  work from the clone.
+  `python3 scripts/inbox.py sync` commits only `work/inbox/`, rebases and pushes,
+  and refuses to push when the clone holds other unpushed commits, so a watcher
+  cannot push half-finished work. A rebase that fails is aborted, never left
+  half-done.
+- **Make this machine the runner.** Set `inbox.runner: <machine>` in
+  `bridge-config.yaml` so only the arm executes approved actions; the laptop's
+  briefing then lists what is ready instead of running it a second time.
+- **The puller must not reset over an unpushed inbox commit.** If your puller
+  resets the clone to the upstream (`git reset --hard`), a sync whose push failed
+  loses its commit on the next pull. Rebase commits that touch only
+  `work/inbox/` onto the upstream and push them instead; stop on anything else.
 
 "Only the inbox" is what `sync` does, not something the credential enforces: a
 deploy key writes the whole repository. If your git host can restrict a
@@ -148,7 +156,8 @@ For an issue use `{"gh_issue": "org/repo#12", "state": "closed"}`.
 
 **PR green, then a conditional yes.** File the decision with the action, and
 approve it with a condition. `inbox.py run` on a schedule executes approved
-`your-yes` actions once the condition holds, exactly once:
+`your-yes` actions once the condition holds. Only the configured runner
+executes, so a single machine acts on each yes:
 
 ```bash
 python3 scripts/inbox.py add --from <machine>/watch --kind decision --gate your-yes \

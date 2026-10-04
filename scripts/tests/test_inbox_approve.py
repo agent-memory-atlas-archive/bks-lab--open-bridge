@@ -101,3 +101,23 @@ def test_unreadable_request_exits_nonzero(repo):
                           capture_output=True, text=True, timeout=10)
     assert done.returncode != 0
     assert not list((repo / "work" / "inbox").iterdir())
+
+
+def test_an_old_yes_never_releases_a_new_answer(repo):
+    """Review 2026-10-04: the same task_id used to dedup onto the first item and reuse its yes."""
+    first = start(repo)
+    item_id = wait_for_item(repo)
+    inbox.Inbox(repo / "work" / "inbox", actor="owner").approve(item_id)
+    assert finish(first) == {"decision": "approve"}
+    second = start(repo, timeout_sec=1.0)          # same task_id, a new answer
+    assert finish(second) == {"decision": "timeout"}
+    items = inbox.Inbox(repo / "work" / "inbox", actor="owner").items()
+    assert len(items) == 2
+
+
+def test_a_decided_item_is_closed_so_it_cannot_linger(repo):
+    proc = start(repo)
+    item_id = wait_for_item(repo)
+    inbox.Inbox(repo / "work" / "inbox", actor="owner").approve(item_id)
+    finish(proc)
+    assert inbox.Inbox(repo / "work" / "inbox", actor="owner").get(item_id).state == "done"

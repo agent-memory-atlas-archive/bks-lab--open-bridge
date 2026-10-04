@@ -155,9 +155,9 @@ properties:
                  hundred. The item carries a `closes_when` probe (or the run
                  calls `inbox.py close`), so it ends when the live source says
                  the thing is solved. A green run files nothing.
-        channel  the run pushes through `response.notify_via`, as before. This
-                 is the explicit spelling of what absent used to imply for
-                 runs that do notify.
+        channel  the run pushes through `response.notify_via`. A declaration
+                 without this key that notifies keeps doing exactly that;
+                 `channel` only says so explicitly.
         none     the run writes only its own log. Nobody is told.
 
       It is a declaration of intent, like `persona_ref`. It does not check that

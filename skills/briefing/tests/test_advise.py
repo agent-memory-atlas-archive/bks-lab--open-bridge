@@ -129,3 +129,24 @@ def test_report_only_findings_are_not_filed(repo):
     assert waiting and waiting[0]["file"] is False
     advise.file_findings(b, found)
     assert len(b.items()) == 1
+
+
+def test_a_run_without_calendar_leaves_collision_items_alone(repo):
+    b = box(repo)
+    b.add(source="session", kind="decision", summary="Post the launch", due="2026-10-06T15:00")
+    calendar = [{"title": "Review", "start": "2026-10-06T15:30", "end": "2026-10-06T16:15"}]
+    advise.file_findings(b, advise.advise(repo, now=NOW, calendar=calendar), checks_ran=advise.checks_run(calendar))
+    collision = [i for i in b.open_items() if str(i.key).startswith("advise:collision")]
+    assert len(collision) == 1
+    advise.file_findings(b, advise.advise(repo, now=NOW), checks_ran=advise.checks_run(None))
+    assert b.get(collision[0].id).state == "open"
+
+
+def test_a_dropped_finding_is_not_filed_again(repo):
+    task(repo, "tidy", context="internal", last_updated="2026-09-20")
+    b = box(repo)
+    advise.file_findings(b, advise.advise(repo, now=NOW))
+    item = b.open_items()[0]
+    b.event(item.id, "drop", text="leave it")
+    advise.file_findings(b, advise.advise(repo, now=NOW))
+    assert b.open_items() == []

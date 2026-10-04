@@ -40,7 +40,8 @@ uses for owner approval:
     {"verb": "rename", "tab": ref, "title": "..."}    -> {"report": [...]}
 
 A driver never closes a tab or a workspace. A driver that fails or answers
-nonsense is reported, never raised: the plan still stands. Model: docs/workplace.md.
+nonsense is reported, never raised, and never read as "no tab is open":
+`open --yes` refuses and `status` says the driver failed. Model: docs/workplace.md.
 The contract lives in scripts/tests/test_workplace.py.
 """
 from __future__ import annotations
@@ -176,7 +177,7 @@ def _score(task: dict, mention: dict | None, today: dt.date) -> tuple:
 def tab_command(tab: dict, root: Path, cwd: str, cfg: dict) -> str:
     agent = {**DEFAULT_AGENT, **(cfg.get("agent") or {})}
     if tab["action"] == "resume":
-        run = agent["resume"].format(session=shlex.quote(tab["session_id"]), slug=tab["slug"])
+        run = agent["resume"].format(session=shlex.quote(tab["session_id"]), slug=shlex.quote(tab["slug"]))
     else:
         status_path = tab.get("status_path") or ""
         prompt = NEW_TAB_PROMPT.format(slug=tab["slug"], status_path=status_path,
@@ -253,9 +254,17 @@ def build_plan(root: Path, cfg: dict, today: dt.date, driver) -> dict:
     log = log_path.read_text(encoding="utf-8") if log_path.exists() else ""
     mentions = log_mentions(log, [t["slug"] for t in tasks], today, limits["activity_days"])
     index = slug_index(tasks, cfg)
-    sessions = {index[name]: sid for name, sid in (driver.sessions() or {}).items() if name in index}
-    open_tabs = {index[t["name"]]: t for t in driver.tabs() if t.get("name") in index}
-    return propose(tasks, cfg, mentions, sessions, open_tabs, today, root)
+    # A driver that failed does NOT mean "no tab is open": planning on that would
+    # mark every open task as new and open it a second time. The plan records the
+    # failure and `open --yes` refuses to act on it.
+    tab_list = driver.tabs_or_none()
+    session_map = driver.sessions_or_none()
+    sessions = {index[name]: sid for name, sid in (session_map or {}).items() if name in index}
+    open_tabs = {index[t["name"]]: t for t in (tab_list or []) if t.get("name") in index}
+    plan = propose(tasks, cfg, mentions, sessions, open_tabs, today, root)
+    if tab_list is None:
+        plan["driver_error"] = getattr(driver, "error", "") or f"driver {driver.name} gave no tab list"
+    return plan
 
 
 def render(plan: dict) -> str:
@@ -274,10 +283,14 @@ def render(plan: dict) -> str:
     return "\n".join(out)
 
 
-def status_rows(root: Path, cfg: dict, driver) -> list:
+def status_rows(root: Path, cfg: dict, driver) -> list | None:
+    """Rows for every tab, or None when the driver could not say (never an empty "all quiet")."""
+    tabs = driver.tabs_or_none()
+    if tabs is None:
+        return None
     index = slug_index(collect_tasks(root), cfg)
     order = {"needs-you": 0, "waiting": 1, "working": 2, "shell": 3}
-    rows = [{**t, "slug": index.get(t.get("name", ""))} for t in driver.tabs()]
+    rows = [{**t, "slug": index.get(t.get("name", ""))} for t in tabs]
     return sorted(rows, key=lambda r: (order.get(r.get("state"), 9), r.get("workspace") or ""))
 
 
@@ -287,6 +300,13 @@ class NoneDriver:
     """No terminal integration: nothing is open, nothing can be typed into, the plan says what to start."""
 
     name = "none"
+    error = ""
+
+    def tabs_or_none(self):
+        return self.tabs()
+
+    def sessions_or_none(self):
+        return self.sessions()
 
     def tabs(self) -> list:
         return []
@@ -318,6 +338,7 @@ class CommandDriver:
     def __init__(self, argv: list):
         self.argv = [str(a) for a in argv]
         self.name = Path(self.argv[-1]).stem if self.argv else "command"
+        self.error = ""
 
     def _call(self, payload: dict) -> dict | None:
         try:
@@ -337,13 +358,29 @@ class CommandDriver:
             return None
         return data if isinstance(data, dict) else None
 
+    def tabs_or_none(self) -> list | None:
+        data = self._call({"verb": "tabs"})
+        tabs = (data or {}).get("tabs") if data is not None else None
+        if not isinstance(tabs, list):
+            if data is not None:
+                self.error = f"driver {self.name} answered no tab list"
+            return None
+        return [t for t in tabs if isinstance(t, dict)]
+
+    def sessions_or_none(self) -> dict | None:
+        data = self._call({"verb": "sessions"})
+        sessions = (data or {}).get("sessions", {}) if data is not None else None
+        if not isinstance(sessions, dict):
+            if data is not None:
+                self.error = f"driver {self.name} answered sessions that are not a mapping"
+            return None
+        return sessions
+
     def tabs(self) -> list:
-        data = self._call({"verb": "tabs"}) or {}
-        return [t for t in data.get("tabs") or [] if isinstance(t, dict)]
+        return self.tabs_or_none() or []
 
     def sessions(self) -> dict:
-        data = self._call({"verb": "sessions"}) or {}
-        return data.get("sessions") or {}
+        return self.sessions_or_none() or {}
 
     def _report(self, payload: dict) -> list:
         data = self._call(payload)
@@ -423,10 +460,17 @@ def main(argv=None) -> int:
     if args.cmd == "propose":
         plan = build_plan(args.root, cfg, today, driver)
         print(json.dumps(plan, default=str, ensure_ascii=False, indent=1) if args.json else render(plan))
+        if plan.get("driver_error"):
+            print(f"Warning: open tabs unknown ({plan['driver_error']}); every task shows as new.",
+                  file=sys.stderr)
         return 0
     if args.cmd == "open":
         plan = build_plan(args.root, cfg, today, driver)
         only = set(args.only.split(",")) if args.only else None
+        if plan.get("driver_error"):
+            print(f"Open tabs are unknown ({plan['driver_error']}): not opening anything, "
+                  "it could open a task a second time.", file=sys.stderr)
+            return 1 if args.yes else 0
         if not args.yes:
             print(f"Dry run with driver {driver.name}; add --yes to open:")
             for ws in plan["workspaces"]:
@@ -442,6 +486,9 @@ def main(argv=None) -> int:
         return 0
     if args.cmd == "status":
         rows = status_rows(args.root, cfg, driver)
+        if rows is None:
+            print(getattr(driver, "error", "") or f"driver {driver.name} failed", file=sys.stderr)
+            return 1
         if args.json:
             print(json.dumps(rows, ensure_ascii=False, indent=1))
         elif not rows:

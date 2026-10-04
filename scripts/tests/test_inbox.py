@@ -16,6 +16,7 @@ from __future__ import annotations
 import datetime as dt
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -319,3 +320,134 @@ def test_approve_can_release_an_edited_text(box):
     item_id = add(box, kind="draft")
     box.approve(item_id, text="shorter answer")
     assert box.get(item_id).approved_text == "shorter answer"
+
+
+# ---------------------------------------------------------------- review 2026-10-04: the hard cases
+
+def test_ids_carry_a_random_suffix_so_two_machines_never_share_one(tmp_path):
+    a = inbox.Inbox(tmp_path / "a" / "work" / "inbox", actor="laptop", clock=lambda: NOW)
+    b = inbox.Inbox(tmp_path / "b" / "work" / "inbox", actor="homebox", clock=lambda: NOW)
+    assert a.add(source="x", kind="finding", summary="same") != b.add(source="x", kind="finding", summary="same")
+
+
+def test_events_are_stamped_in_utc_and_ordered_across_time_zones(tmp_path):
+    root = tmp_path / "work" / "inbox"
+    utc = dt.timezone.utc
+    berlin = dt.timezone(dt.timedelta(hours=2))
+    laptop = inbox.Inbox(root, actor="laptop", clock=lambda: dt.datetime(2026, 10, 4, 10, 0, tzinfo=berlin))
+    arm = inbox.Inbox(root, actor="homebox", clock=lambda: dt.datetime(2026, 10, 4, 8, 5, tzinfo=utc))
+    item_id = laptop.add(source="x", kind="decision", summary="merge", action={"argv": ["true"]})
+    laptop.approve(item_id)                     # 08:00 UTC
+    arm.event(item_id, "failed", exit=1)        # 08:05 UTC, later although its local clock reads earlier
+    assert laptop.get(item_id).state == "open"
+    assert laptop.get(item_id).events[0].at.endswith("+00:00")
+
+
+def test_empty_composite_and_blank_path_are_unknown(box):
+    assert inbox.probe({"all": []}) is None
+    assert inbox.probe({"any": []}) is None
+    assert inbox.probe({"all": "x"}) is None
+    assert inbox.probe({"path_exists": ""}) is None
+    assert inbox.probe({"path_exists": "   "}) is None
+
+
+def test_only_you_items_never_run_a_command_probe(box, tmp_path):
+    marker = tmp_path / "ran"
+    item_id = add(box, gate="only-you", closes_when={"command": ["touch", str(marker)]})
+    assert box.check() == []
+    assert not marker.exists()
+    assert box.get(item_id).state == "open"
+
+
+def test_a_dropped_key_stays_quiet_a_closed_key_comes_back(box):
+    first = add(box, key="advise:quiet:x")
+    box.event(first, "drop", text="do not nag")
+    assert add(box, key="advise:quiet:x") == first
+    assert box.get(first).state == "dropped"
+    second = add(box, key="other")
+    box.close(second)
+    assert add(box, key="other") != second
+
+
+def test_a_repeat_refreshes_the_summary(box):
+    item_id = add(box, key="k", summary="untouched for 7 days")
+    add(box, key="k", summary="untouched for 9 days")
+    assert box.get(item_id).summary == "untouched for 9 days"
+
+
+def test_one_unreadable_file_does_not_take_the_inbox_down(box):
+    good = add(box, summary="good")
+    bad = add(box, summary="bad")
+    (box.root / bad / "item.yaml").write_text("<<<<<<< HEAD\n: : :\n")
+    (box.root / good / "events" / "20261004T180000-00-x-note.yaml").write_text("- a list, not a mapping\n")
+    assert [i.id for i in box.items()] == [good]
+    assert box.get(good).state == "open"
+
+
+def test_run_reports_failures(box):
+    ok = add(box, gate="free", action={"argv": ["true"]}, summary="ok")
+    bad = add(box, gate="free", action={"argv": ["false"]}, summary="bad")
+    result = box.run_report()
+    assert result["ran"] == [ok] and result["failed"] == [(bad, 1)]
+
+
+def test_only_the_designated_runner_executes(tmp_path):
+    root = tmp_path / "work" / "inbox"
+    laptop = inbox.Inbox(root, actor="laptop", clock=lambda: NOW, runner="homebox")
+    arm = inbox.Inbox(root, actor="homebox", clock=lambda: NOW, runner="homebox")
+    marker = tmp_path / "once"
+    laptop.add(source="x", kind="finding", summary="s", gate="free", action={"argv": ["touch", str(marker)]})
+    assert laptop.run() == []
+    assert not marker.exists()
+    assert len(arm.run()) == 1 and marker.exists()
+
+
+def test_list_shows_the_command_a_yes_would_run(tmp_path):
+    r = run_cli(tmp_path, "add", "--from", "cli", "--kind", "decision", "--summary", "merge it",
+                "--action-json", '{"argv": ["gh", "pr", "merge", "70"]}')
+    assert r.returncode == 0, r.stderr
+    out = run_cli(tmp_path, "list").stdout
+    assert "gh pr merge 70" in out
+
+
+def git(cwd, *args):
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
+    return subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", *args], cwd=cwd, env=env,
+                          capture_output=True, text=True)
+
+
+def test_sync_commits_only_the_inbox_and_works_without_a_rendered_view(tmp_path):
+    origin = tmp_path / "origin.git"
+    git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
+    repo = tmp_path / "repo"
+    git(tmp_path, "clone", "-q", str(origin), str(repo))
+    (repo / "README.md").write_text("x\n")
+    git(repo, "add", "-A"); git(repo, "commit", "-q", "-m", "init"); git(repo, "push", "-q", "origin", "HEAD:main")
+    (repo / "other.txt").write_text("not inbox\n")
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1",
+           "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    add_cli = subprocess.run([sys.executable, str(SCRIPT), "--root", str(repo), "--by", "t", "add", "--from", "x",
+                              "--kind", "finding", "--summary", "disk full"], capture_output=True, text=True, env=env)
+    assert add_cli.returncode == 0, add_cli.stderr
+    done = subprocess.run([sys.executable, str(SCRIPT), "--root", str(repo), "--by", "t", "sync"],
+                          capture_output=True, text=True, env=env)
+    assert done.returncode == 0, done.stderr
+    shipped = git(origin, "ls-tree", "-r", "--name-only", "main").stdout.split()
+    assert any(p.startswith("work/inbox/") for p in shipped)
+    assert "other.txt" not in shipped
+
+
+def test_sync_refuses_to_push_commits_outside_the_inbox(tmp_path):
+    origin = tmp_path / "origin.git"
+    git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
+    repo = tmp_path / "repo"
+    git(tmp_path, "clone", "-q", str(origin), str(repo))
+    (repo / "README.md").write_text("x\n")
+    git(repo, "add", "-A"); git(repo, "commit", "-q", "-m", "init"); git(repo, "push", "-q", "origin", "HEAD:main")
+    (repo / "other.txt").write_text("local work\n")
+    git(repo, "add", "-A"); git(repo, "commit", "-q", "-m", "local work")
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
+    done = subprocess.run([sys.executable, str(SCRIPT), "--root", str(repo), "--by", "t", "sync"],
+                          capture_output=True, text=True, env=env)
+    assert done.returncode != 0 and "outside" in done.stderr
+    assert "other.txt" not in git(origin, "ls-tree", "-r", "--name-only", "main").stdout

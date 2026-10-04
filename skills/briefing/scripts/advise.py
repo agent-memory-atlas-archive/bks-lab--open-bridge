@@ -19,8 +19,9 @@ and (when the caller passes it) today's calendar:
     python3 skills/briefing/scripts/advise.py --file    # findings become inbox items
 
 With --file each finding is an inbox item under the key `advise:<check>:<subject>`,
-so a repeat is one item, and an advise item whose finding is gone is closed on the
-next run. Items it did not create are never touched.
+so a repeat is one item (with its summary refreshed), and an advise item whose
+finding is gone is closed on the next run that performed that check. A finding a
+person dropped is not filed again. Items it did not create are never touched.
 
 Thresholds: bridge-config.yaml `briefing.advise` (stale_days 7, blocked_days 14,
 waiting_days 2, collision_minutes 60, customer_contexts []). The calendar is a JSON
@@ -174,16 +175,31 @@ def advise(root: Path, *, now: dt.datetime | None = None, calendar: list | None 
     return found
 
 
-def file_findings(box, findings: list) -> list:
-    """File every fileable finding (one item per key) and close advise items whose finding is gone."""
+ALL_CHECKS = ("collision", "quiet", "blocked", "wip")
+
+
+def checks_run(calendar) -> tuple:
+    """Which fileable checks a run actually performed: collision needs a calendar."""
+    return ALL_CHECKS if calendar else tuple(c for c in ALL_CHECKS if c != "collision")
+
+
+def file_findings(box, findings: list, checks_ran: tuple = ALL_CHECKS) -> list:
+    """File every fileable finding (one item per key) and close advise items whose finding is gone.
+
+    Only items of a check that RAN are closed: a run without a calendar did not
+    look for collisions, so it cannot know that one is gone. A finding a person
+    dropped stays dropped (scripts/inbox.py keeps a dropped key quiet).
+    """
     wanted = {f["key"] for f in findings if f.get("file")}
+    ran = {f"{KEY_PREFIX}{c}:" for c in checks_ran}
     filed = []
     for f in findings:
         if f.get("file"):
             filed.append(box.add(source="briefing/advise", kind="finding", summary=f["summary"],
                                  urgency=f["urgency"], task=f.get("task"), gate="your-yes", key=f["key"]))
     for item in box.open_items():
-        if str(item.key or "").startswith(KEY_PREFIX) and item.key not in wanted:
+        key = str(item.key or "")
+        if any(key.startswith(p) for p in ran) and key not in wanted:
             box.close(item.id, note="finding no longer holds")
     return filed
 
@@ -200,7 +216,8 @@ def main(argv=None) -> int:
     found = advise(args.root, calendar=calendar)
     if args.file:
         inbox = _load_inbox()
-        file_findings(inbox.Inbox(args.root / "work" / "inbox", actor=args.by), found)
+        file_findings(inbox.Inbox(args.root / "work" / "inbox", actor=args.by), found,
+                      checks_ran=checks_run(calendar))
     if args.json:
         print(json.dumps(found, ensure_ascii=False, indent=1))
     else:

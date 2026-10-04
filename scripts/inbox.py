@@ -45,6 +45,7 @@ import datetime as dt
 import json
 import os
 import re
+import secrets
 import socket
 import subprocess
 import sys
@@ -97,6 +98,24 @@ def _parse_when(value) -> dt.datetime:
     )
 
 
+def _utc(value: dt.datetime) -> dt.datetime:
+    """Every comparison happens in UTC. A naive time is read as the local clock,
+    so two machines in different time zones still agree on what came first."""
+    return (value if value.tzinfo else value.astimezone()).astimezone(dt.timezone.utc)
+
+
+def _local_date(value: dt.datetime) -> dt.date:
+    return value.date() if value.tzinfo is None else value.astimezone().date()
+
+
+def _has_command(spec) -> bool:
+    if isinstance(spec, dict):
+        return "command" in spec or any(_has_command(v) for v in spec.values())
+    if isinstance(spec, list):
+        return any(_has_command(v) for v in spec)
+    return False
+
+
 def _status_of_task(slug: str, base: Path) -> str | None:
     work = base / "work"
     for path in [work / "tasks" / slug, work / "streams" / slug, *sorted((work / "done").glob(f"*/{slug}"))]:
@@ -120,17 +139,23 @@ def probe(spec, *, now: dt.datetime | None = None, gh: GhRunner | None = None,
     gh = gh or _gh_cli
     base = base or Path.cwd()
     try:
-        if "all" in spec:
-            results = [probe(p, now=now, gh=gh, base=base) for p in spec["all"]]
-            return None if None in results else all(results)
-        if "any" in spec:
-            results = [probe(p, now=now, gh=gh, base=base) for p in spec["any"]]
-            return True if True in results else (None if None in results else False)
+        for combine in ("all", "any"):
+            if combine in spec:
+                parts = spec[combine]
+                if not isinstance(parts, list) or not parts:
+                    return None         # an empty list proves nothing; all([]) would say True
+                results = [probe(p, now=now, gh=gh, base=base) for p in parts]
+                if combine == "all":
+                    return None if None in results else all(results)
+                return True if True in results else (None if None in results else False)
         if "path_exists" in spec:
-            path = Path(os.path.expanduser(str(spec["path_exists"])))
+            raw = str(spec["path_exists"] or "").strip()
+            if not raw:
+                return None             # "" would resolve to the repository root, which always exists
+            path = Path(os.path.expanduser(raw))
             return (path if path.is_absolute() else base / path).exists()
         if "after" in spec:
-            return now >= _parse_when(spec["after"])
+            return _utc(now) >= _utc(_parse_when(spec["after"]))
         if "command" in spec:
             argv = spec["command"]
             if not isinstance(argv, list) or not argv:
@@ -180,7 +205,10 @@ class Item:
     today: dt.date
 
     def __getattr__(self, key):
-        if key in ("summary", "kind", "gate", "urgency", "task", "source", "created", "key",
+        if key == "summary":
+            seen = [e.data.get("summary") for e in self.events if e.verb == "seen" and e.data.get("summary")]
+            return seen[-1] if seen else self.data.get("summary")
+        if key in ("kind", "gate", "urgency", "task", "source", "created", "key",
                    "action", "closes_when", "detail", "due"):
             return self.data.get("from" if key == "source" else key)
         raise AttributeError(key)
@@ -221,7 +249,7 @@ class Item:
                 deferred_until = None
         if deferred_until:
             try:
-                if _parse_when(deferred_until).date() > self.today:
+                if _local_date(_parse_when(deferred_until)) > self.today:
                     return "deferred"
             except ValueError:
                 pass
@@ -235,6 +263,17 @@ class Item:
     def as_dict(self) -> dict:
         return {"id": self.id, "state": self.state, **{k: v for k, v in self.data.items()
                                                       if k != "schema_version"}}
+
+
+def _warn(text: str) -> None:
+    print(f"inbox: {text}", file=sys.stderr)
+
+
+def _event_time(at: str) -> dt.datetime:
+    try:
+        return _utc(dt.datetime.fromisoformat(at))
+    except (TypeError, ValueError):
+        return dt.datetime.min.replace(tzinfo=dt.timezone.utc)
 
 
 def _slug(text: str, limit: int = 40) -> str:
@@ -263,11 +302,15 @@ def _dump(path: Path, data: dict) -> None:
 
 class Inbox:
     def __init__(self, root: Path, *, actor: str, clock: Callable[[], dt.datetime] = dt.datetime.now,
-                 gh: GhRunner | None = None):
+                 gh: GhRunner | None = None, runner: str | None = None):
         self.root = Path(root)
         self.actor = _slug(actor, 30)
         self.clock = clock
         self.gh = gh
+        # The one host that executes actions. Two machines that both `run` would
+        # each see an approved item before the other's `executed` event arrived
+        # through git, and a non-idempotent action (open an issue) would run twice.
+        self.runner = _slug(runner, 30) if runner else None
         # work/inbox → repository root: probes and actions resolve relative paths there
         self.base = self.root.parent.parent
 
@@ -275,22 +318,40 @@ class Inbox:
     def _load_events(self, item_dir: Path) -> list:
         events = []
         for path in sorted((item_dir / "events").glob("*.yaml")):
-            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            try:
+                data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            except (OSError, yaml.YAMLError) as exc:
+                _warn(f"{item_dir.name}: skipping unreadable event {path.name} ({exc})")
+                continue
+            if not isinstance(data, dict):
+                _warn(f"{item_dir.name}: skipping event {path.name}, not a mapping")
+                continue
             events.append(Event(path.name, data.pop("verb", ""), data.pop("by", ""),
                                 str(data.pop("at", "")), data))
-        events.sort(key=lambda e: (e.at, e.name))
+        events.sort(key=lambda e: (_event_time(e.at), e.name))
         return events
 
     def get(self, item_id: str) -> Item:
         item_dir = self.root / item_id
         data = yaml.safe_load((item_dir / "item.yaml").read_text(encoding="utf-8")) or {}
-        return Item(item_id, data, self._load_events(item_dir), self.clock().date())
+        if not isinstance(data, dict) or not data.get("kind"):
+            raise ValueError(f"{item_id}: item.yaml is not an item")
+        return Item(item_id, data, self._load_events(item_dir), _local_date(self.clock()))
 
     def items(self) -> list:
+        """Every readable item. One broken file (a conflict marker, a hand edit) is
+        skipped with a warning; it must not take the whole inbox down with it."""
         if not self.root.is_dir():
             return []
-        return [self.get(p.name) for p in sorted(self.root.iterdir())
-                if p.is_dir() and (p / "item.yaml").is_file()]
+        found = []
+        for path in sorted(self.root.iterdir()):
+            if not (path.is_dir() and (path / "item.yaml").is_file()):
+                continue
+            try:
+                found.append(self.get(path.name))
+            except (OSError, ValueError, yaml.YAMLError) as exc:
+                _warn(f"skipping {path.name}: {exc}")
+        return found
 
     def open_items(self) -> list:
         kind_rank = {k: i for i, k in enumerate(KINDS)}
@@ -326,15 +387,24 @@ class Inbox:
         if due is not None:
             _parse_when(due)            # raises ValueError on a date nobody can read
         if key:
-            for existing in self.items():
-                if existing.key == key and existing.state not in ("done", "dropped"):
-                    self.event(existing.id, "seen", summary=summary)
-                    return existing.id
+            # A repeat of an open item is that item. A DROPPED key stays dropped:
+            # a person said "do not tell me about this", and the next run of the
+            # same watcher must not undo that. A CLOSED key may come back: it
+            # was solved, and happening again is news.
+            same = [i for i in self.items() if i.key == key]
+            live = [i for i in same if i.state not in ("done", "dropped")]
+            dropped = [i for i in same if i.state == "dropped"]
+            target = (live or dropped or [None])[-1]
+            if target is not None:
+                self.event(target.id, "seen", summary=summary)
+                return target.id
         now = self.clock()
-        stem = f"{now:%Y%m%d-%H%M}-{_slug(summary)}"
-        item_id, n = stem, 2
+        # A random tail: two machines filing the same summary in the same minute
+        # would otherwise both create the same item.yaml and collide in git.
+        stem = f"{now:%Y%m%d-%H%M}-{_slug(summary, 34)}"
+        item_id = f"{stem}-{secrets.token_hex(2)}"
         while (self.root / item_id).exists():
-            item_id, n = f"{stem}-{n}", n + 1
+            item_id = f"{stem}-{secrets.token_hex(2)}"
         data = {"schema_version": SCHEMA_VERSION, "created": now.isoformat(timespec="minutes"),
                 "from": source, "kind": kind, "summary": summary.strip(), "urgency": urgency, "gate": gate}
         for name, value in (("task", task), ("due", due), ("detail", detail), ("key", key),
@@ -351,9 +421,9 @@ class Inbox:
         events_dir = self.root / item_id / "events"
         if not (self.root / item_id / "item.yaml").is_file():
             raise KeyError(item_id)
-        now = self.clock()
+        now = _utc(self.clock())
         actor = _slug(by, 30) if by else self.actor
-        stamp = f"{now:%Y%m%dT%H%M%S}"
+        stamp = f"{now:%Y%m%dT%H%M%SZ}"
         seq = len(list(events_dir.glob(f"{stamp}-*"))) if events_dir.is_dir() else 0
         body = {"verb": verb, "by": actor, "at": now.isoformat(timespec="seconds")}
         body.update({k: v for k, v in data.items() if v is not None})
@@ -382,6 +452,8 @@ class Inbox:
         for item in self.items():
             if item.state in ("done", "dropped") or not item.closes_when:
                 continue
+            if item.gate == "only-you" and _has_command(item.closes_when):
+                continue                # only-you means nothing of it executes, a probe command included
             if probe(item.closes_when, now=self.clock(), gh=self.gh, base=self.base) is True:
                 self.event(item.id, "close", by="check", text="closes_when holds")
                 closed.append(item.id)
@@ -404,8 +476,17 @@ class Inbox:
                     ready.append(item)
         return ready
 
+    def is_runner(self) -> bool:
+        return self.runner is None or self.runner == self.actor
+
     def run(self, dry_run: bool = False) -> list:
-        executed = []
+        return self.run_report(dry_run)["ran"]
+
+    def run_report(self, dry_run: bool = False) -> dict:
+        """{"ran": [ids], "failed": [(id, exit)], "skipped": reason or None}."""
+        if not self.is_runner():
+            return {"ran": [], "failed": [], "skipped": f"{self.actor} is not the runner ({self.runner})"}
+        executed, failed = [], []
         for item in self.runnable():
             if dry_run:
                 executed.append(item.id)
@@ -422,7 +503,8 @@ class Inbox:
                 executed.append(item.id)
             else:
                 self.event(item.id, "failed", exit=code, output=output.strip() or None)
-        return executed
+                failed.append((item.id, code))
+        return {"ran": executed, "failed": failed, "skipped": None}
 
     # -------------------------------------------------- views and validation
     def render(self) -> str:
@@ -442,7 +524,8 @@ class Inbox:
                       "|---|---|---|---|---|---|---|---|---|"]
             for n, item in enumerate(rows, 1):
                 summary = str(item.summary).replace("|", "\\|")
-                lines.append(f"| {n} | {item.urgency} | {item.due or ''} | {item.kind} | {summary} | {item.task or ''} "
+                runs = f"<br>runs `{' '.join(item.action['argv'])}`" if item.action else ""
+                lines.append(f"| {n} | {item.urgency} | {item.due or ''} | {item.kind} | {summary}{runs} | {item.task or ''} "
                              f"| {item.gate} | {item.state} | `{item.id}` |")
         return "\n".join(lines) + "\n"
 
@@ -531,7 +614,7 @@ def build_parser() -> argparse.ArgumentParser:
     rn.add_argument("--dry-run", action="store_true")
     sub.add_parser("render", help="regenerate work/inbox.md")
     sub.add_parser("validate")
-    sy = sub.add_parser("sync", help="commit work/inbox (and only it), pull --rebase, push")
+    sy = sub.add_parser("sync", help="commit work/inbox/ (and only it), rebase, push; refuses foreign commits")
     sy.add_argument("--no-push", action="store_true")
     return p
 
@@ -541,32 +624,69 @@ def _short(item: Item) -> str:
     return f"{mark} {item.summary}" + (f"  [{item.task}]" if item.task else "")
 
 
-def _sync(root: Path, actor: str, push: bool) -> int:
-    def git(*args):
-        return subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True)
+INBOX_PATH = "work/inbox"
 
-    paths = ["work/inbox", "work/inbox.md"]
-    git("add", "--", *[p for p in paths if (root / p).exists()])
-    if git("diff", "--cached", "--quiet", "--", *paths).returncode != 0:
-        msg = f"inbox: {actor} {dt.datetime.now():%Y-%m-%d %H:%M}"
-        done = git("commit", "-m", msg, "--", *paths)
-        if done.returncode != 0:
-            print(done.stderr.strip(), file=sys.stderr)
-            return 1
+
+def _sync(root: Path, actor: str, push: bool) -> int:
+    """Commit work/inbox/ (and nothing else), rebase onto the upstream, push.
+
+    The generated view work/inbox.md is NOT committed here: every render rewrites
+    its time stamp, so two machines committing it would conflict on every sync.
+    The push refuses when the branch carries unpushed commits outside the inbox:
+    "sync the inbox" must never ship somebody's unfinished work along with it.
+    A rebase that conflicts is aborted, so the checkout is never left half-done.
+    """
+    def git(*args, timeout=120):
+        return subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True, timeout=timeout)
+
+    if (root / INBOX_PATH).exists():
+        git("add", "--", INBOX_PATH)
+        if git("diff", "--cached", "--quiet", "--", INBOX_PATH).returncode != 0:
+            msg = f"inbox: {actor} {dt.datetime.now():%Y-%m-%d %H:%M}"
+            done = git("commit", "-m", msg, "--", INBOX_PATH)
+            if done.returncode != 0:
+                print(done.stderr.strip(), file=sys.stderr)
+                return 1
     if not push:
         return 0
-    for step in (("pull", "--rebase", "--autostash"), ("push",)):
-        done = git(*step)
-        if done.returncode != 0:
-            print(done.stderr.strip(), file=sys.stderr)
-            return 1
+    if git("fetch", "--quiet").returncode != 0:
+        print("inbox sync: fetch failed, the commit stays local for the next sync", file=sys.stderr)
+        return 1
+    if git("rev-parse", "--abbrev-ref", "@{u}").returncode != 0:
+        print("inbox sync: the branch has no upstream to push to", file=sys.stderr)
+        return 1
+    outside = [p for p in git("diff", "--name-only", "@{u}...HEAD").stdout.split()
+               if not p.startswith(INBOX_PATH + "/")]
+    if outside:
+        print(f"inbox sync: unpushed commits touch files outside {INBOX_PATH}/ "
+              f"({', '.join(outside[:3])}); push them yourself, not pushing", file=sys.stderr)
+        return 1
+    done = git("rebase", "--autostash", "@{u}")
+    if done.returncode != 0:
+        git("rebase", "--abort")
+        print(f"inbox sync: rebase onto the upstream failed and was aborted: {done.stderr.strip()[:200]}",
+              file=sys.stderr)
+        return 1
+    done = git("push", "--quiet")
+    if done.returncode != 0:
+        print(f"inbox sync: push failed, the commit stays local: {done.stderr.strip()[:200]}", file=sys.stderr)
+        return 1
     return 0
+
+
+def _runner(root: Path) -> str | None:
+    path = root / "bridge-config.yaml"
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {} if path.is_file() else {}
+    except (OSError, yaml.YAMLError):
+        return None
+    return ((data or {}).get("inbox") or {}).get("runner")
 
 
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
     actor = args.by or _default_actor()
-    box = Inbox(args.root / "work" / "inbox", actor=actor)
+    box = Inbox(args.root / "work" / "inbox", actor=actor, runner=_runner(args.root))
     try:
         if args.cmd == "add":
             print(box.add(source=args.source, kind=args.kind, summary=args.summary, task=args.task,
@@ -582,6 +702,8 @@ def main(argv=None) -> int:
                 for i in items:
                     print(f"{i.id}  {i.state:8} {i.urgency:5} {i.kind:8} {i.gate:8}  {i.summary}"
                           + (f"  [{i.task}]" if i.task else ""))
+                    if i.action:            # a yes is a yes to THIS command, so it is always shown
+                        print(f"    runs: {' '.join(i.action['argv'])}")
         elif args.cmd == "show":
             item = box.get(box.resolve(args.id))
             print(yaml.safe_dump(item.as_dict(), allow_unicode=True, sort_keys=False), end="")
@@ -600,8 +722,14 @@ def main(argv=None) -> int:
             for item_id in box.check():
                 print(f"closed {item_id}")
         elif args.cmd == "run":
-            for item_id in box.run(dry_run=args.dry_run):
+            report = box.run_report(dry_run=args.dry_run)
+            if report["skipped"]:
+                print(f"not running: {report['skipped']}")
+            for item_id in report["ran"]:
                 print(("would run " if args.dry_run else "ran ") + item_id)
+            for item_id, code in report["failed"]:
+                print(f"failed {item_id} (exit {code})")
+            return 1 if report["failed"] else 0
         elif args.cmd == "render":
             target = args.root / "work" / "inbox.md"
             target.write_text(box.render(), encoding="utf-8")

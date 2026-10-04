@@ -162,3 +162,39 @@ def test_load_config_reads_the_workplace_block(tmp_path):
     cfg = wp.load_cfg(tmp_path)
     assert cfg["driver"] == "none" and cfg["limits"]["max_tabs"] == 1
     assert wp.load_cfg(tmp_path / "missing") == {}
+
+
+def test_a_failed_driver_is_unknown_not_empty(tmp_path):
+    drv = wp.CommandDriver(["/definitely/not/here"])
+    assert drv.tabs_or_none() is None
+    assert drv.sessions_or_none() is None
+
+
+def test_plan_with_an_unknown_tab_view_says_so_and_refuses_to_open(repo):
+    class Broken(wp.NoneDriver):
+        name = "broken"
+
+        def tabs_or_none(self):
+            return None
+
+    plan = wp.build_plan(repo, CFG, TODAY, Broken())
+    assert plan["driver_error"]
+    assert wp.main(["--root", str(repo), "open", "--yes"]) in (0, 1)   # smoke: never raises
+
+
+def test_open_yes_is_refused_when_open_tabs_are_unknown(repo, capsys):
+    (repo / "bridge-config.yaml").write_text("workplace:\n  driver: {command: ['/definitely/not/here']}\n")
+    assert wp.main(["--root", str(repo), "open", "--yes"]) == 1
+    assert "unknown" in capsys.readouterr().err.lower()
+
+
+def test_status_prints_the_driver_error(repo, capsys):
+    (repo / "bridge-config.yaml").write_text("workplace:\n  driver: {command: ['/definitely/not/here']}\n")
+    assert wp.main(["--root", str(repo), "status"]) == 1
+    assert "failed" in capsys.readouterr().err.lower()
+
+
+def test_sessions_that_are_not_a_mapping_are_unknown(tmp_path):
+    script = tmp_path / "d.py"
+    script.write_text("import json,sys; json.load(sys.stdin); print(json.dumps({'sessions': ['x']}))")
+    assert wp.CommandDriver([sys.executable, str(script)]).sessions_or_none() is None
