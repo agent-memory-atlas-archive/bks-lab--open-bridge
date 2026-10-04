@@ -9,7 +9,7 @@ STATUS.md. Nothing closed them. A briefing that re-read those sources reported
 things as open that had been solved hours earlier, because the sentence saying
 "needed" was still there and the one saying "done" was further down.
 
-    python3 scripts/inbox.py add --from macmini/issue-radar --kind decision \\
+    python3 scripts/inbox.py add --from homebox/issue-radar --kind decision \\
         --summary "PR #70 is green and waits for a merge" --task a2a \\
         --action-json '{"argv": ["gh", "pr", "merge", "70", "-R", "org/repo"]}' \\
         --closes-when-json '{"gh_pr": "org/repo#70", "state": "merged"}'

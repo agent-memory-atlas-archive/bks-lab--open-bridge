@@ -260,6 +260,8 @@ SCRIPTS_CORE_ALLOWLIST = frozenset({
     "scripts/generate-bridge.py",
     "scripts/hooks/pre-commit",
     "scripts/hooks/pre-push",
+    "scripts/inbox-approve.py",
+    "scripts/inbox.py",
     "scripts/learning-ledger.py",
     "scripts/memory-location.py",
     "scripts/no-scrub-leak.py",
@@ -350,6 +352,7 @@ SCRIPTS_CORE_ALLOWLIST = frozenset({
     "scripts/tests/test-capability-registry.sh",
     "scripts/tests/test-extract-frontmatter.sh",
     "scripts/tests/test-gen-board.sh",
+    "scripts/tests/test-inbox.sh",
     "scripts/tests/test-validate-bridge-rule-map.sh",
     "scripts/tests/test_extract_frontmatter.py",
     "scripts/tests/test_figure_counts.py",
@@ -371,6 +374,7 @@ SCRIPTS_CORE_ALLOWLIST = frozenset({
     "scripts/measure-context.py",
     "scripts/standing-orders.py",
     "scripts/worklog.py",
+    "scripts/workplace.py",
     "scripts/tests/test-bridge-config.sh",
     "scripts/tests/test-doc-routes.sh",
     "scripts/tests/test-measure-context.sh",
@@ -383,12 +387,15 @@ SCRIPTS_CORE_ALLOWLIST = frozenset({
     "scripts/tests/test_no_scrub_leak.py",
     "scripts/tests/test_standing_orders.py",
     "scripts/tests/test_worklog.py",
+    "scripts/tests/test_workplace.py",
     # Registered 2026-08-28: both are generic guards with no instance name in
     # them, both are RUN by validate.yml, and that workflow promotes. A core CI
     # job calling a file classified `user` is the same defect the `_tests`
     # families had, one directory over.
     "scripts/check-generated-output.py",
     "scripts/tests/test_generated_output_escapes.py",
+    "scripts/tests/test_inbox.py",
+    "scripts/tests/test_inbox_approve.py",
     # Registered 2026-08-30 with the context index. Same reason as the block
     # above: validate.yml runs the suite and the `--check` guard, so a
     # non-core classification would have upstream CI call files that never

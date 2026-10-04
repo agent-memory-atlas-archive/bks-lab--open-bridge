@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=_schema.inbox-item.yaml
+# One inbox item, written once by `python3 scripts/inbox.py add` as
+# work/inbox/<id>/item.yaml and never edited afterwards. Every later change
+# (a note, a yes, a close) is a new file under work/inbox/<id>/events/.
+# Model: docs/inbox.md. Schema: work/templates/_schema.inbox-item.yaml.
+schema_version: 1
+created: "2026-10-04T09:30"          # set by the script
+from: homebox/issue-radar            # who filed it: machine/job or agent
+kind: decision                       # decision | question | finding | draft | result
+summary: "PR #70 in contoso/portal is green and waits for a merge"
+urgency: today                       # now | today | later
+gate: your-yes                       # free | your-yes | only-you
+task: portal-relaunch                # optional: the task slug it belongs to
+due: "2026-10-06"                    # optional: YYYY-MM-DD or YYYY-MM-DDTHH:MM
+detail: "Checks passed at 09:12, no review comments open."   # optional
+key: pr-contoso-portal-70            # optional: a repeated finding with this key adds no second item
+action:                              # optional: what `run` executes once released (no shell)
+  argv: [gh, pr, merge, "70", -R, contoso/portal]
+  label: Merge PR 70
+closes_when:                         # optional: probe against the live source, evaluated by `check`
+  gh_pr: contoso/portal#70
+  state: merged

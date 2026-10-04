@@ -141,7 +141,7 @@ draws exactly this, from the same file as the tables below:
 | `trackers/` | a provider playbook that normalizes a tracker's output | core only; per-instance settings live in bridge-config.yaml | open-bridge (CORE) | none | CORE maintainers | when named |
 | `themes/` | a vocabulary set for user-facing words | core: the built-ins; user: a custom theme | open-bridge (CORE)<br>your user branch | none | a person | when named |
 | `.claude/agents/` | a sub-agent, spawned inside a session for heavy or parallel work | any tier, set by scope | open-bridge (CORE)<br>your user branch | none | a person | at session start |
-| `work/` | the work system: tasks, streams, log, board, memory | user, the whole folder | your user branch | none | scripts/worklog.py, scripts/gen-board.py, and the skills that write a STATUS.md | at session start |
+| `work/` | the work system: tasks, streams, log, board, memory | user, the whole folder | your user branch | none | scripts/worklog.py, scripts/gen-board.py, scripts/inbox.py (work/inbox/), and the skills that write a STATUS.md | at session start |
 
 #### Beside the families
 

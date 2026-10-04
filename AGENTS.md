@@ -499,6 +499,14 @@ examples and repair recipes:
 **Lifecycle, three steps:** `mv` the directory, **regenerate** board.md from the
 dirs, append a log row with a measured timestamp.
 
+### Inbox
+
+What stays open after a unit of work (needs a person, waits on someone, must be
+checked later) is filed with `scripts/inbox.py add`, with a `closes_when` probe
+wherever the live source can tell, never left as a log sentence. Before
+reporting anything as open, run `inbox.py check` and read the inbox, not the
+log. Model: [`docs/inbox.md`](docs/inbox.md).
+
 ### Task Sync Routing
 
 Every task sits at the intersection of three orthogonal axes: **project**

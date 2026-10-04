@@ -41,7 +41,7 @@ def box(tmp_path):
 
 
 def add(box, **kw):
-    base = dict(source="macmini/issue-radar", kind="decision", summary="PR #70 is green and waits")
+    base = dict(source="homebox/issue-radar", kind="decision", summary="PR #70 is green and waits")
     base.update(kw)
     return box.add(**base)
 
@@ -101,13 +101,13 @@ def test_every_change_is_a_new_file_and_item_yaml_never_changes(box):
 def test_two_machines_writing_at_once_produce_disjoint_files(tmp_path):
     root = tmp_path / "work" / "inbox"
     laptop = inbox.Inbox(root, actor="laptop", clock=lambda: NOW)
-    macmini = inbox.Inbox(root, actor="macmini", clock=lambda: NOW)
+    homebox = inbox.Inbox(root, actor="homebox", clock=lambda: NOW)
     item_id = laptop.add(source="laptop", kind="decision", summary="x")
     laptop.note(item_id, "a")
-    macmini.note(item_id, "b")
+    homebox.note(item_id, "b")
     names = sorted(p.name for p in (root / item_id / "events").iterdir())
     assert len(names) == 2 and len(set(names)) == 2
-    assert any("laptop" in n for n in names) and any("macmini" in n for n in names)
+    assert any("laptop" in n for n in names) and any("homebox" in n for n in names)
 
 
 # ---------------------------------------------------------------- derived state
@@ -180,7 +180,7 @@ def test_gh_probe_reads_state_through_a_runner(box):
         calls.append(args)
         return json.dumps({"state": "MERGED", "statusCheckRollup": []})
 
-    assert inbox.probe({"gh_pr": "bks-lab/x#70", "state": "merged"}, gh=fake_gh) is True
+    assert inbox.probe({"gh_pr": "org/repo#70", "state": "merged"}, gh=fake_gh) is True
     assert calls and calls[0][:3] == ["pr", "view", "70"]
 
 

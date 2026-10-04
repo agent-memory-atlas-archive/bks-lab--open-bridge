@@ -134,7 +134,7 @@ Every config type lives in **`<wrapper>/<types>/`** — a plural folder with tem
 | Path | Layer | Purpose |
 |------|-------|---------|
 | `protocols/` | CORE | `standing-orders/` always-on rules (CORE defaults; user orders in `standing-orders/user/`) |
-| `work/` | USER | Tasks + logs: `tasks/` (finite) · `streams/` (long-running) · `done/YYYY-MM/` · `templates/` (CORE seeds) · `_learning/` · `archive/` · `imports/` |
+| `work/` | USER | Tasks + logs: `tasks/` (finite) · `streams/` (long-running) · `done/YYYY-MM/` · `inbox/` (items that need a person, [`docs/inbox.md`](inbox.md)) · `templates/` (CORE seeds) · `_learning/` · `archive/` · `imports/` |
 | `docs/` | CORE | Human-readable documentation, onboarding guides |
 | `rules/` | **Tiered by folder** | Always-on rules. `rules/*.md` = core (ship to all) · `rules/org/**` = org (ship to org overlay) · `rules/user/**` = user (local only). The folder *is* the promote tier. `validate-bridge.py` checks each rule declares a valid `scope:` (presence + allowed value); folder↔scope consistency itself is an advisory `bridge-audit` check, not a hard gate. Each bridge layers its own under `rules/org/`+`rules/user/`. See [`rules/knowledge-growth.md`](../rules/knowledge-growth.md). |
 | `themes/` | CORE | Vocabulary themes (`professional`, `professional-de`, `professional-fr`) |
