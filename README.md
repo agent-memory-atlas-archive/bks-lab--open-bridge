@@ -18,9 +18,9 @@ email-verification wired, 6 tests green. Board: 2 doing · 1 review ·
 cart-a11y waits on PR #214.
 ```
 
-That is the shipped demo workspace answering. The clip below is the same morning, 15 seconds without sound; the [full live session](https://bks-lab.github.io/open-bridge/demo.html) adds the morning session start, an incident taken from log triage to a tested fix, and first-run onboarding.
+That is the shipped demo workspace answering. The clip below is the same morning, 15 seconds without sound (click it for the 1:25 film on YouTube); the [full live session](https://bks-lab.github.io/open-bridge/demo.html) adds the morning session start, an incident taken from log triage to a tested fix, and first-run onboarding.
 
-[![BKS open-bridge: a coding agent answers good morning from plain markdown and YAML in git](docs/assets/video/open-bridge-loop.gif)](https://bks-lab.github.io/open-bridge/demo.html)
+[![BKS open-bridge: a coding agent answers good morning from plain markdown and YAML in git (click for the 1:25 film on YouTube)](docs/assets/video/open-bridge-loop.gif)](https://www.youtube.com/watch?v=pkieGFYcO88)
 
 <a id="get-started"></a>
 
