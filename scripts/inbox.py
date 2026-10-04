@@ -485,7 +485,10 @@ class Inbox:
     def run_report(self, dry_run: bool = False) -> dict:
         """{"ran": [ids], "failed": [(id, exit)], "skipped": reason or None}."""
         if not self.is_runner():
-            return {"ran": [], "failed": [], "skipped": f"{self.actor} is not the runner ({self.runner})"}
+            # A dry run still lists what is ready: the briefing on a machine that is
+            # not the runner shows it as "ready, waiting for <runner>".
+            ready = [i.id for i in self.runnable()] if dry_run else []
+            return {"ran": ready, "failed": [], "skipped": f"{self.actor} is not the runner ({self.runner})"}
         executed, failed = [], []
         for item in self.runnable():
             if dry_run:
@@ -726,7 +729,10 @@ def main(argv=None) -> int:
             if report["skipped"]:
                 print(f"not running: {report['skipped']}")
             for item_id in report["ran"]:
-                print(("would run " if args.dry_run else "ran ") + item_id)
+                if report["skipped"]:
+                    print(f"ready, waiting for {box.runner}: {item_id}")
+                else:
+                    print(("would run " if args.dry_run else "ran ") + item_id)
             for item_id, code in report["failed"]:
                 print(f"failed {item_id} (exit {code})")
             return 1 if report["failed"] else 0

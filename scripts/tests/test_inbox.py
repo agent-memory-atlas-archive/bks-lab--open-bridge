@@ -451,3 +451,13 @@ def test_sync_refuses_to_push_commits_outside_the_inbox(tmp_path):
                           capture_output=True, text=True, env=env)
     assert done.returncode != 0 and "outside" in done.stderr
     assert "other.txt" not in git(origin, "ls-tree", "-r", "--name-only", "main").stdout
+
+
+def test_a_dry_run_elsewhere_lists_what_waits_for_the_runner(tmp_path):
+    """The briefing on a machine that is not the runner shows "ready, waiting for <runner>"."""
+    laptop = inbox.Inbox(tmp_path / "work" / "inbox", actor="laptop", clock=lambda: NOW, runner="homebox")
+    item_id = laptop.add(source="x", kind="finding", summary="s", gate="free", action={"argv": ["true"]})
+    report = laptop.run_report(dry_run=True)
+    assert report["ran"] == [item_id]
+    assert "homebox" in report["skipped"]
+    assert laptop.run_report()["ran"] == []
