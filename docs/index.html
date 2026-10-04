@@ -618,6 +618,9 @@ html.story-static .story-list{display:flex;flex-wrap:wrap;gap:10px;justify-conte
 .proof-grid .hero-term{margin:0;max-width:none}
 .proof-grid .hero-term,.proof-grid .hero-visual{grid-column:auto!important;grid-row:auto!important;margin:0!important}
 .proof-grid .hero-visual{max-width:520px;justify-self:center;width:100%}
+.proof-loop{max-width:960px;margin:56px auto 0}
+.proof-loop video{display:block;width:100%;height:auto;aspect-ratio:16/9;border:1px solid var(--border);border-radius:var(--r-lg);background:#0b1220}
+.proof-loop figcaption{margin:12px 4px 0;font-size:12.5px;line-height:1.5;color:var(--muted)}
 @media (min-width:901px) and (max-height:800px){
   .story .cap:first-child .eyebrow{display:none}
   .story .cap p{font-size:14.5px;margin-top:8px}
@@ -824,6 +827,17 @@ html.story-static .story-list{display:flex;flex-wrap:wrap;gap:10px;justify-conte
           </div>
         </figure>
       </div>
+  </div>
+  <div class="container">
+    <figure class="proof-loop" id="proof-loop">
+      <video muted loop playsinline controls preload="metadata" poster="assets/video/open-bridge-loop-poster.jpg" aria-label="Silent 15 second loop: a coding agent starts the day with good morning and answers from plain files in git, a morning briefing with one incident first.">
+        <source src="assets/video/open-bridge-loop.mp4" type="video/mp4">
+      </video>
+      <figcaption>
+        <span data-lang="en">15 seconds, no sound: one <code>good morning</code>, answered from plain files in git.</span>
+        <span data-lang="de">15 Sekunden, ohne Ton: ein <code>guten morgen</code>, beantwortet aus einfachen Dateien in git.</span>
+      </figcaption>
+    </figure>
   </div>
 </section>
 
@@ -2509,5 +2523,19 @@ claude        <span class="cmt"># or: codex, copilot</span></div>
 <script defer src="assets/reads.js"></script>
 <script defer src="assets/agent-config.js"></script>
   <script defer src="assets/agent-widget.js"></script>
+<script>
+/* The proof loop plays by itself only when the visitor has not asked for less
+   motion. Otherwise the poster stays and the native controls start it. It also
+   pauses while off screen. The file is served from this site: no third party. */
+(function(){
+  var v=document.querySelector('#proof-loop video');
+  if(!v||!window.matchMedia||matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  v.controls=false;
+  var go=function(){var p=v.play();if(p&&p.catch)p.catch(function(){v.controls=true;});};
+  if('IntersectionObserver' in window){
+    new IntersectionObserver(function(e){e[0].isIntersecting?go():v.pause();},{threshold:.25}).observe(v);
+  }else{go();}
+})();
+</script>
 </body>
 </html>
