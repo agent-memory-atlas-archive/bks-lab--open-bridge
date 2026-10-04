@@ -24,6 +24,7 @@ capabilities:
   - docker
   - git
   - services
+  - arm          # runs the Bridge's watchers and writes the inbox (docs/always-on-machine.md)
 
 services:
   - slug: chat-bot

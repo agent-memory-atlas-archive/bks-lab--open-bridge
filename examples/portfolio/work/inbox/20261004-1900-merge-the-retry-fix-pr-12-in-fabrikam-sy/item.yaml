@@ -1,0 +1,21 @@
+schema_version: 1
+created: 2026-10-04T19:00
+from: homebox/pr-watch
+kind: decision
+summary: Merge the retry fix (PR 12 in fabrikam-sync) once it is green
+urgency: today
+gate: your-yes
+task: fabrikam-sync-backlog
+key: fabrikam-pr-12-merge
+action:
+  argv:
+  - gh
+  - pr
+  - merge
+  - '12'
+  - -R
+  - northwind/fabrikam-sync
+  - --squash
+closes_when:
+  gh_pr: northwind/fabrikam-sync#12
+  state: merged

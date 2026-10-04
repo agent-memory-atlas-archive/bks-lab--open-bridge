@@ -1,0 +1,11 @@
+schema_version: 1
+created: 2026-10-04T19:00
+from: homebox/fabrikam-weekly-report
+kind: draft
+summary: Weekly Fabrikam health report is drafted and waits for your send
+urgency: today
+gate: only-you
+due: '2026-10-05'
+detail: Draft is in the Northwind mailbox. Sync success rate is below target because
+  of the stale run above; read that line before sending.
+key: fabrikam-weekly-2026-w40

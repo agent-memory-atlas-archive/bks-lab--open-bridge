@@ -189,7 +189,7 @@ properties:
   capabilities:
     type: array
     items: {type: string}
-    description: "Capabilities this machine offers. Free-form list."
+    description: "Capabilities this machine offers. Free-form list. `arm` marks the always-on machine that runs the Bridge's watchers and writes the inbox (docs/always-on-machine.md); the briefing offers watchers only when one exists."
 
   # --- services ---
   # Services running on this machine — keepalive units, scheduled jobs,

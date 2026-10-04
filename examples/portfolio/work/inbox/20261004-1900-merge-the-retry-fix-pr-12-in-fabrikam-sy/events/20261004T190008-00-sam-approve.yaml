@@ -1,0 +1,6 @@
+verb: approve
+by: sam
+at: '2026-10-04T19:00:08'
+when:
+  gh_pr: northwind/fabrikam-sync#12
+  state: green

@@ -5,6 +5,8 @@
 # everything is green it writes its report to the log and pushes NOTHING.
 # Only a red line reaches Sam's phone, phrased as what happened and what to
 # do. A digest that talks every morning gets muted within a week.
+# What is red also lands in the inbox (reports_to: inbox), keyed so a finding
+# that stays red is one item, and it closes itself when the check turns green.
 
 schema_version: 1
 scope: user
@@ -13,6 +15,7 @@ id: daily-health-digest
 title: Daily health digest
 purpose: "Morning check across all three hats that pushes to the phone only when something needs action"
 persona_ref: _shared   # one check across company, freelance and household on purpose: it is the operator's view
+reports_to: inbox
 
 placement:
   host: homebox

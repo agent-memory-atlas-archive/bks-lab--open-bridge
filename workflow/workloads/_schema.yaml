@@ -134,6 +134,36 @@ properties:
       system of one is a legitimate answer on the day the second half is still
       being built.
 
+  reports_to:
+    enum: [inbox, channel, none]
+    default: none
+    description: |
+      WHERE A FINDING OF THIS RUN LANDS. Optional, and absent means `none`, so
+      every declaration written before this key existed stays valid and means
+      what it always meant.
+
+      A run that notices something has to put it somewhere the Bridge reads. On
+      a machine that has been running things for a while, the usual answer is
+      "a mail, a chat message, a line in a log", and each of those is a place
+      nobody closes: the sentence saying "needed" outlives the fix, and the
+      next briefing reports it as open.
+
+        inbox    the run files what needs a person into the Bridge inbox:
+                 `python3 scripts/inbox.py add --key <stable-key> ...`, then
+                 `inbox.py sync` to push it. The key is what makes a watcher
+                 that fires every five minutes ONE item instead of two
+                 hundred. The item carries a `closes_when` probe (or the run
+                 calls `inbox.py close`), so it ends when the live source says
+                 the thing is solved. A green run files nothing.
+        channel  the run pushes through `response.notify_via`, as before. This
+                 is the explicit spelling of what absent used to imply for
+                 runs that do notify.
+        none     the run writes only its own log. Nobody is told.
+
+      It is a declaration of intent, like `persona_ref`. It does not check that
+      the command really calls the inbox; `reconcile` and a read of the run's
+      output are what prove that.
+
   placement:
     type: object
     required: [host, kind, runtime, owner]

@@ -22,6 +22,10 @@ optional `<name>-setup.md` companion for BIOS / first-run / hardware
 quirks. Enable the feature with `remotes.enabled: true` in
 `bridge-config.yaml`.
 
+An always-on machine can become the arm of the Bridge: it runs the watchers and
+files what needs you into the inbox. Mark it with `arm` under `capabilities`;
+the guide is [always-on-machine.md](always-on-machine.md).
+
 ## Service Types
 
 | Type | Behavior | Platform |

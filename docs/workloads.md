@@ -1,13 +1,14 @@
 ---
 summary: "Workloads: one declared run on one machine, in one file. The four part contract (placement, schedule, execution, response) plus a reconcile probe, why there is deliberately no status field, and how ownership is proved on both sides."
 type: guide
-last_updated: 2026-08-27
+last_updated: 2026-10-04
 related:
   - rules/deploy-reconciliation.md
   - rules/visual-output.md
   - docs/structure.md
   - docs/remotes.md
   - docs/channels.md
+  - docs/always-on-machine.md
 ---
 
 # Workloads
@@ -83,6 +84,26 @@ report and a poller that fires every 900 seconds. Those are different things:
 one has appointments, the other only a cadence. Splitting them is what lets a
 calendar view draw appointment ticks for the first and a cadence band for the
 second without inventing times that never existed.
+
+## Where a finding lands: `reports_to`
+
+A run that notices something needs a place to put it that the Bridge reads and
+that closes. The optional `reports_to` key declares it: `inbox`, `channel` or
+`none` (the default, so every older declaration stays valid).
+
+With `reports_to: inbox` the run files what needs a person with
+`python3 scripts/inbox.py add --key <stable-key> ...`. The key is the point: a
+watcher that fires every five minutes about the same stale sync is one item,
+not two hundred. The item carries a `closes_when` probe, or the run closes it
+with `inbox.py close` once the cause is gone, and then calls `inbox.py sync` to
+push the change. A green run files nothing, which keeps the inbox a list of
+things that need a person and not a log of everything that ran.
+
+`channel` is the older way (push through `response.notify_via`), and `none`
+means the run only writes its own log. The key declares intent and checks
+nothing about the command; `reconcile` and a look at the run's output prove it.
+How to turn an always-on machine into the place these runs live:
+[always-on-machine.md](always-on-machine.md).
 
 ## There is no `status:` field
 
