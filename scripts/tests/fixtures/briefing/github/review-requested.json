@@ -1,0 +1,5 @@
+[
+  {"number": 40, "title": "Bump the schema version", "url": "https://github.com/example-org/tool/pull/40",
+   "state": "open", "isDraft": false, "updatedAt": "2026-10-04T06:00:00Z", "labels": [],
+   "assignees": [{"login": "hubot"}], "repository": {"nameWithOwner": "example-org/tool"}}
+]

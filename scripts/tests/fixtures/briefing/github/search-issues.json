@@ -1,0 +1,8 @@
+[
+  {"number": 12, "title": "Board import drops emoji states", "url": "https://github.com/example-org/tool/issues/12",
+   "state": "open", "updatedAt": "2026-10-03T08:00:00Z", "labels": [{"name": "bug"}],
+   "assignees": [{"login": "octo"}], "repository": {"nameWithOwner": "example-org/tool"}},
+  {"number": 7, "title": "Write the onboarding page", "url": "https://github.com/example-org/site/issues/7",
+   "state": "open", "updatedAt": "2026-09-20T10:00:00Z", "labels": [{"name": "blocked"}],
+   "assignees": [{"login": "octo"}, {"login": "hubot"}], "repository": {"nameWithOwner": "example-org/site"}}
+]

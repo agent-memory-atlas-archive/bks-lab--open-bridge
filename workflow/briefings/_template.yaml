@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=./_schema.yaml
+#
+# Briefing profile: what ONE briefing shows, and from where.
+#
+# Copy to workflow/briefings/<id>.yaml on your user/* branch. Several profiles
+# are fine (a morning one, one per customer, a weekly one). Plain `/briefing`
+# runs the profile marked `default: true`; `/briefing <id>` runs another.
+# Without any profile the Bridge uses a built-in one equal to this template
+# minus the tracker sections it cannot infer (`python3 scripts/briefing.py show`).
+#
+#   python3 scripts/briefing.py list              # the profiles this Bridge knows
+#   python3 scripts/briefing.py collect <id>      # run it (add --json for the agent)
+#   python3 scripts/briefing.py validate          # check every profile
+#
+# Sections run in the order written and render in that order. A section that
+# fails (CLI missing, no token, timeout) shows as an error line; the briefing
+# continues. Model and every provider's query keys: docs/briefings.md.
+
+schema_version: 1
+scope: user
+id: morning
+title: "Morning briefing"
+for: your-handle
+default: true
+offer_on: ["good morning", "briefing", "what's up today"]
+
+sections:
+  # What waits for you: decisions, drafts, findings (scripts/inbox.py).
+  - kind: inbox
+    max: 7
+
+  # The advice checks: quiet tasks, blocked tasks, WIP, calendar collisions.
+  - kind: advise
+
+  # Your own tasks under work/tasks/.
+  - kind: tasks
+    status: [doing, review]
+
+  # Issues and PRs assigned to you on GitHub (gh CLI, its own login).
+  - kind: tracker
+    id: github-mine
+    title: "GitHub"
+    provider: github
+    query: {assignee: "@me", owners: [your-org], kinds: [issues, prs]}
+    max: 10
+    to_inbox:
+      - when: {state: review, assigned_to_me: true}
+
+  # A Jira project, token through the secrets engine (no value in this file).
+  # - kind: tracker
+  #   id: jira-team
+  #   title: "Jira"
+  #   provider: jira
+  #   account_ref: identity/accounts/jira-example.yaml   # base_url + token_ref
+  #   query: {jql: "assignee = currentUser() AND statusCategory != Done"}
+  #   to_inbox:
+  #     - when: {state: blocked}
+  #       urgency: now
+
+  - kind: calendar
+    provider: auto          # icalbuddy on macOS when installed, else skipped
+    days: 1
+
+  - kind: activity
+    days: 7
+
+  # Anything else: a program printing a JSON list of normalized items.
+  # - kind: command
+  #   title: "My source"
+  #   argv: ["python3", "tools/my-source.py"]

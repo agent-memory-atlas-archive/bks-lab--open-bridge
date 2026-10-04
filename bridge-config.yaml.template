@@ -144,10 +144,14 @@ work:
 #   tab_names: {}            # task slug -> shorter tab title
 #   agent: {new: "claude -n {slug} {prompt}", resume: "claude --resume {session}"}
 
-# ─── Briefing advise thresholds ───────────────────────────────────────
-# What /briefing files into the inbox on its own (collisions, quiet tasks,
-# long blocks). Defaults shown. Model: skills/briefing/references/control.md
+# ─── Briefing: default profile + advise thresholds ────────────────────
+# What a briefing SHOWS lives in workflow/briefings/<id>.yaml, one file per
+# briefing (docs/briefings.md). Here: which one is the default, and what
+# /briefing files into the inbox on its own (collisions, quiet tasks, long
+# blocks). Defaults shown. Model: skills/briefing/references/control.md
 # briefing:
+#   default: morning         # which workflow/briefings/<id>.yaml plain /briefing runs
+#                            # (wins over `default: true` in a shared profile file)
 #   advise:
 #     stale_days: 7
 #     blocked_days: 14

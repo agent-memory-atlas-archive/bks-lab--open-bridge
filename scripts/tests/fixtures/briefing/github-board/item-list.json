@@ -1,0 +1,12 @@
+{"items": [
+  {"status": "In Progress", "assignees": ["octo"], "labels": ["area:core"], "title": "Ship profiles",
+   "content": {"number": 5, "title": "Ship profiles", "url": "https://github.com/example-org/tool/issues/5",
+               "type": "Issue", "repository": "example-org/tool", "updatedAt": "2026-10-04T05:00:00Z"}},
+  {"status": "✅ Done", "assignees": ["octo"], "labels": [], "title": "Old thing",
+   "content": {"number": 2, "title": "Old thing", "url": "https://github.com/example-org/tool/issues/2",
+               "type": "Issue", "repository": "example-org/tool", "updatedAt": "2026-09-01T05:00:00Z"}},
+  {"status": "Blocked", "assignees": ["hubot"], "labels": [], "title": "Waiting on vendor",
+   "content": {"number": 9, "title": "Waiting on vendor", "url": "https://github.com/example-org/tool/issues/9",
+               "type": "Issue", "repository": "example-org/tool", "updatedAt": "2026-10-01T05:00:00Z"}},
+  {"status": "Todo", "assignees": [], "labels": [], "title": "Draft idea", "content": {"title": "Draft idea"}}
+]}

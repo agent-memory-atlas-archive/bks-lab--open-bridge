@@ -141,8 +141,11 @@ jobs:
       - name: Run question-map test suite and check
         run: python3 -m pytest scripts/tests/test_where_things_live.py -q -rs && python3 scripts/check-where-things-live.py
 
-      - name: Run inbox, workplace and briefing-advice test suites
+      - name: Run inbox, workplace, briefing-advice and briefing-profile test suites
         run: bash scripts/tests/test-inbox.sh
+
+      - name: Validate briefing profiles
+        run: python3 scripts/briefing.py validate
 
       - name: Run command-reference test suite and check
         run: python3 -m pytest scripts/tests/test_commands_doc.py -q -rs && python3 scripts/check-commands-doc.py

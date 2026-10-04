@@ -1,0 +1,17 @@
+[
+  {"iid": 42, "title": "Export fails for empty reports", "state": "opened",
+   "labels": ["bug", "in-progress", "P1"], "assignees": [{"username": "alice", "name": "Alice Example"}],
+   "web_url": "https://gitlab.example.com/example-org/acme-app/-/issues/42", "updated_at": "2026-10-03T09:15:00Z"},
+  {"iid": 43, "title": "Add CSV import", "state": "opened",
+   "labels": ["feature", "blocked"], "assignees": [{"username": "alice", "name": "Alice Example"}],
+   "web_url": "https://gitlab.example.com/example-org/acme-app/-/issues/43", "updated_at": "2026-10-02T14:00:00Z"},
+  {"iid": 44, "title": "Update contributor guide", "state": "opened",
+   "labels": ["task", "in-review"], "assignees": [{"username": "alice", "name": "Alice Example"}],
+   "web_url": "https://gitlab.example.com/example-org/acme-app/-/issues/44", "updated_at": "2026-10-01T08:30:00Z"},
+  {"iid": 45, "title": "Rotate staging keys", "state": "opened",
+   "labels": [], "assignees": [{"username": "alice", "name": "Alice Example"}],
+   "web_url": "https://gitlab.example.com/example-org/acme-app/-/issues/45", "updated_at": "2026-09-30T16:45:00Z"},
+  {"iid": 46, "title": "Fix typo in README", "state": "closed",
+   "labels": ["chore"], "assignees": [{"username": "alice", "name": "Alice Example"}],
+   "web_url": "https://gitlab.example.com/example-org/acme-app/-/issues/46", "updated_at": "2026-09-29T11:00:00Z"}
+]
