@@ -6,6 +6,7 @@ related:
   - ../scripts/workplace.py
   - inbox.md
   - ../skills/briefing/references/control.md
+  - ../skills/cmux/SKILL.md
 ---
 
 # Workplace
@@ -79,8 +80,22 @@ Rules every driver keeps: it never closes a tab or a workspace; a tab that is al
 open is reused, never opened twice; `here` is the calling tab, which becomes the
 control tab and moves last so no workspace is ever left empty. A driver that fails or
 answers something unreadable is reported as a line, never raised, so the plan always
-stands. A driver ships with the tool it drives (a plugin, a separate repo), not in
-CORE; `driver: {command: [...]}` may use `${root}` for the repository root.
+stands. A driver ships as an optional skill or with the tool itself; the plan never
+imports it. `skills/cmux` is the reference driver, active only where cmux is
+installed:
+
+```yaml
+workplace:
+  driver: {command: ["python3", "${root}/skills/cmux/scripts/cmux_driver.py"]}
+```
+
+`driver: {command: [...]}` may use `${root}` for the repository root.
+
+## From the briefing to open tabs
+
+With a driver configured, the briefing's `workplace` section proposes one tab per
+task, grouped into workspaces. On the person's yes, `workplace.py open --yes`
+opens them through the driver; `status`, `send` and `adopt` steer them afterwards.
 
 ## Where tab state comes from
 

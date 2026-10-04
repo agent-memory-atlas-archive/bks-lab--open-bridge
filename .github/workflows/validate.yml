@@ -144,6 +144,11 @@ jobs:
       - name: Run inbox, workplace, briefing-advice and briefing-profile test suites
         run: bash scripts/tests/test-inbox.sh
 
+      # The cmux workplace driver (optional skill). Runs against a fake `cmux`
+      # on PATH, never the real one, so it needs no cmux on the runner.
+      - name: Run cmux skill test suite
+        run: python3 -m pytest -q skills/cmux/tests
+
       - name: Validate briefing profiles
         run: python3 scripts/briefing.py validate && python3 scripts/briefing.py --root examples/portfolio validate
 

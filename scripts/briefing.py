@@ -251,7 +251,8 @@ def load_profiles(root: Path) -> list:
 
 
 def builtin_profile(cfg: dict) -> dict:
-    """The briefing before profiles: inbox, advice, tasks, the enabled trackers, calendar, activity."""
+    """The briefing before profiles: inbox, advice, tasks, the enabled trackers, calendar,
+    activity, and the workplace plan when a `workplace:` block is configured."""
     sections = [{"kind": "inbox"}, {"kind": "advise"}, {"kind": "tasks", "status": ["doing", "review"]}]
     integrations = cfg.get("integrations") or {}
     if (integrations.get("github") or {}).get("enabled"):
@@ -269,6 +270,10 @@ def builtin_profile(cfg: dict) -> dict:
                                    ("wiql", (ado.get("queries") or {}).get("open"))) if v}
         sections.append({"kind": "tracker", "id": "ado", "title": "Azure Boards", "provider": "ado", "query": query})
     sections += [{"kind": "calendar", "provider": "auto", "days": 1}, {"kind": "activity", "days": 7}]
+    # A Bridge that configured a workplace (docs/workplace.md) wants the day's tabs
+    # proposed in its briefing, whichever driver opens them.
+    if cfg.get("workplace"):
+        sections.append({"kind": "workplace"})
     return {"schema_version": 1, "scope": "core", "id": "builtin", "title": "Briefing", "sections": sections,
             "_path": "(built-in)"}
 

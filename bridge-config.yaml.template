@@ -137,6 +137,8 @@ work:
 # Model: docs/workplace.md
 # workplace:
 #   driver: none             # or {command: ["python3", "path/to/driver.py"]}
+#   # cmux users (optional skill, skills/cmux):
+#   # driver: {command: ["python3", "${root}/skills/cmux/scripts/cmux_driver.py"]}
 #   workspaces:
 #     - {name: Bigcorp, contexts: [bigcorp]}
 #     - {name: Misc, default: true}

@@ -663,3 +663,9 @@ def test_account_ref_must_stay_inside_the_bridge(tmp_path):
     outside.write_text("base_url: https://x\n", encoding="utf-8")
     with pytest.raises(bf.SourceError):
         ctx(root).account({"account_ref": "../elsewhere.yaml"})
+
+
+def test_builtin_shows_the_workplace_when_one_is_configured():
+    assert "workplace" not in [s["kind"] for s in bf.builtin_profile({})["sections"]]
+    kinds = [s["kind"] for s in bf.builtin_profile({"workplace": {"driver": "none"}})["sections"]]
+    assert "workplace" in kinds and kinds.index("workplace") > kinds.index("tasks")
