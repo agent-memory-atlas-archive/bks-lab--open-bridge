@@ -19,6 +19,8 @@ when the structure changed.
 SNAP is a file name, a path, or an index from `list` (0 = newest).
 
 Environment:
+    CMUX_BIN            the cmux CLI (default: `cmux` on PATH, else the CLI inside
+                        the macOS app bundle, which is not on PATH under launchd)
     CMUX_SESSION_FILE   cmux's session file (default: the macOS location)
     CMUX_LAYOUT_DIR     where snapshots go (default ~/.local/state/cmux-layouts)
     CMUX_LAYOUT_NOTIFY  optional executable that delivers the loss alarm, called
@@ -33,6 +35,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -52,6 +55,7 @@ UUID_RE = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 # A tab whose only process is the agent closes (and takes an otherwise empty
 # workspace with it) when the agent exits; falling back to a login shell keeps it.
 KEEP_SHELL = '; exec "${SHELL:-/bin/sh}" -l'
+APP_BUNDLE_BIN = Path("/Applications/cmux.app/Contents/Resources/bin/cmux")
 
 
 class CmuxError(RuntimeError):
@@ -430,9 +434,27 @@ def parse_ref(output: str, kind: str) -> str | None:
     return m.group(0) if m else None
 
 
+def cmux_bin() -> str | None:
+    """The cmux CLI: $CMUX_BIN, else `cmux` on PATH, else the app bundle's CLI.
+
+    An explicit CMUX_BIN that is not executable means "unavailable", it is never
+    silently replaced by another binary.
+    """
+    explicit = os.environ.get("CMUX_BIN")
+    if explicit:
+        return explicit if os.access(explicit, os.X_OK) else None
+    found = shutil.which("cmux")
+    if found:
+        return found
+    return str(APP_BUNDLE_BIN) if os.access(APP_BUNDLE_BIN, os.X_OK) else None
+
+
 def _run(args: tuple) -> tuple[int, str]:
+    binary = cmux_bin()
+    if binary is None:
+        raise CmuxUnavailable("cmux not found: set CMUX_BIN, put cmux on PATH, or install the app")
     try:
-        res = subprocess.run(["cmux", *args], capture_output=True, text=True, timeout=60)
+        res = subprocess.run([binary, *args], capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.SubprocessError) as exc:
         raise CmuxUnavailable(f"cmux CLI not available: {exc}") from exc
     return res.returncode, (res.stdout or "") + (res.stderr or "")

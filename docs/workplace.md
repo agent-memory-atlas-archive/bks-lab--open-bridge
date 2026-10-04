@@ -104,7 +104,9 @@ Rules every driver keeps: it never closes a tab or a workspace; a tab that is al
 open is reused, never opened twice; `here` is the calling tab, which becomes the
 control tab and moves last so no workspace is ever left empty. A driver that fails or
 answers something unreadable is reported as a line, never raised, so the plan always
-stands. A driver ships as an optional skill or with the tool itself; the plan never
+stands. A step the terminal refused is a report line starting with `ERROR`, never a
+success line; `open --yes`, `send` and `adopt` then exit 1, so a script or workload
+sees the failure the person reads. A driver ships as an optional skill or with the tool itself; the plan never
 imports it. `skills/cmux` is the reference driver, active only where cmux is
 installed:
 

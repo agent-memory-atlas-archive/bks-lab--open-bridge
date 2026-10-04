@@ -33,7 +33,17 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-command -v cmux >/dev/null 2>&1 || { echo "ERROR: cmux is not installed" >&2; exit 1; }
+# Resolve the cmux CLI: $CMUX_BIN, else PATH, else the CLI inside the macOS app
+# bundle (which is not on PATH under launchd or in a bare shell).
+CMUX_RESOLVED="${CMUX_BIN:-$(command -v cmux 2>/dev/null || true)}"
+if [ -z "${CMUX_BIN:-}" ] && [ -z "$CMUX_RESOLVED" ] && [ -x /Applications/cmux.app/Contents/Resources/bin/cmux ]; then
+  CMUX_RESOLVED=/Applications/cmux.app/Contents/Resources/bin/cmux
+fi
+if [ -z "$CMUX_RESOLVED" ] || [ ! -x "$CMUX_RESOLVED" ]; then
+  echo "ERROR: cmux not found (set CMUX_BIN, put cmux on PATH, or install the app)" >&2
+  exit 1
+fi
+cmux() { "$CMUX_RESOLVED" "$@"; }
 
 if [[ -n "$STATUS_FILE" ]]; then
   PREFIX="Work tracking: on progress, add a log entry to $STATUS_FILE. When finished, set its status to done."

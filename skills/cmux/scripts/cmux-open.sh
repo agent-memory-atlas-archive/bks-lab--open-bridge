@@ -13,6 +13,18 @@
 # if not, it moves it there. Exit 1 if the target cannot be resolved or verified.
 set -uo pipefail
 
+# Resolve the cmux CLI: $CMUX_BIN, else PATH, else the CLI inside the macOS app
+# bundle (which is not on PATH under launchd or in a bare shell).
+CMUX_RESOLVED="${CMUX_BIN:-$(command -v cmux 2>/dev/null || true)}"
+if [ -z "${CMUX_BIN:-}" ] && [ -z "$CMUX_RESOLVED" ] && [ -x /Applications/cmux.app/Contents/Resources/bin/cmux ]; then
+  CMUX_RESOLVED=/Applications/cmux.app/Contents/Resources/bin/cmux
+fi
+if [ -z "$CMUX_RESOLVED" ] || [ ! -x "$CMUX_RESOLVED" ]; then
+  echo "ERROR: cmux not found (set CMUX_BIN, put cmux on PATH, or install the app)" >&2
+  exit 1
+fi
+cmux() { "$CMUX_RESOLVED" "$@"; }
+
 die() { echo "ERROR: $*" >&2; exit 1; }
 json() { cmux --json "$@" 2>/dev/null; }
 

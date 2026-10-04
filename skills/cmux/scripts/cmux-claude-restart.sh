@@ -18,6 +18,18 @@
 
 set -euo pipefail
 
+# Resolve the cmux CLI: $CMUX_BIN, else PATH, else the CLI inside the macOS app
+# bundle (which is not on PATH under launchd or in a bare shell).
+CMUX_RESOLVED="${CMUX_BIN:-$(command -v cmux 2>/dev/null || true)}"
+if [ -z "${CMUX_BIN:-}" ] && [ -z "$CMUX_RESOLVED" ] && [ -x /Applications/cmux.app/Contents/Resources/bin/cmux ]; then
+  CMUX_RESOLVED=/Applications/cmux.app/Contents/Resources/bin/cmux
+fi
+if [ -z "$CMUX_RESOLVED" ] || [ ! -x "$CMUX_RESOLVED" ]; then
+  echo "ERROR: cmux not found (set CMUX_BIN, put cmux on PATH, or install the app)" >&2
+  exit 1
+fi
+cmux() { "$CMUX_RESOLVED" "$@"; }
+
 STATE_FILE="${CMUX_RESTART_STATE:-${TMPDIR:-/tmp}/cmux-claude-restart-state.json}"
 
 # Claude TUI detection: status bar patterns specific to Claude Code
@@ -29,7 +41,6 @@ CLAUDE_PATTERN='\[Opus|\[Sonnet|\[Haiku|Claude Code|%/[0-9]+K'
 
 check_deps() {
   local missing=()
-  command -v cmux &>/dev/null || missing+=(cmux)
   command -v jq &>/dev/null || missing+=(jq)
   if [[ ${#missing[@]} -gt 0 ]]; then
     echo "Missing dependencies: ${missing[*]}" >&2

@@ -339,6 +339,7 @@ class CommandDriver:
         self.argv = [str(a) for a in argv]
         self.name = Path(self.argv[-1]).stem if self.argv else "command"
         self.error = ""
+        self.failed = False
 
     def _call(self, payload: dict) -> dict | None:
         try:
@@ -385,8 +386,13 @@ class CommandDriver:
     def _report(self, payload: dict) -> list:
         data = self._call(payload)
         if data is None:
+            self.failed = True
             return [getattr(self, "error", f"driver {self.name} failed")]
-        return [str(line) for line in data.get("report") or []]
+        lines = [str(line) for line in data.get("report") or []]
+        # A step the terminal refused is reported as an ERROR line; the run as a
+        # whole then failed, and a script or workload must see that too.
+        self.failed = any(line.startswith("ERROR") for line in lines)
+        return lines
 
     def open(self, plan: dict, only, resume: bool, here) -> list:
         return self._report({"verb": "open", "plan": plan, "only": sorted(only) if only else None,
@@ -483,7 +489,7 @@ def main(argv=None) -> int:
                         print(f"  {ws['name']}: {t['action']} {t['label']}")
             return 0
         print("\n".join(driver.open(plan, only, args.resume, args.here)))
-        return 0
+        return 1 if getattr(driver, "failed", False) else 0
     if args.cmd == "status":
         rows = status_rows(args.root, cfg, driver)
         if rows is None:
@@ -512,9 +518,9 @@ def main(argv=None) -> int:
             print(f"no active task {args.slug}", file=sys.stderr)
             return 1
         print("\n".join(driver.rename(tab.get("ref") or tab["name"], tab_label(task, cfg))))
-        return 0
+        return 1 if getattr(driver, "failed", False) else 0
     print("\n".join(driver.send(tab.get("ref") or tab["name"], " ".join(args.text))))
-    return 0
+    return 1 if getattr(driver, "failed", False) else 0
 
 
 if __name__ == "__main__":

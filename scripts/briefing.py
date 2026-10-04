@@ -488,6 +488,11 @@ def sec_workplace(section: dict, ctx: Context) -> list:
     plan = wp.build_plan(ctx.root, cfg, ctx.now.date(), wp.driver_from(cfg.get("driver")))
     section["_plan"] = plan
     items = []
+    if plan.get("driver_error"):
+        # Without the tab list every task looks new; `open --yes` refuses, but the
+        # reader must learn why here, not from that refusal.
+        items.append({"id": "driver", "title": f"Open tabs unknown, every task shows as new: {plan['driver_error']}",
+                      "state": "warning"})
     for ws in plan["workspaces"]:
         for tab in ws["tabs"]:
             items.append({"id": tab["slug"], "title": tab["label"], "state": tab["action"], "project": ws["name"]})

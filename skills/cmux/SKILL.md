@@ -10,7 +10,9 @@ metadata:
 Manage [cmux](https://github.com/manaflow-ai/cmux) workspaces, tabs and the agent
 sessions inside them from one terminal, and bring them back when cmux loses them.
 
-**Optional.** Everything here needs the `cmux` CLI. Without it the skill does
+**Optional.** Everything here needs the `cmux` CLI, found as `$CMUX_BIN`, else
+`cmux` on PATH, else the CLI inside the macOS app bundle (not on PATH under a
+service manager). Without it the skill does
 nothing: the scripts exit with a clear message and the workplace driver answers an
 error, which `scripts/workplace.py` reads as "tab view unknown", never as "no tabs
 open". Nothing else in the Bridge depends on cmux.
@@ -56,6 +58,14 @@ guarantees:
 - A call cmux refuses (exit 1, `Error: ...`) is an ERROR line or a driver error,
   never a success line. When the workspaces cannot be read, `open` does nothing.
 - When cmux does not answer, `tabs` is an error, not the stale session file.
+- A tab's state comes from cmux's hook file first (any tab it lists runs an
+  agent); the title glyph is only a fallback, since a renamed tab loses it.
+- `--here "$CMUX_SURFACE_ID"` works: the UUID is mapped to the tree's
+  `surface:N` through the tree's caller. A tab that cannot be found is reported
+  and not moved.
+- A workspace created only to receive moved tabs keeps its starting shell tab:
+  cmux cannot create a workspace around an existing tab, and the driver never
+  closes one.
 - Live socket refs (`surface:91`) and session-file ids (UUIDs) never match, so
   tabs are joined by workspace and title without its status glyph.
 - A newly created control workspace starts `workplace.control.command` when set

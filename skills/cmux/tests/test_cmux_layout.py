@@ -19,9 +19,11 @@ import cmux_layout as cl  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def no_process_table(monkeypatch):
-    """Keep the real `ps` out of the tests: fast and machine independent."""
+def no_process_table(monkeypatch, tmp_path):
+    """Keep the real `ps` and the real cmux out of the tests."""
     monkeypatch.setattr(cl, "tty_sessions", lambda: {})
+    monkeypatch.delenv("CMUX_BIN", raising=False)
+    monkeypatch.setattr(cl, "APP_BUNDLE_BIN", tmp_path / "no-app" / "cmux", raising=False)
 
 
 SID_A = "aaaaaaaa-1111-2222-3333-444444444444"
@@ -396,6 +398,7 @@ def test_notifier_executable_gets_plain_flags(tmp_path, monkeypatch):
 
 def test_cmux_missing_raises_a_distinct_error(monkeypatch, tmp_path):
     monkeypatch.setenv("PATH", str(tmp_path))
+    monkeypatch.setenv("CMUX_BIN", str(tmp_path / "missing"))
     with pytest.raises(cl.CmuxUnavailable):
         cl._cmux("ping")
 
@@ -426,3 +429,36 @@ def test_unreadable_workspace_list_is_an_error_not_empty(tmp_path, monkeypatch):
     _failing_cmux(tmp_path, monkeypatch)
     with pytest.raises(cl.CmuxError):
         cl.existing_workspace_titles()
+
+
+def _exe(path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("#!/bin/sh\necho PONG\n")
+    path.chmod(0o755)
+    return path
+
+
+def test_cmux_resolution_order(tmp_path, monkeypatch):
+    # CMUX_BIN, then PATH, then the app bundle; an explicit CMUX_BIN that is missing is not overridden.
+    on_path = _exe(tmp_path / "path" / "cmux")
+    bundle = _exe(tmp_path / "app" / "cmux")
+    explicit = _exe(tmp_path / "explicit" / "cmux")
+    monkeypatch.setattr(cl, "APP_BUNDLE_BIN", bundle)
+    monkeypatch.setenv("PATH", str(on_path.parent))
+    monkeypatch.setenv("CMUX_BIN", str(explicit))
+    assert cl.cmux_bin() == str(explicit)
+    monkeypatch.delenv("CMUX_BIN")
+    assert cl.cmux_bin() == str(on_path)
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    assert cl.cmux_bin() == str(bundle)
+    monkeypatch.setenv("CMUX_BIN", str(tmp_path / "missing"))
+    assert cl.cmux_bin() is None
+    monkeypatch.delenv("CMUX_BIN")
+    monkeypatch.setattr(cl, "APP_BUNDLE_BIN", tmp_path / "gone" / "cmux")
+    assert cl.cmux_bin() is None
+
+
+def test_calls_go_to_the_resolved_binary(tmp_path, monkeypatch):
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    monkeypatch.setattr(cl, "APP_BUNDLE_BIN", _exe(tmp_path / "app" / "cmux"))
+    assert cl.cmux_reachable() is True

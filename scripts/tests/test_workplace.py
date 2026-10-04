@@ -198,3 +198,28 @@ def test_sessions_that_are_not_a_mapping_are_unknown(tmp_path):
     script = tmp_path / "d.py"
     script.write_text("import json,sys; json.load(sys.stdin); print(json.dumps({'sessions': ['x']}))")
     assert wp.CommandDriver([sys.executable, str(script)]).sessions_or_none() is None
+
+
+def _scripted_driver(repo, tmp_path, answer: str, exit_code: int = 0):
+    """A driver that lists no tabs and answers every other verb with `answer`."""
+    script = tmp_path / "drv.py"
+    script.write_text(
+        "import json, sys\n"
+        "req = json.load(sys.stdin)\n"
+        "if req['verb'] == 'tabs':\n    print(json.dumps({'tabs': []})); sys.exit(0)\n"
+        "if req['verb'] == 'sessions':\n    print(json.dumps({'sessions': {}})); sys.exit(0)\n"
+        f"print({answer!r}); sys.exit({exit_code})\n")
+    (repo / "bridge-config.yaml").write_text(
+        f"workplace:\n  driver: {{command: ['{sys.executable}', '{script}']}}\n")
+
+
+@pytest.mark.parametrize("answer, code, expected", [
+    ('{"report": ["opened alpha"]}', 0, 0),
+    ('{"report": ["opened alpha", "ERROR move alpha: refused"]}', 0, 1),
+    ('{"error": "cmux refused"}', 1, 1),
+])
+def test_open_send_adopt_exit_non_zero_when_the_driver_failed(repo, tmp_path, answer, code, expected):
+    """A workload or script must see the failure a person reads, not exit 0."""
+    _scripted_driver(repo, tmp_path, answer, code)
+    assert wp.main(["--root", str(repo), "open", "--yes"]) == expected
+    assert wp.main(["--root", str(repo), "send", "some-tab", "hello"]) == expected

@@ -669,3 +669,13 @@ def test_builtin_shows_the_workplace_when_one_is_configured():
     assert "workplace" not in [s["kind"] for s in bf.builtin_profile({})["sections"]]
     kinds = [s["kind"] for s in bf.builtin_profile({"workplace": {"driver": "none"}})["sections"]]
     assert "workplace" in kinds and kinds.index("workplace") > kinds.index("tasks")
+
+
+def test_workplace_section_names_a_failing_driver(tmp_path):
+    """Without the tab list every task looks new; the briefing must say so, not hide it."""
+    root = bridge(tmp_path, config={"workplace": {"driver": {"command": ["/definitely/not/here"]}}})
+    task(root, "alpha")
+    sec = bf.collect(root, {"id": "p", "sections": [{"kind": "workplace"}]}, ctx(root))["sections"][0]
+    assert sec["items"][0]["state"] == "warning"
+    assert "unknown" in sec["items"][0]["title"].lower()
+    assert sec["plan"]["driver_error"]

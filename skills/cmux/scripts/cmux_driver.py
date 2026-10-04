@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
+import re
 import sys
 from pathlib import Path
 
@@ -42,6 +42,7 @@ import cmux_layout as cl  # noqa: E402
 ROOT = cl.BRIDGE_ROOT
 HOOKS_FILE = Path(os.environ.get("CMUX_HOOKS_FILE", Path.home() / ".cmuxterm/claude-hook-sessions.json"))
 PERMISSION_EVENTS = ("Notification", "PermissionRequest")
+WAITING_EVENTS = ("Stop", "SessionStart")
 SPINNER = set("◐◓◑◒")   # quarter-circle spinner; Braille is matched by range
 IDLE_GLYPH = "✳"                        # eight-spoked asterisk: the agent is idle
 KEEP_SHELL = cl.KEEP_SHELL
@@ -74,6 +75,10 @@ def live_tabs(session: dict, hooks: dict) -> list[dict]:
     """Terminal tabs from cmux's session file, with state and last line from the hook file.
 
     The state is in the CORE vocabulary: needs-you, waiting, working, shell.
+    The hook file decides first: a surface it lists runs an agent, and its last
+    hook event says what the agent does. The title glyph is only the fallback,
+    because cmux drops it once a tab has a custom title (and the workplace
+    renames every task tab).
     """
     by_surface = hooks.get("activeSessionsBySurface") or {}
     sessions = hooks.get("sessions") or {}
@@ -89,14 +94,15 @@ def live_tabs(session: dict, hooks: dict) -> list[dict]:
                 if not p or p.get("type", "terminal") != "terminal":
                     continue
                 raw = p.get("title") or ""
-                hook = sessions.get((by_surface.get(pid) or {}).get("sessionId") or "") or {}
-                glyph = _glyph(raw)
-                if glyph is None:
-                    state = "shell"
-                elif hook.get("hookEventName") in PERMISSION_EVENTS:
-                    state = "needs-you"
+                bound = by_surface.get(pid)
+                hook = sessions.get((bound or {}).get("sessionId") or "") or {}
+                if bound:
+                    event = hook.get("hookEventName")
+                    state = ("needs-you" if event in PERMISSION_EVENTS
+                             else "waiting" if event in WAITING_EVENTS else "working")
                 else:
-                    state = "waiting" if glyph == "idle" else "working"
+                    glyph = _glyph(raw)
+                    state = "shell" if glyph is None else "waiting" if glyph == "idle" else "working"
                 tabs.append({"workspace": ws_title, "ws_ref": ws.get("workspaceId"),
                              "surface": pid, "state": state,
                              "title": p.get("customTitle") or cl.strip_status_glyph(raw),
@@ -156,7 +162,8 @@ def socket_tabs(tree: dict) -> list[dict]:
                 for sf in pane.get("surfaces") or []:
                     if sf.get("type") != "terminal":
                         continue
-                    tabs.append({"workspace": ws.get("title") or "", "ws_ref": ws.get("ref"),
+                    tabs.append({"workspace": cl.strip_status_glyph(ws.get("title") or "").strip(),
+                                 "ws_ref": ws.get("ref"),
                                  "surface": sf.get("ref"),
                                  "title": cl.strip_status_glyph(sf.get("title") or "")})
     return tabs
@@ -265,9 +272,12 @@ def apply_calls(plan: dict, existing: dict[str, str], root: str, only: set[str] 
     calls = []
 
     def keep(tab_ref: str, label: str, src_ref: str | None, src_name, ws_name: str) -> None:
+        if src_ref and src_ref in counts:
+            why = "it is the last tab there, moving it would close that workspace"
+        else:
+            why = "its workspace is unknown, so it is not moved"
         calls.append({"op": "note", "ws": ws_name,
-                      "text": f"  kept {label} in {src_name or src_ref or 'its workspace'}: it is the last "
-                              f"tab there, moving it would close that workspace"})
+                      "text": f"  kept {label} in {src_name or src_ref or 'its workspace'}: {why}"})
         calls.append({"op": "rename", "ws": ws_name, "surface": tab_ref, "tab": label, "ws_ref": src_ref})
 
     def can_move(src_ref: str | None) -> bool:
@@ -277,12 +287,13 @@ def apply_calls(plan: dict, existing: dict[str, str], root: str, only: set[str] 
         return True
 
     ctl = plan.get("control") or {"name": "Control"}
-    if not resolve_workspace(ctl, existing):
+    ctl_ref = resolve_workspace(ctl, existing)
+    if not ctl_ref:
         command = _with_shell(ctl["command"]) if ctl.get("command") and not here else None
         calls.append({"op": "create", "ws": ctl["name"], "cwd": root, "command": command})
-    calls.append({"op": "decorate", "ws": ctl["name"], "color": ctl.get("color"),
+    calls.append({"op": "decorate", "ws": ctl["name"], "ref": ctl_ref, "color": ctl.get("color"),
                   "description": ctl.get("description")})
-    calls.append({"op": "order", "ws": ctl["name"], "index": 0})
+    calls.append({"op": "order", "ws": ctl["name"], "ref": ctl_ref, "index": 0})
     for pos, ws in enumerate(plan.get("workspaces") or [], 1):
         if only and ws["name"] not in only:
             continue
@@ -305,7 +316,7 @@ def apply_calls(plan: dict, existing: dict[str, str], root: str, only: set[str] 
             first = new.pop(0) if new else None
             calls.append({"op": "create", "ws": ws["name"], "cwd": cwd,
                           "slug": first and first["slug"], "command": first and first["command"],
-                          "tab": first and first["label"]})
+                          "tab": first and first["label"], "leftover_shell": first is None})
         if exists:
             calls.append({"op": "decorate", "ws": ws["name"], "ref": ref, "color": ws.get("color"),
                           "description": ws.get("description")})
@@ -330,10 +341,10 @@ def apply_calls(plan: dict, existing: dict[str, str], root: str, only: set[str] 
     if here:
         src = homes.get(here)
         if can_move(src):
-            calls.append({"op": "move", "ws": ctl["name"], "surface": here, "tab": ctl["name"],
-                          "from": "this tab"})
-            calls.append({"op": "rename", "ws": ctl["name"], "surface": here, "tab": ctl["name"],
-                          "ws_ref": None})
+            calls.append({"op": "move", "ws": ctl["name"], "ref": ctl_ref, "surface": here,
+                          "tab": ctl["name"], "from": "this tab"})
+            calls.append({"op": "rename", "ws": ctl["name"], "ref": ctl_ref, "surface": here,
+                          "tab": ctl["name"], "ws_ref": None})
         else:
             keep(here, ctl["name"], src, None, ctl["name"])
     return calls
@@ -374,8 +385,12 @@ def run_calls(calls: list[dict], existing: dict[str, str]) -> list[str]:
                         rename_tab(sref, ws_ref, c["tab"])
                         surfaces[c["slug"]] = sref
                 report.append(f"created {c['ws']} ({ws_ref})" + (f" with {c['tab']}" if c.get("tab") else ""))
+                if c.get("leftover_shell"):
+                    # cmux cannot create a workspace around an existing tab, so a new one
+                    # starts with a shell. It stays: the driver never closes a tab.
+                    report.append(f"  {c['ws']} keeps its starting shell tab (the driver never closes a tab)")
             elif c["op"] == "rename":
-                rename_tab(c["surface"], c.get("ws_ref") or refs.get(c["ws"]), c["tab"])
+                rename_tab(c["surface"], c.get("ws_ref") or c.get("ref") or refs.get(c["ws"]), c["tab"])
             elif not ws_ref:
                 report.append(f"skipped {c['op']} {c['ws']}: workspace missing")
             elif c["op"] == "decorate":
@@ -411,6 +426,25 @@ def run_calls(calls: list[dict], existing: dict[str, str]) -> list[str]:
 
 # ---------------------------------------------------------------- verbs
 
+def resolve_here(here: str | None, tree: dict) -> str | None:
+    """The calling tab as `surface:N`. `$CMUX_SURFACE_ID` is a UUID, while the tree
+    speaks refs: match a UUID the tree exposes, else the tree's own `caller` when
+    the value is this process's $CMUX_SURFACE_ID. None when it cannot be found."""
+    if not here:
+        return None
+    if re.fullmatch(r"surface:\d+", here):
+        return here
+    for ws in _tree_workspaces(tree):
+        for pane in ws.get("panes") or []:
+            for sf in pane.get("surfaces") or []:
+                if any(str(sf.get(k) or "").upper() == here.upper() for k in ("id", "uuid")):
+                    return sf.get("ref")
+    caller = tree.get("caller") or {}
+    if caller.get("surface_ref") and here == os.environ.get("CMUX_SURFACE_ID"):
+        return caller["surface_ref"]
+    return None
+
+
 def open_plan(req: dict) -> list[str]:
     """Refuses (DriverError) when the workspaces cannot be read: planning on an
     empty view would create the control workspace and every workspace again."""
@@ -421,9 +455,13 @@ def open_plan(req: dict) -> list[str]:
         raise DriverError(f"cannot read cmux workspaces, nothing opened ({exc})") from exc
     existing = workspace_index(tree)
     only = set(req["only"]) if req.get("only") else None
-    calls = apply_calls(plan, existing, str(ROOT), only, req.get("here"), bool(req.get("resume")),
+    here = resolve_here(req.get("here"), tree)
+    notes = []
+    if req.get("here") and not here:
+        notes.append(f"calling tab {req['here']} not found in cmux, so it was not moved into the control workspace")
+    calls = apply_calls(plan, existing, str(ROOT), only, here, bool(req.get("resume")),
                         counts=surface_counts(tree), homes=surface_homes(tree))
-    return run_calls(calls, existing)
+    return notes + run_calls(calls, existing)
 
 
 def _ws_ref_of(surface: str) -> str | None:
@@ -449,8 +487,8 @@ def rename(req: dict) -> list[str]:
 
 
 def handle(req: dict) -> dict:
-    if shutil.which("cmux") is None:
-        raise DriverError("cmux is not installed (no `cmux` on PATH)")
+    if cl.cmux_bin() is None:
+        raise DriverError("cmux is not installed (no CMUX_BIN, no `cmux` on PATH, no app bundle)")
     verb = req.get("verb")
     if verb == "tabs":
         return {"tabs": tabs()}

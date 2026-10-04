@@ -72,7 +72,8 @@ def _pane(*surfaces):
     return {"surface_count": len(surfaces), "surfaces": list(surfaces)}
 
 
-TREE = {"windows": [
+TREE = {"caller": {"surface_ref": "surface:92", "workspace_ref": "workspace:3", "window_ref": "window:1"},
+        "windows": [
     {"ref": "window:1", "workspaces": [
         {"title": "Platform", "ref": "workspace:3", "panes": [_pane(
             {"ref": "surface:91", "type": "terminal", "title": "\u2733 Fix login"},
@@ -117,7 +118,8 @@ def fake(tmp_path, monkeypatch):
     files["FAKE_CMUX_WS"].write_text("  workspace:3 Platform\n* workspace:4 Customer A [selected]\n")
     files["CMUX_SESSION_FILE"].write_text(json.dumps(SESSION))
     files["CMUX_HOOKS_FILE"].write_text(json.dumps(HOOKS))
-    env = {**os.environ, "PATH": str(bin_dir), "HOME": str(tmp_path),
+    env = {**os.environ, "PATH": str(bin_dir), "HOME": str(tmp_path), "CMUX_BIN": str(cmux),
+           "CMUX_SURFACE_ID": "",
            **{k: str(v) for k, v in files.items()}}
 
     class World:
@@ -138,6 +140,7 @@ def fake(tmp_path, monkeypatch):
             return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
 
     world = World()
+    world.cmux = cmux
     world.files = files
     world.env = env
     return world
@@ -215,7 +218,7 @@ def test_rename_addresses_the_tab_in_its_workspace(fake):
 # ---------------------------------------------------------------- failure is unknown, not empty
 
 def test_without_cmux_the_driver_answers_a_json_error_not_a_traceback(fake, tmp_path):
-    env = {**fake.env, "PATH": str(tmp_path / "empty")}
+    env = {**fake.env, "PATH": str(tmp_path / "empty"), "CMUX_BIN": str(tmp_path / "missing")}
     done = subprocess.run([sys.executable, str(DRIVER)], input='{"verb": "tabs"}',
                           capture_output=True, text=True, env=env, timeout=60)
     assert done.returncode == 1
@@ -226,6 +229,7 @@ def test_without_cmux_the_driver_answers_a_json_error_not_a_traceback(fake, tmp_
 def test_core_reads_a_failed_driver_as_unknown(monkeypatch, tmp_path):
     core = load_core()
     monkeypatch.setenv("PATH", str(tmp_path))       # no cmux anywhere
+    monkeypatch.setenv("CMUX_BIN", str(tmp_path / "missing"))
     driver = core.CommandDriver([sys.executable, str(DRIVER)])
     assert driver.tabs_or_none() is None
     assert driver.sessions_or_none() is None
@@ -444,3 +448,100 @@ def test_spawn_workspace_has_no_loop_flag_nothing_reads():
     script = (SKILL / "scripts" / "spawn-workspace.sh").read_text()
     docs = (SKILL / "references" / "local.md").read_text()
     assert "--loop" not in script and "--loop" not in docs
+
+
+# ---------------------------------------------------------------- second review
+
+def test_renamed_agent_tab_reads_its_state_from_the_hook_file():
+    # Finding 1: a custom title drops the status glyph; the hook file still knows.
+    hooks = {"activeSessionsBySurface": {"A": {"sessionId": "a"}, "B": {"sessionId": "b"},
+                                         "C": {"sessionId": "c"}, "D": {"sessionId": "d"}},
+             "sessions": {"a": {"hookEventName": "Stop", "lastBody": "done"},
+                          "b": {"hookEventName": "PreToolUse"},
+                          "c": {"hookEventName": "Notification"},
+                          "d": {"hookEventName": "SessionStart"}}}
+    session = {"windows": [{"tabManager": {"workspaces": [{"customTitle": "W", "panels": [
+        {"id": "A", "type": "terminal", "title": "Invoices", "customTitle": "Invoices"},
+        {"id": "B", "type": "terminal", "title": "Build", "customTitle": "Build"},
+        {"id": "C", "type": "terminal", "title": "Ask", "customTitle": "Ask"},
+        {"id": "D", "type": "terminal", "title": "Fresh", "customTitle": "Fresh"},
+        {"id": "E", "type": "terminal", "title": "\u280b spinner only"}]}]}}]}
+    states = {t["surface"]: t["state"] for t in drv.live_tabs(session, hooks)}
+    assert states == {"A": "waiting", "B": "working", "C": "needs-you", "D": "waiting", "E": "working"}
+
+
+def test_renamed_agent_tab_is_not_a_shell_over_the_protocol(fake):
+    session = json.loads(json.dumps(SESSION))
+    panel = session["windows"][0]["tabManager"]["workspaces"][0]["panels"][0]
+    panel["title"] = panel["customTitle"] = "Fix login"
+    fake.files["CMUX_SESSION_FILE"].write_text(json.dumps(session))
+    login = next(t for t in fake.answer({"verb": "tabs"})["tabs"] if t["name"] == "Fix login")
+    assert login["state"] == "waiting"
+
+
+def test_here_as_surface_uuid_resolves_through_the_tree_caller(fake):
+    # Finding 2: $CMUX_SURFACE_ID is a UUID, the tree speaks surface:N.
+    uuid = "2F2117C4-0000-4000-8000-000000000001"
+    fake.env["CMUX_SURFACE_ID"] = uuid
+    report = fake.answer(_open(_plan({"name": "Platform", "cwd": "/repo", "tabs": []}), here=uuid))["report"]
+    assert ["move-surface", "--surface", "surface:92", "--workspace", "workspace:50",
+            "--focus", "false"] in fake.argv()
+    assert not any("last tab" in line for line in report)
+
+
+def test_unknown_here_is_reported_as_unknown_and_control_still_starts_its_agent(fake):
+    plan = _plan({"name": "Platform", "cwd": "/repo", "tabs": []},
+                 control={"name": "Control", "command": "my-agent -n control"})
+    report = fake.answer(_open(plan, here="0000AAAA-0000-4000-8000-000000000000"))["report"]
+    assert any("not found" in line for line in report)
+    assert not any("last tab" in line for line in report)
+    create = next(a for a in fake.argv() if a[:2] == ["workspace", "create"])
+    assert create[create.index("--command") + 1] == "my-agent -n control" + drv.KEEP_SHELL
+
+
+def test_driver_finds_cmux_through_cmux_bin_when_not_on_path(fake, tmp_path):
+    # Finding 3: an app-bundle install is not on PATH (and never under launchd).
+    env = {**fake.env, "PATH": str(tmp_path / "empty"), "CMUX_BIN": str(fake.cmux)}
+    done = subprocess.run([sys.executable, str(DRIVER)], input='{"verb": "tabs"}',
+                          capture_output=True, text=True, env=env, timeout=60)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert json.loads(done.stdout)["tabs"]
+
+
+def test_cmux_open_script_uses_cmux_bin(fake, tmp_path):
+    shim = tmp_path / "shim"
+    shim.mkdir()
+    (shim / "python3").symlink_to(sys.executable)
+    env = {**fake.env, "PATH": f"{shim}:/usr/bin:/bin", "CMUX_BIN": str(fake.cmux)}
+    done = subprocess.run(["bash", str(SKILL / "scripts" / "cmux-open.sh"), "where", "--workspace", "Platform"],
+                          capture_output=True, text=True, env=env, timeout=60)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "target: workspace:3 (Platform)" in done.stdout
+
+
+def test_control_found_by_alias_is_decorated_and_ordered_by_its_ref(fake):
+    # Finding 6a
+    fake.files["FAKE_CMUX_TREE"].write_text(json.dumps(TREE).replace('"Customer A"', '"Hub"'))
+    report = fake.answer(_open(_plan(control={"name": "Control", "aliases": ["Hub"]})))["report"]
+    argv = fake.argv()
+    assert ["reorder-workspace", "--workspace", "workspace:4", "--index", "0"] in argv
+    assert not any("workspace missing" in line for line in report)
+    assert not any(a[:2] == ["workspace", "create"] for a in argv)
+
+
+def test_socket_tab_workspace_titles_lose_their_glyph_like_the_index():
+    # Finding 6b
+    tree = {"windows": [{"workspaces": [{"title": "\u25d0 Platform", "ref": "workspace:3", "panes": [
+        {"surfaces": [{"ref": "surface:1", "type": "terminal", "title": "x"}]}]}]}]}
+    assert drv.socket_tabs(tree)[0]["workspace"] == "Platform"
+    assert drv.workspace_index(tree) == {"Platform": "workspace:3"}
+
+
+def test_workspace_created_for_moved_tabs_reports_its_leftover_shell(fake):
+    # Finding 6c: the starting shell is left open (the driver never closes a tab), and said so.
+    plan = _plan({"name": "Research", "cwd": "/repo", "tabs": [
+        {"slug": "inv", "label": "Invoices", "action": "open", "ref": "surface:95",
+         "workspace": "Customer A", "ws_ref": "workspace:4"}]})
+    report = fake.answer(_open(plan))["report"]
+    assert any("starting shell" in line for line in report)
+    assert not any("close" in " ".join(a) for a in fake.argv())
