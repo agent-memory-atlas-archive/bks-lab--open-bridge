@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../../../../workflow/briefings/_schema.yaml
+# Example: a second profile for one client. `/briefing fabrikam` before the
+# weekly client call: only that board, only that client's tasks.
+
+schema_version: 1
+scope: user
+id: fabrikam
+title: "Fabrikam before the weekly"
+offer_on: ["fabrikam", "client call"]
+
+sections:
+  - kind: tracker
+    id: board
+    title: "Fabrikam board"
+    provider: github-board
+    query: {boards: [fabrikam-managed-service], include_done: true}
+  - kind: tasks
+    contexts: [fabrikam]
+    status: [backlog, doing, review]

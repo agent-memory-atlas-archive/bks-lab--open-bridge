@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=../../../../workflow/briefings/_schema.yaml
+# Example: Sam's morning briefing. Inbox first, then the advice, the client
+# board, Sam's own GitHub work and the day's calendar. Rows that block the
+# Fabrikam service become inbox items so they cannot scroll past.
+
+schema_version: 1
+scope: user
+id: morning
+title: "Morning"
+for: sam
+default: true
+offer_on: ["good morning", "briefing", "what's up"]
+
+sections:
+  - kind: inbox
+    max: 7
+  - kind: advise
+  - kind: tracker
+    id: fabrikam
+    title: "Fabrikam board"
+    provider: github-board
+    query: {boards: [fabrikam-managed-service]}
+    max: 10
+    to_inbox:
+      - when: {state: blocked}
+        urgency: now
+  - kind: tracker
+    id: github-mine
+    title: "My GitHub"
+    provider: github
+    query: {assignee: "@me", owners: [northwind-advisory], review_requested: true}
+    to_inbox:
+      - when: {category: qa, assigned_to_me: true}
+  - kind: tasks
+    status: [doing, review]
+  - kind: calendar
+    provider: auto
+    days: 1
+  - kind: activity
+    days: 7

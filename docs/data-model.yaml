@@ -184,6 +184,14 @@ families:
     writer: "a person"
     read: named
 
+  - path: workflow/briefings/
+    object: "one briefing a person can ask for: its sections, sources, queries and inbox rules"
+    island: "core: template, schema; user: entries; org: a shared profile via an overlay"
+    lives: [core, private, overlay]
+    references: ["account_ref → identity/accounts/", "github-board boards → workflow/projects/"]
+    writer: "a person (scripts/briefing.py reads and runs it)"
+    read: named
+
   - path: workflow/calendars/
     object: "a scheduled outbound action: what, to whom, when"
     island: "core: template, schema; user: entries.yaml"

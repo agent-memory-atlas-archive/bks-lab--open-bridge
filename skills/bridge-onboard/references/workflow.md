@@ -464,6 +464,22 @@ On `[y]` or `[c]`:
     `work/log.md`, then run `python3 scripts/gen-board.py` so `board.md` Doing shows ≥ 1.
     Consent-free (derived from the user's own words, no scan) and `bridge_only` (no GitHub
     dependency).
+- **D1c: seed the person's briefing profile** (`workflow/briefings/morning.yaml`), so
+  the first `/briefing` shows what THIS person tracks, not a generic default. Ask ONE
+  line, pre-ticked from what discovery already knows (`gh auth status` green → GitHub;
+  `glab`/`az` logged in → GitLab/Azure Boards):
+  > Where do your work items live? `[GitHub]` `[GitLab]` `[Jira]` `[Azure Boards]`
+  > `[Linear]` `[only here]`. Anything you want to see first thing in the morning?
+  - Copy `workflow/briefings/_template.yaml` to `workflow/briefings/morning.yaml`,
+    keep `inbox`, `advise`, `tasks`, `calendar`, `activity`, and add one `kind: tracker`
+    section per answer (`docs/briefings.md` has each provider's query keys). GitHub:
+    `provider: github`, `query: {assignee: "@me", owners: [<orgs from discovery>]}`.
+  - Jira and Linear need a token: create `identity/accounts/<provider>-<name>.yaml`
+    with `base_url` and a `token_ref` URI, and have the user put the value in their
+    secret store (`/secrets`). Never ask them to paste a token into chat or a file.
+  - `[only here]` → no tracker section; the built-in sections are the whole profile.
+  - Run `python3 scripts/briefing.py validate` and `briefing.py collect morning` once;
+    an error line for a tracker is a setup hint to show, not a failure to hide.
 
 On `[n]`: leave `work.enabled: false` (still write `work.transcript_retention_days` as above: memory facts exist without task management, so the choice is recorded either way), explicitly mention that
 `/briefing`, `/debrief`, `/archive`, and **`feature-discovery`** are

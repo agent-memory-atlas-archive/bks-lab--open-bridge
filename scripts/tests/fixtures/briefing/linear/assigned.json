@@ -1,0 +1,30 @@
+{
+  "data": {
+    "viewer": {
+      "assignedIssues": {
+        "nodes": [
+          {"identifier": "ENG-12", "title": "Cache warm-up on deploy", "url": "https://linear.app/example-org/issue/ENG-12",
+           "updatedAt": "2026-10-03T10:20:00.000Z", "priorityLabel": "High",
+           "state": {"name": "In Progress", "type": "started"}, "labels": {"nodes": [{"name": "backend"}]},
+           "assignee": {"name": "Alice Example"}, "project": {"name": "Platform"}, "team": {"key": "ENG"}},
+          {"identifier": "ENG-13", "title": "Document retry policy", "url": "https://linear.app/example-org/issue/ENG-13",
+           "updatedAt": "2026-10-02T09:00:00.000Z", "priorityLabel": "No priority",
+           "state": {"name": "Todo", "type": "unstarted"}, "labels": {"nodes": []},
+           "assignee": {"name": "Alice Example"}, "project": null, "team": {"key": "ENG"}},
+          {"identifier": "ENG-14", "title": "Evaluate queue library", "url": "https://linear.app/example-org/issue/ENG-14",
+           "updatedAt": "2026-10-01T09:00:00.000Z", "priorityLabel": "Low",
+           "state": {"name": "Backlog", "type": "backlog"}, "labels": {"nodes": [{"name": "research"}, {"name": "backend"}]},
+           "assignee": {"name": "Alice Example"}, "project": {"name": "Platform"}, "team": {"key": "ENG"}},
+          {"identifier": "ENG-15", "title": "Rework settings page", "url": "https://linear.app/example-org/issue/ENG-15",
+           "updatedAt": "2026-09-30T09:00:00.000Z", "priorityLabel": "Medium",
+           "state": {"name": "In Review", "type": "started"}, "labels": {"nodes": []},
+           "assignee": {"name": "Alice Example"}, "project": {"name": "Web"}, "team": {"key": "ENG"}},
+          {"identifier": "ENG-16", "title": "Triage inbound reports", "url": "https://linear.app/example-org/issue/ENG-16",
+           "updatedAt": "2026-09-29T09:00:00.000Z", "priorityLabel": "Urgent",
+           "state": {"name": "Triage", "type": "triage"}, "labels": {"nodes": []},
+           "assignee": {"name": "Alice Example"}, "project": null, "team": {"key": "ENG"}}
+        ]
+      }
+    }
+  }
+}

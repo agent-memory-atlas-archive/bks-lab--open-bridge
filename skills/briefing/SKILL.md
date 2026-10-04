@@ -1,7 +1,7 @@
 ---
 name: briefing
 description: >-
-  Daily briefing across everything: reads the inbox first, lets you steer the day (approve, defer, drop, open agent tabs); board, log, trackers, calendar, goals. Modes --quick, --html. Trigger: "/briefing", "briefing", "good morning", "daily standup", "checkin", "what needs me", "waiting for you".
+  Daily briefing from your own profile (workflow/briefings/<id>.yaml: sections, trackers incl. GitHub/Jira/GitLab/ADO/Linear, inbox rules): inbox first, then steer the day (approve, defer, drop, open agent tabs). /briefing <id> picks a profile. Trigger: "/briefing", "briefing", "good morning", "daily standup", "what needs me", "which briefings do I have".
 metadata:
   scope: core
 ---
@@ -14,7 +14,8 @@ Daily and on-demand briefing. Read the referenced file ONLY when triggered.
 
 | Argument | Effect | Default |
 |----------|--------|---------|
-| `(none)` | Full briefing: Phase 0.5 inbox, all 4 streams + Phase 2 board.md sync | — |
+| `(none)` | Full briefing of the default profile: Phase 0.5 inbox, the profile's sections, the remaining streams + Phase 2 board.md sync | — |
+| `<id>` | Run the profile `workflow/briefings/<id>.yaml` instead of the default | default profile |
 | `--quick` | Focus box + Stream A only (Phase 0.5 inbox still runs); **skips** trackers, companion data, channels, Phase 2 | false |
 | `--skip-trackers` | All streams except Stream B (offline-friendly); Phase 2 still runs | false |
 | `--commits YYYY-MM-DD` | Detailed commit analysis for one day (sessions, time est., types) — see `references/commit-analysis.md` | — |
@@ -51,6 +52,12 @@ User wants to...
 │                                       references/control.md (inbox first,
 │                                       one thing first, levers)
 ├── Quick local-only briefing        → Read references/workflow.md (--quick path)
+├── Which briefings do I have / set one up / change what mine shows
+│                                    → `python3 scripts/briefing.py list`;
+│                                       new or changed profile: copy
+│                                       workflow/briefings/_template.yaml,
+│                                       keys in docs/briefings.md, then
+│                                       `briefing.py validate`
 ├── Steer: yes/later/drop, "yes once green", open the day's tabs,
 │   status of all tabs, tell a tab   → Read references/control.md
 ├── Detailed commit analysis         → Read references/commit-analysis.md

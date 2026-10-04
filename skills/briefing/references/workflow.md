@@ -24,9 +24,12 @@ Stream A (local):          Stream B (trackers):        Stream C (optional):     
 
 **Stream A** always runs. **Stream B** skipped with `--quick`. **Stream C+D** are best-effort.
 
-Stream B is **provider-pluggable**: each `trackers/{name}.md` file is a
-playbook Claude reads to fetch items from one external system (GitHub
-Projects, Azure Boards, etc.). See `trackers/README.md` for the contract.
+What a briefing collects is the person's **profile**
+(`workflow/briefings/<id>.yaml`), executed by `scripts/briefing.py`: inbox,
+advice, tasks, trackers (GitHub, GitHub boards, GitLab, Azure Boards, Jira,
+Linear, any command), calendar, activity, workplace. The streams below are what
+each section kind means and the parts no section covers yet. Model:
+`docs/briefings.md`.
 
 ## Phase 0: Smart Detection + Day Block
 
@@ -172,9 +175,32 @@ says is done and `inbox.py run` executes what a person already released. Runs in
 every mode, also `--quick`. Steps, gates and the rule behind them
 ("nothing is reported as open from the log"): `references/control.md`.
 
-## Phase 1: Parallel Data Collection
+## Phase 1: Run the profile, then fill the gaps
 
-**Start all streams simultaneously.** Collect results, then render output.
+A briefing is a **profile**: `workflow/briefings/<id>.yaml`, written by the
+person it is for (several are fine: morning, one per customer, weekly).
+
+1. **Which profile.** `/briefing <id>` names it. Plain `/briefing` runs
+   bridge-config `briefing.default`, else the file with `default: true`, else
+   the only one. Several without a default: `briefing.py collect` exits 2 and
+   names them; ask which, once. `python3 scripts/briefing.py list` shows them
+   with their `offer_on` phrases; when a user's words match one
+   (`briefing.py offer "<text>"`), offer that profile by name.
+2. **Collect.** `python3 scripts/briefing.py collect [<id>] --json --file`.
+   `--quick` adds `--skip tracker --skip calendar`; `--skip-trackers` adds
+   `--skip tracker`. A skipped section is listed as skipped and closes nothing.
+   It runs every section in the profile's order with a time limit, marks rows
+   `new`/`changed` against the last run on this machine, and (`--file`) turns
+   rows matching a section's `to_inbox` rules into inbox items. One failing
+   section is an error line, never an abort.
+3. **Render in the profile's order**, with the advice on top
+   (`references/control.md`). Do not drop, reorder or add sections the person
+   did not ask for; what they asked for is the file.
+4. **Fill the gaps the profile does not cover yet**: the board drift sweep and
+   meeting obligations of Stream A, Stream C beyond the calendar, Stream D. The
+   streams below describe these, and what each section kind means.
+
+**Start the remaining streams simultaneously.** Collect results, then render output.
 
 ### Stream A: Local State
 
@@ -263,62 +289,26 @@ done
 **Sparkline:** Commit counts → Unicode blocks `▁▂▃▄▅▆▇█`
 - 0 commits = `▁`, maximum = `█`, linearly scaled
 
-### Stream B: Trackers — provider fan-out (skip with --quick)
+### Stream B: Trackers, from the profile (skip with --quick)
 
-**Do not hardcode any tracker-specific commands here.** Stream B
-discovers enabled providers at runtime and delegates to their
-playbook files.
+Stream B is no longer interpreted from prose. The trackers a person wants are
+`kind: tracker` sections in their briefing profile, and `scripts/briefing.py`
+runs them (see "Phase 1" above). Do not re-run a tracker by hand that the
+profile already collected; read its section from the JSON.
 
-#### Discovery
-
-```
-for file in trackers/*.md (except README.md, _*.md):
-  name = basename(file, ".md")
-  enabled = bridge-config.yaml → integrations.{name}.enabled
-  if enabled is true:
-    candidates += file
-```
-
-No hardcoded list of providers. A user who drops a new `linear.md`
-with a matching `integrations.linear` config block gets it picked up
-automatically.
-
-#### Execution
-
-For each candidate, **in parallel**:
-
-1. Read `trackers/{name}.md` (the playbook)
-2. Read `bridge-config.yaml` section `integrations.{name}`
-3. Follow the playbook's **Collect** section: run the CLI commands it
-   describes, with the config as parameters
-4. Normalize each item into the shared schema from `trackers/README.md`
-5. Return the normalized list
-
-Per-command timeout: 10 seconds. If a command times out or fails,
-emit a warning to the user and continue with whatever the provider
-has already produced. **Never abort the briefing for a tracker failure.**
-
-#### Merge
-
-After all providers return:
-
-1. Concatenate all item arrays
-2. Deduplicate by `url` (if the same item is returned by two sources,
-   keep the one with the richer field set)
-3. Sort by `(category ASC, changed_at DESC)` — so `open` items come
-   first, then `qa`, then `done`, and within each bucket the most
-   recently changed on top
-4. Group by `category` for rendering (see Phase 4 below)
-
-#### Per-provider failure modes
-
-| Condition | Action |
-|---|---|
-| Required CLI not installed | Warning, skip that provider |
-| CLI not authenticated | Warning with auth hint, skip that provider |
-| Config malformed | Warning, skip that provider |
-| All commands >10s | Warning, skip that provider |
-| Zero items from every provider | Omit Stream B section entirely |
+- Which provider and query: the section (`provider`, `query`, `state_map`,
+  `account_ref`). Provider query keys: `docs/briefings.md`.
+- A section with `status: error` renders as one warning line with its
+  `reason` (CLI missing, not logged in, timeout). **Never abort the briefing
+  for a tracker failure**, the engine already contains it.
+- Items arrive normalized (`trackers/README.md`) and newest first. Group by
+  `category` for rendering (open, then qa, then done; Phase 4).
+- No profile: the built-in one turns `integrations.github.enabled` into a
+  `github-board` section and `integrations.gitlab|ado.enabled` into their
+  sections, so a Bridge without profiles briefs as before.
+- `trackers/*.md` stay as the documentation of each system (commands, state
+  mappings, failure modes); the adapters in `scripts/lib/briefing_providers/`
+  are what runs.
 
 #### Open PRs (GitHub, org-wide)
 
@@ -360,6 +350,9 @@ open PRs remain after the archived filter.
    - Pull events for today, merge across providers, dedupe by event id
    - Show total meeting hours vs. focus time
    - Skip silently if no matching provider
+   - When the profile has a `kind: calendar` section, its events are already
+     collected (icalbuddy, an .ics file or a command) and were handed to the
+     advice checks for collisions; use them instead of pulling again.
 
    **1a. Calendar Cross-Reference (past-due STATUS guard)**
 

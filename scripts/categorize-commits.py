@@ -396,6 +396,29 @@ SCRIPTS_CORE_ALLOWLIST = frozenset({
     "scripts/tests/test_generated_output_escapes.py",
     "scripts/tests/test_inbox.py",
     "scripts/tests/test_inbox_approve.py",
+    # Registered with briefing profiles (workflow/briefings/): the engine, its
+    # tracker adapters and the recorded answers they are tested against.
+    "scripts/briefing.py",
+    "scripts/lib/briefing_providers/__init__.py",
+    "scripts/lib/briefing_providers/ado.py",
+    "scripts/lib/briefing_providers/github.py",
+    "scripts/lib/briefing_providers/github_board.py",
+    "scripts/lib/briefing_providers/gitlab.py",
+    "scripts/lib/briefing_providers/jira.py",
+    "scripts/lib/briefing_providers/linear.py",
+    "scripts/tests/test_briefing.py",
+    "scripts/tests/test_briefing_providers.py",
+    "scripts/tests/fixtures/briefing/ado/query.json",
+    "scripts/tests/fixtures/briefing/calendar/icalbuddy.txt",
+    "scripts/tests/fixtures/briefing/calendar/sample.ics",
+    "scripts/tests/fixtures/briefing/github-board/item-list.json",
+    "scripts/tests/fixtures/briefing/github/review-requested.json",
+    "scripts/tests/fixtures/briefing/github/search-issues.json",
+    "scripts/tests/fixtures/briefing/github/search-prs.json",
+    "scripts/tests/fixtures/briefing/gitlab/issues.json",
+    "scripts/tests/fixtures/briefing/jira/search.json",
+    "scripts/tests/fixtures/briefing/linear/assigned.json",
+    "scripts/tests/fixtures/briefing/linear/error.json",
     # Registered 2026-08-30 with the context index. Same reason as the block
     # above: validate.yml runs the suite and the `--check` guard, so a
     # non-core classification would have upstream CI call files that never

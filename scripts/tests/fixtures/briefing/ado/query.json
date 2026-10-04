@@ -1,0 +1,23 @@
+[
+  {"id": 1201, "url": "https://dev.azure.com/example-org/_apis/wit/workItems/1201",
+   "fields": {"System.Title": "Invoice total rounds incorrectly", "System.State": "In Progress",
+              "System.WorkItemType": "Bug",
+              "System.AssignedTo": {"displayName": "Alice Example", "uniqueName": "alice@example.com"},
+              "System.ChangedDate": "2026-10-03T10:00:00Z", "System.Tags": "billing; urgent",
+              "Microsoft.VSTS.Common.Priority": 1}},
+  {"id": 1202, "url": "https://dev.azure.com/example-org/_apis/wit/workItems/1202",
+   "fields": {"System.Title": "Add export to reports page", "System.State": "Ready for Testing",
+              "System.WorkItemType": "User Story", "System.AssignedTo": "Alice Example",
+              "System.ChangedDate": "2026-10-02T15:30:00Z", "System.Tags": "",
+              "Microsoft.VSTS.Common.Priority": 2}},
+  {"id": 1203, "url": "https://dev.azure.com/example-org/_apis/wit/workItems/1203",
+   "fields": {"System.Title": "Plan Q4 capacity", "System.State": "New",
+              "System.WorkItemType": "Task",
+              "System.ChangedDate": "2026-10-01T09:00:00Z"}},
+  {"id": 1204, "url": "https://dev.azure.com/example-org/_apis/wit/workItems/1204",
+   "fields": {"System.Title": "Vendor sandbox access", "System.State": "Blocked",
+              "System.WorkItemType": "Feature",
+              "System.AssignedTo": {"displayName": "Alice Example", "uniqueName": "alice@example.com"},
+              "System.ChangedDate": "2026-09-30T12:00:00Z", "System.Tags": "vendor",
+              "Microsoft.VSTS.Common.Priority": 3}}
+]

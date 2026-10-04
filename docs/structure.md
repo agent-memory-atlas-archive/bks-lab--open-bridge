@@ -116,6 +116,9 @@ Every config type lives in **`<wrapper>/<types>/`** — a plural folder with tem
 
 | Path | Layer | Purpose |
 |------|-------|---------|
+| `workflow/briefings/_schema.yaml` | CORE | Briefing profile schema |
+| `workflow/briefings/_template.yaml` | CORE | Briefing profile template |
+| `workflow/briefings/<id>.yaml` | USER | One briefing: ordered sections, tracker queries, inbox rules (org when an overlay ships it) |
 | `workflow/calendars/_template.yaml` | CORE | Calendar template |
 | `workflow/calendars/_schema.yaml` | CORE | Calendar schema |
 | `workflow/calendars/entries.yaml` | USER | Master calendar (all scheduled outbound) |

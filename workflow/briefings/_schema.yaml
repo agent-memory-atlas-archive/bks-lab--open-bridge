@@ -1,0 +1,151 @@
+# Briefing Profile Schema: JSON Schema Draft 2020-12 in YAML
+#
+# Validates `workflow/briefings/<id>.yaml`. A profile says what ONE briefing
+# shows and from where: which sections, in which order, which tracker with
+# which query, and which rows become inbox items. Every person writes their
+# own; a Bridge may hold several (a morning one, one per customer, a weekly).
+#
+# Validation:
+#   python3 scripts/briefing.py validate            # what CI runs
+#   check-jsonschema --schemafile workflow/briefings/_schema.yaml \
+#                    workflow/briefings/<id>.yaml
+#
+# WHY A FILE AND NOT PROSE. Before profiles the briefing's collection steps
+# were instructions an agent re-read on every run, and a run could skip one
+# (the trackers were not queried at all in one observed morning). A profile is
+# executed by scripts/briefing.py; the agent only advises on and renders what
+# the script collected. Model: docs/briefings.md.
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://bks-lab.github.io/open-bridge/schemas/briefing.yaml"
+title: Briefing profile
+description: One briefing a person can ask for, as an ordered list of sections.
+
+type: object
+required: [schema_version, scope, id, sections]
+additionalProperties: false
+
+properties:
+  schema_version:
+    const: 1
+  scope:
+    enum: [core, org, personal, user]
+  id:
+    type: string
+    pattern: "^[a-z0-9][a-z0-9-]*$"
+    description: "Matches the filename without .yaml. `/briefing <id>` runs it."
+  title:
+    type: string
+  for:
+    type: string
+    description: "Whose briefing this is. Free text (a handle or name); informational."
+  default:
+    type: boolean
+    description: |
+      The profile plain `/briefing` runs. At most one profile may say true;
+      bridge-config.yaml `briefing.default` wins when set (the person's choice over a shared file).
+  offer_on:
+    type: array
+    items: {type: string, minLength: 2}
+    description: |
+      Phrases on which the Bridge offers this profile ("good morning",
+      "customer x"). `briefing.py offer "<text>"` matches them.
+  timeout_sec:
+    type: integer
+    minimum: 1
+    description: "Per-section time limit. Default 30."
+  sections:
+    type: array
+    minItems: 1
+    items: {$ref: "#/$defs/section"}
+
+$defs:
+  rule:
+    type: object
+    required: [when]
+    additionalProperties: false
+    properties:
+      when:
+        type: object
+        minProperties: 1
+        description: |
+          Field → value (or list of values, any matches) over the normalized
+          item (trackers/README.md). All fields must match.
+      urgency: {enum: [now, today, later]}
+      gate: {enum: [free, your-yes, only-you]}
+
+  section:
+    type: object
+    required: [kind]
+    properties:
+      kind:
+        enum: [inbox, advise, workplace, tasks, activity, calendar, tracker, command]
+      id:
+        type: string
+        pattern: "^[a-z0-9][a-z0-9-]*$"
+        description: "Stable name inside the profile; keys inbox items. Defaults to kind."
+      title: {type: string}
+      max:
+        type: integer
+        minimum: 1
+      to_inbox:
+        type: array
+        items: {$ref: "#/$defs/rule"}
+        description: |
+          Which rows become inbox items (key briefing:<profile>:<section>:<item>).
+          An item whose row is gone closes on the next run of a section that
+          completed; an errored section closes nothing.
+      # tracker
+      provider:
+        type: string
+        description: |
+          tracker: github | github-board | gitlab | ado | jira | linear.
+          calendar: icalbuddy | ics | command | auto.
+      query:
+        type: object
+        description: "Provider-specific selection; docs/briefings.md lists each provider's keys."
+      account_ref:
+        type: string
+        description: |
+          Path of an identity/accounts/<id>.yaml carrying `base_url` and a
+          `token_ref` (a reference URI, never a value). Needed by jira and linear.
+      state_map:
+        type: object
+        additionalProperties:
+          enum: [new, ready, in_progress, review, done, blocked, removed]
+        description: "Raw tracker state → normalized state, overriding the provider default."
+      # tasks
+      status:
+        type: array
+        items: {enum: [backlog, doing, review, done]}
+      contexts:
+        type: array
+        items: {type: string}
+        description: "tasks: only tasks whose `context:` is listed."
+      # activity / calendar
+      days:
+        type: integer
+        minimum: 0
+      path:
+        type: string
+        description: "calendar ics: a local .ics file."
+      exclude_calendars:
+        type: array
+        items: {type: string}
+        description: "calendar icalbuddy: calendar names to leave out (holidays, birthdays)."
+      # command (section kind, or calendar provider)
+      argv:
+        type: array
+        minItems: 1
+        items: {type: string}
+        description: |
+          A program that prints a JSON list of items (normalized schema for a
+          section, {title,start,end} for a calendar). Runs from the Bridge root.
+    additionalProperties: false
+    allOf:
+      - if: {properties: {kind: {const: tracker}}}
+        then: {required: [provider]}
+      - if: {properties: {kind: {const: command}}}
+        then: {required: [argv]}
+      - if: {properties: {kind: {const: calendar}, provider: {const: command}}, required: [provider]}
+        then: {required: [argv]}

@@ -1,0 +1,24 @@
+{
+  "issues": [
+    {"id": "10001", "key": "ACME-101", "fields": {
+      "summary": "Checkout page times out", "status": {"name": "In Progress", "statusCategory": {"key": "indeterminate"}},
+      "issuetype": {"name": "Bug"}, "assignee": {"accountId": "acc-alice", "displayName": "Alice Example"},
+      "updated": "2026-10-03T09:00:00.000+0000", "labels": ["checkout", "p1"], "priority": {"name": "High"}}},
+    {"id": "10002", "key": "ACME-102", "fields": {
+      "summary": "Add saved searches", "status": {"name": "To Do", "statusCategory": {"key": "new"}},
+      "issuetype": {"name": "Story"}, "assignee": {"accountId": "acc-alice", "displayName": "Alice Example"},
+      "updated": "2026-10-02T12:00:00.000+0000", "labels": [], "priority": {"name": "Medium"}}},
+    {"id": "10003", "key": "ACME-103", "fields": {
+      "summary": "Migrate audit log", "status": {"name": "Code Review", "statusCategory": {"key": "indeterminate"}},
+      "issuetype": {"name": "Task"}, "assignee": {"accountId": "acc-alice", "displayName": "Alice Example"},
+      "updated": "2026-10-01T08:00:00.000+0000", "labels": ["infra"], "priority": {"name": "Low"}}},
+    {"id": "10004", "key": "ACME-104", "fields": {
+      "summary": "Verify invoice PDF layout", "status": {"name": "QA Testing", "statusCategory": {"key": "indeterminate"}},
+      "issuetype": {"name": "Task"}, "assignee": {"accountId": "acc-bob", "displayName": "Bob Example"},
+      "updated": "2026-09-30T17:00:00.000+0000", "labels": [], "priority": null}},
+    {"id": "10005", "key": "ACME-105", "fields": {
+      "summary": "Partner API credentials", "status": {"name": "Blocked", "statusCategory": {"key": "indeterminate"}},
+      "issuetype": {"name": "Epic"}, "assignee": null,
+      "updated": "2026-09-29T10:00:00.000+0000", "labels": ["partner"], "priority": {"name": "Medium"}}}
+  ]
+}

@@ -9,11 +9,15 @@ last_updated: 2026-04-11
 A **tracker** is a source of work items (issues, tickets, stories, tasks)
 in an external system: GitHub Projects, Azure Boards, Linear, Jira, etc.
 
-`/briefing` Stream B fans out over **all enabled trackers in parallel**,
-collects their items, and renders them in the terminal dashboard. Each
-tracker is one markdown file in this directory — the file is a
-**playbook** that tells Claude what commands to run and how to normalize
-the output. There are no executable scripts. Claude is the runtime.
+A briefing reads trackers through `kind: tracker` sections of the person's
+briefing profile (`workflow/briefings/<id>.yaml`, [docs/briefings.md](../docs/briefings.md)).
+The adapters that run them live in `scripts/lib/briefing_providers/`
+(github, github-board, gitlab, ado, jira, linear), each tested against
+recorded answers, and all emit the normalized schema below. The markdown
+files in this directory are the **documentation** of each system: its
+commands, state mappings and failure modes. They were once the runtime
+(an agent re-read them every briefing); the adapters replaced that, because
+a playbook a run can skip is a tracker nobody checked.
 
 ## Why a pluggable abstraction
 

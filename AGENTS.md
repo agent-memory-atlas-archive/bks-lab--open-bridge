@@ -116,7 +116,6 @@ gate. The runtime and template ship as CORE; each `agents/<name>/` instance is
 USER. Model: [`agents/README.md`](agents/README.md),
 [`docs/representative-agent.md`](docs/representative-agent.md).
 
-The older `/crew` command is retired — edit `.claude/agents/*.md` directly.
 ---
 
 ## Agent Identity
@@ -204,6 +203,7 @@ one hop both ways, `--fix` rewrites a reference whose task merely moved KIND).
 | `infra/object-stores/` | where content that is not configuration lives: recordings, documents, exports |
 | `infra/a2a-peers/` | an A2A agent this Bridge may ask: card, auth, token reference |
 | `infra/utilities/` | a supply contract at a location: power, gas, water, heat |
+| `workflow/briefings/` | what a briefing shows, from which trackers |
 | `workflow/calendars/` | a scheduled outbound action |
 | `workflow/contexts/` | where a piece of work gets documented |
 | `workflow/projects/` | a board's field values and state map, before ANY tracker call |
