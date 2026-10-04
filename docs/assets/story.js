@@ -252,14 +252,18 @@
       addLabel(EN("templates, conflict-free merge", "Templates, konfliktfreier Merge"), "tag", new THREE.Vector3(mobile ? -1.0 : -1.55, (FY - 1.3 + CY + .5) / 2, 0))
     ];
     if (mobile) { scopeLbs[0].el.style.display = "none"; scopeLbs[2].el.style.display = "none"; }
+    var scopeSide = mobile ? null : false;
 
+    var SIDE_MQ = window.matchMedia("(min-width:901px) and (max-height:800px) and (min-aspect-ratio:7/5)");
+    var side = SIDE_MQ.matches;
     var baseCam = 20, camW = 10;
     function fit() {
       var w = canvas.clientWidth, h = canvas.clientHeight;
       renderer.setSize(w, h, false); camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix();
+      side = SIDE_MQ.matches;
       var needW = RX + (mobile ? 1.4 : 2.0), needH = RY * Math.cos(.5) + .9;
-      var share = mobile ? .36 : .46;                       // share of the height above the captions
-      camW = needW / (TAN * camera.aspect);
+      var share = mobile ? .36 : side ? .86 : .46;          // share of the height the scene may use
+      camW = needW / (TAN * camera.aspect * (side ? .5 : 1));  // side layout: the right half of the width
       baseCam = Math.max(camW, needH / (TAN * share));
     }
     addEventListener("resize", fit); fit();
@@ -272,9 +276,11 @@
       v += (clamp(-1, 1, info.vel * .6) - v) * .08;
       par.x += (par.tx - par.x) * .05; par.y += (par.ty - par.y) * .05;
       var fleetW = mobile ? 1.25 : (UX + 2.2) / (RX + 2.0);   // the fleet is wider than the bridge
-      var cam = Math.max(baseCam * S.cam, camW * (1 + (fleetW - 1) * S.fleet)), halfH = TAN * cam;
+      var camF = side ? 1 : S.cam;                          // side layout: no room to win back after the hero
+      var cam = Math.max(baseCam * camF, camW * (1 + (fleetW - 1) * S.fleet)), halfH = TAN * cam;
       camera.position.z = cam;
-      rig.position.y = halfH * (mobile ? S.lift + .04 : S.lift);
+      rig.position.y = side ? 0 : halfH * (mobile ? S.lift + .04 : S.lift);
+      rig.position.x = side ? halfH * camera.aspect * (.38 - .12 * S.fleet) : 0;
       rig.rotation.y = par.x; rig.rotation.x = par.y;
       deck.rotation.x = -S.tilt * .9;
 
@@ -331,10 +337,15 @@
       writeLb.pos = stations[1].link.curve.getPoint(.92 - .86 * EASE.inOut2(kw));
       writeLb.a = S.rw > 1 ? S.rwAmp * clamp(0, 1, Math.sin(Math.PI * kw) * 1.6) : 0;
 
-      logLb.pos = new THREE.Vector3(mobile ? 0 : 2.0, mobile ? -3.7 : -.55, .2);
+      logLb.pos = new THREE.Vector3(mobile ? 0 : side ? .9 : 2.0, mobile ? -3.7 : side ? -3.1 : -.55, .2); logLb.anchor = mobile || side ? "c" : "l";
       logLb.a = clamp(0, 1, S.log * 3) * fade;
       logRows.forEach(function (r, i) { r.style.opacity = clamp(0, 1, S.log - i); });
       fleetLbs.forEach(function (l) { l.a = S.fleet; });
+      if (!mobile && side !== scopeSide) {                          // compact fleet labels in the side layout, like on a phone
+        scopeSide = side;
+        scopeLbs[1].pos = new THREE.Vector3(side ? 0 : 1.35, side ? CY - .95 : (FY - 1.3 + CY + .5) / 2, 0);
+        scopeLbs[2].el.style.display = side ? "none" : "";
+      }
       emptyLbs.forEach(function (l) { l.a = S.chaos * (1 - S.gather); });
       scopeLbs.forEach(function (l, i) { l.a = clamp(0, 1, S.fleet * 2 - (i === 0 ? 1.2 : .8)); });
 

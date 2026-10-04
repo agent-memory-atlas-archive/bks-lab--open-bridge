@@ -1,5 +1,5 @@
 ---
-summary: "Setting up your own private Bridge: the short prompt that hands your agent SETUP.md, the same steps by hand, the template-button caveat, what the first session does, and which agent tools are tested."
+summary: "Setting up your own private Bridge: the short prompt that hands your agent SETUP.md, the template-button caveat, what the first session does, and which agent tools are tested."
 type: guide
 last_updated: 2026-10-04
 related:
@@ -15,7 +15,7 @@ related:
 
 This page is the long form of the README's *Set it up* section. It covers the
 one decision that matters before anything else (where your private data will
-live), two equivalent ways to get there, and what happens in the first session.
+live), the one prompt that gets you there, and what happens in the first session.
 
 Just want to see it run? The demo workspace needs no setup at all: see the
 README's *Or look first: the demo workspace*.
@@ -25,11 +25,11 @@ README's *Or look first: the demo workspace*.
 This repository is public. Onboarding writes your private data (personas,
 client names, `work/` logs, credential reference URIs) onto a `user/{name}`
 branch. A bare clone's `origin` points at the public repo, so a single
-`git push` would publish that branch. Both paths below therefore make **your
+`git push` would publish that branch. The setup therefore makes **your
 own private repo** the `origin` and keep BKS open-bridge as a read-only
 `upstream`. A fork does not help here: a fork of a public repo is itself public.
 
-## Path 1: hand this prompt to your agent
+## Hand this prompt to your agent
 
 Paste this into Claude Code, Codex or Copilot CLI:
 
@@ -55,15 +55,9 @@ one rule that has to hold before the first change travels in the prompt itself.
 Nothing in the guide is hidden. Every step is a command you can read before you
 approve it.
 
-## Path 2: the same steps by hand
+## After the setup
 
-[SETUP.md](../SETUP.md) is addressed to an agent, but every step in it is a
-plain command. Run steps 1 to 4 yourself (clone and re-home the remotes, run
-`./bin/setup`, write `.bridge-origin`, check the three proofs), with your own
-GitHub account in place of `<me>` and `my-bridge` (or any name) in place of
-`<name>`.
-
-Then **start your agent session inside `my-bridge`**. A session that started in
+**Start your agent session inside the new folder.** A session that started in
 another folder cannot see this repo's skills. In the new session the Bridge
 greets you by itself; if it does not, run `/bridge-onboard`.
 
@@ -74,7 +68,7 @@ which is why the button exists. But GitHub gives it a fresh, single-commit
 history that shares no ancestor with this repo, so the update path aborts with
 `fatal: refusing to merge unrelated histories`. Your **first** CORE update then
 needs `git merge --allow-unrelated-histories upstream/main` once; every merge
-after that is ordinary. The clone-and-re-home path above keeps the full history
+after that is ordinary. The prompt above keeps the full history
 and needs no such exception. Updating in general: [updating.md](updating.md).
 
 ## What the first session does

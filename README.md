@@ -40,7 +40,7 @@ If you can't open links: git clone https://github.com/bks-lab/open-bridge.git my
 then read my-bridge/SETUP.md and follow it.
 ```
 
-Every step the agent takes is in [SETUP.md](SETUP.md): check your tools, show you the plan, re-home the remotes to your private repo, arm the push guard, prove it, then ask you to restart it inside the new folder. The same steps by hand, and why setup ends with a restart: [docs/install.md](docs/install.md).
+Every step the agent takes is in [SETUP.md](SETUP.md): check your tools, show you the plan, re-home the remotes to your private repo, arm the push guard, prove it, then ask you to restart it inside the new folder. Why setup ends with a restart: [docs/install.md](docs/install.md).
 
 </details>
 
