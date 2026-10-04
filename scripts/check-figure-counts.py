@@ -193,6 +193,11 @@ def rewrite(src: str, real_core: dict, real_user: dict, core_total: int, user_to
     return src
 
 
+def is_instance() -> bool:
+    """A configured Bridge (it carries its own bridge-config.yaml), not open-bridge itself."""
+    return (REPO / "bridge-config.yaml").is_file()
+
+
 def main() -> int:
     write = "--write" in sys.argv
     files = tracked()
@@ -286,6 +291,23 @@ def main() -> int:
                    f"{core_total} Dateien kommen mit, {user_total} sind deine."):
         if phrase not in src:
             problems.append(f"caption missing or stale: {phrase!r}")
+
+    # A configured instance that carries core files of its own (docs, scripts
+    # it added) differs from what open-bridge ships BY DESIGN, and the page
+    # describes open-bridge. Failing there made the check red in every
+    # established instance, and --write would have baked one instance's tree
+    # into a CORE page that ships upstream. Report it, never rewrite it.
+    if problems and is_instance():
+        if write:
+            print("check-figure-counts: refusing --write in a configured instance; the page "
+                  "describes what open-bridge ships, rewriting it here would make a CORE "
+                  "file diverge from upstream.", file=sys.stderr)
+            return 2
+        print(f"docs/explore.html describes open-bridge; this instance differs in "
+              f"{len(problems)} number(s), expected where it carries core files of its own:")
+        for p in problems[:5]:
+            print(f"  {p}")
+        return 0
 
     if problems and write:
         PAGE.write_text(
