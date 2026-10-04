@@ -19,7 +19,8 @@ network:
   hostname: string      # mDNS / Tailscale hostname
   lan_ip: string        # local network IP (fallback, same network only)
 
-capabilities: []        # ssh, rdp, docker, git, services, claude, gpu, boot, forensics, pentesting
+capabilities: []        # ssh, rdp, docker, git, services, claude, gpu, boot, forensics, pentesting, arm
+                        # arm = always-on machine: runs the watchers, writes the inbox
 
 services: []            # only if 'services' in capabilities
   # - slug: string      # identifier

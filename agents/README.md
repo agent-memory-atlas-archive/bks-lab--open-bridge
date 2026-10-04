@@ -88,6 +88,9 @@ curl -s localhost:8011/health
   the stdlib-only scaffold `_template/tools/intake_notify.py` (override its `send()`
   seam with your transport); a testable contract locks it (`tests/test_intake_notify.py`).
 - **No autonomous outward action** — bookings/replies go through your gate.
+  Owner approval (`approval:` in `agent.yaml`) holds each answer until a command
+  decides; `scripts/inbox-approve.py` is the ready-made one: the held answer
+  becomes an only-you draft in the inbox ([`docs/inbox.md`](../docs/inbox.md)).
 - **Public-endpoint caps** — concurrency, input length; add a per-IP edge
   rate-limit at your CDN.
 - **Honest card** — advertise only capabilities that are real.

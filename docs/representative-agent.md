@@ -70,7 +70,9 @@ A peer endpoint usually adds owner approval (`approval:` in `agent.yaml`,
 `agents/_runtime/approval.py`): every finished answer is held, the task stays
 WORKING with a waiting message, nothing of it streams out, and an instance-owned
 approver command decides: approve, edit, reject or timeout. Anything it cannot
-read fails closed.
+read fails closed. For a Bridge with an inbox, `scripts/inbox-approve.py` is the
+ready-made approver: the held answer becomes an only-you draft in the inbox until
+you approve, edit or reject it there ([`docs/inbox.md`](inbox.md)).
 
 ## 2. Instance anatomy
 

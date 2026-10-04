@@ -45,7 +45,7 @@ items:
     note: The entry file. Thin by design; it routes, it does not explain.
 
   AGENTS.md:
-    max_bytes: 34000
+    max_bytes: 34200
     note: >-
       The operating manual, and still the largest single always-on item. It
       routes; it does not restate. Every load-bearing pointer in it is a
@@ -95,6 +95,9 @@ items:
 
       RAISED from 33600 on 2026-10-04 by 400 bytes: the `### Inbox` section (what stays
       open is filed with scripts/inbox.py, not left as a log sentence). 49 bytes of headroom.
+      RAISED from 34000 on 2026-10-04 by 200 bytes: one sentence naming the workplace
+      (scripts/workplace.py, docs/workplace.md) next to `### Inbox` and one clause in
+      Remotes that capability `arm` marks the always-on machine. 19 bytes of headroom.
   ecosystem.yaml:
     optional: true
     source: phase1

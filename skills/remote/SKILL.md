@@ -49,6 +49,9 @@ User wants to...
 └── Questions about remotes            → Answer from CLAUDE.md § Remotes
 ```
 
+A machine that stays on can carry the capability `arm`: the always-on machine
+that runs the watchers and writes the inbox (`docs/always-on-machine.md`).
+
 ## Reference map
 
 | File | Owns |

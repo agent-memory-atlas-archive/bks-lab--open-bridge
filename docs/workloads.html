@@ -563,6 +563,8 @@ response:                      <span class="cmt"># 4. HOW IT ANSWERS</span>
   recipients: [{mandant: example-team, person: first_person}]
   notify_on: [failure, timeout, missing]
 
+reports_to: inbox              <span class="cmt"># optional: where a finding lands (inbox | channel | none)</span>
+
 reconcile:                     <span class="cmt"># optional: how you know it is still there</span>
   probe: "launchctl print gui/501/com.example.dispatcher"
   expect: "state = running"</pre>
@@ -579,6 +581,9 @@ reconcile:                     <span class="cmt"># optional: how you know it is 
           <li><b>4</b><h4><code>response</code><span data-lang="en">How it answers</span><span data-lang="de">Wie sie antwortet</span></h4>
             <p data-lang="en">What counts as evidence, who hears about it by reference rather than by address, and on which outcomes.</p>
             <p data-lang="de">Was als Beleg zählt, wer davon erfährt, per Verweis statt per Adresse, und bei welchem Ausgang.</p></li>
+          <li class="opt"><b>+</b><h4><code>reports_to</code><span data-lang="en">Where a finding lands</span><span data-lang="de">Wo ein Befund landet</span></h4>
+            <p data-lang="en"><code>inbox</code> files what needs a person under a stable key, so a repeat stays one item; a green run files nothing.</p>
+            <p data-lang="de"><code>inbox</code> legt ab, was einen Menschen braucht, unter einem stabilen Schlüssel, sodass eine Wiederholung ein Eintrag bleibt; ein grüner Lauf legt nichts ab.</p></li>
           <li class="opt"><b>+</b><h4><code>reconcile</code><span data-lang="en">Optional probe</span><span data-lang="de">Optionale Sonde</span></h4>
             <p data-lang="en">How you would know it is still there: a probe, and what it should print.</p>
             <p data-lang="de">Woran man erkennt, dass sie noch da ist: eine Sonde, und was sie ausgeben soll.</p></li>

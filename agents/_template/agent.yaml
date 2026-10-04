@@ -78,6 +78,8 @@ trust: "public"
 # {"decision": "approve"}, {"decision": "edit", "text": "..."}, {"decision":
 # "reject"} or {"decision": "timeout"}. Anything else fails closed. How the owner
 # is asked (messenger, push, web page) lives in that command, with the instance.
+# Ready-made for a Bridge with an inbox: scripts/inbox-approve.py (the held answer
+# becomes an only-you draft in the inbox; docs/inbox.md).
 # approval:
 #   command: ["python3", "${tools_dir}/approve.py"]
 #   timeout_sec: 3600

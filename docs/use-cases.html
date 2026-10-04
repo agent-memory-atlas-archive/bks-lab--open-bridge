@@ -306,7 +306,7 @@
           <a href="#a-day-with-it"><span data-lang="en">The moments in detail</span><span data-lang="de">Die Momente im Detail</span> ↓</a>
         </figcaption>
 
-        <svg class="uc-fig-wide" viewBox="0 0 880 322" role="img" aria-label="A day as one timeline of five moments: morning triage reads work/log.md and infra/backups; after a call a mail draft and proposed board items wait outside the bridge for you to send or approve; an incident finding is written to STATUS.md and work/log.md; wearing another hat switches identity/personas and workflow/contexts, and STATUS.md keeps a private task local; the quiet server reads workflow/workloads and checks the live service manager. All of it sits on plain markdown and YAML in git.">
+        <svg class="uc-fig-wide" viewBox="0 0 880 322" role="img" aria-label="A day as one timeline of five moments: morning triage reads work/log.md and infra/backups; after a call a mail draft and proposed board items wait outside the bridge for you to send or approve; an incident finding is filed into work/inbox and closes itself when the live source says it is fixed, with a row in work/log.md; wearing another hat switches identity/personas and workflow/contexts, and STATUS.md keeps a private task local; the quiet server reads workflow/workloads and checks the live service manager. All of it sits on plain markdown and YAML in git.">
           <!-- step 3 lives partly up here: the outside zone -->
           <g data-step="3">
             <rect class="sf-zone" x="150" y="12" width="420" height="62" rx="10"/>
@@ -350,7 +350,7 @@
           <g data-step="4">
             <rect class="sf-box" x="360" y="112" width="160" height="78" rx="10"/>
             <text class="sf-lbl" x="374" y="146"><tspan data-lang="en">An incident</tspan><tspan data-lang="de">Ein Vorfall</tspan></text>
-            <text class="sf-sub" x="374" y="170"><tspan data-lang="en">finding persists</tspan><tspan data-lang="de">Befund bleibt</tspan></text>
+            <text class="sf-sub" x="374" y="170"><tspan data-lang="en">inbox, closes itself</tspan><tspan data-lang="de">Eintrag schließt sich</tspan></text>
           </g>
           <path class="sf-line" data-step="4" data-draw d="M424 194 C424 214 243 214 243 234"/>
           <path class="sf-line" data-step="4" data-draw d="M440 194 C440 214 369 214 369 234"/>
@@ -374,7 +374,7 @@
           <path class="sf-line" data-step="6" data-draw d="M795 234 C795 214 788 214 788 194"/>
         </svg>
 
-        <svg class="uc-fig-tall" viewBox="0 0 340 486" role="img" aria-label="Five moments of a day, each with the plain files it reads or writes: morning triage, work/log.md and infra/backups; after a call, a draft you send yourself; an incident, STATUS.md and work/log.md; another hat, identity/personas, workflow/contexts and STATUS.md; the quiet server, workflow/workloads.">
+        <svg class="uc-fig-tall" viewBox="0 0 340 486" role="img" aria-label="Five moments of a day, each with the plain files it reads or writes: morning triage, work/log.md and infra/backups; after a call, a draft you send yourself; an incident, filed into work/inbox and work/log.md; another hat, identity/personas, workflow/contexts and STATUS.md; the quiet server, workflow/workloads.">
           <g data-step="1">
             <rect class="sf-box hi" x="2" y="2" width="336" height="94" rx="12"/>
             <text class="sf-sub" x="16" y="22"><tspan data-lang="en">your bridge · markdown + YAML in git</tspan><tspan data-lang="de">deine Bridge · Markdown + YAML in Git</tspan></text>
@@ -399,7 +399,7 @@
             <circle cx="14" cy="289" r="4" fill="var(--accent-text)"/>
             <rect class="sf-box" x="28" y="260" width="310" height="62" rx="10"/>
             <text class="sf-lbl" x="42" y="284"><tspan data-lang="en">An incident</tspan><tspan data-lang="de">Ein Vorfall</tspan></text>
-            <text class="sf-mono" x="42" y="306">STATUS.md · work/log.md</text>
+            <text class="sf-mono" x="42" y="306">work/inbox · work/log.md</text>
           </g>
           <g data-step="5">
             <circle cx="14" cy="363" r="4" fill="var(--accent-text)"/>
@@ -419,7 +419,7 @@
           <li data-step="1"><b>1</b><span data-lang="en">One substrate: plain files in git</span><span data-lang="de">Ein Substrat: schlichte Dateien in Git</span></li>
           <li data-step="2"><b>2</b><span data-lang="en">Morning triage reads the log and backup state</span><span data-lang="de">Morgen-Triage liest Log und Backup-Stand</span></li>
           <li data-step="3"><b>3</b><span data-lang="en">After a call: drafts wait for your gate</span><span data-lang="de">Nach einem Gespräch: Entwürfe warten auf dein Gate</span></li>
-          <li data-step="4"><b>4</b><span data-lang="en">An incident: the finding is written down</span><span data-lang="de">Ein Vorfall: der Befund wird festgehalten</span></li>
+          <li data-step="4"><b>4</b><span data-lang="en">An incident: filed into the inbox, closes itself when fixed</span><span data-lang="de">Ein Vorfall: im Posteingang abgelegt, schließt sich, wenn behoben</span></li>
           <li data-step="5"><b>5</b><span data-lang="en">Another hat: persona and context switch</span><span data-lang="de">Ein anderer Hut: Persona und Kontext wechseln</span></li>
           <li data-step="6"><b>6</b><span data-lang="en">The quiet server: declared jobs, checked live</span><span data-lang="de">Der ruhige Server: deklarierte Jobs, live geprüft</span></li>
         </ol>
@@ -846,19 +846,19 @@
           </p>
           <p class="uc-solution">
             <span class="lab"><span data-lang="en">What the bridge does</span><span data-lang="de">Was die Bridge tut</span></span>
-            <span data-lang="en">“What happened to invoice X?” A sub-agent searches the logs and returns a short delta table instead of a log dump. The finding lands in the task’s <code>STATUS.md</code> and a log row, so tomorrow’s session resumes mid-thought.</span>
-            <span data-lang="de">„Was ist mit Rechnung X passiert?“ Ein Sub-Agent durchsucht die Logs und liefert eine kurze Delta-Tabelle statt eines Log-Dumps. Der Befund landet in der <code>STATUS.md</code> der Aufgabe und in einer Log-Zeile, sodass die Session morgen mitten im Gedanken weitermacht.</span>
+            <span data-lang="en">“What happened to invoice X?” A sub-agent searches the logs and returns a short delta table instead of a log dump. The finding is filed into the inbox and closes itself when the live source says it is fixed. A log row keeps the history, so tomorrow’s session resumes mid-thought.</span>
+            <span data-lang="de">„Was ist mit Rechnung X passiert?“ Ein Sub-Agent durchsucht die Logs und liefert eine kurze Delta-Tabelle statt eines Log-Dumps. Der Befund wird im Posteingang abgelegt und schließt sich selbst, sobald die Live-Quelle „behoben“ sagt. Eine Log-Zeile hält die Historie fest, sodass die Session morgen mitten im Gedanken weitermacht.</span>
           </p>
           <div class="uc-foot">
             <div class="uc-prim">
               <span class="lab"><span data-lang="en">Primitives</span><span data-lang="de">Primitive</span></span>
               <div class="chips">
                 <code>.claude/agents</code>
-                <code>STATUS.md</code>
+                <code>work/inbox</code>
                 <code>work/log.md</code>
               </div>
             </div>
-            <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/work-system.md" target="_blank" rel="noopener">
+            <a class="uc-more" href="https://github.com/bks-lab/open-bridge/blob/main/docs/inbox.md" target="_blank" rel="noopener">
               <span data-lang="en">Learn more</span><span data-lang="de">Mehr erfahren</span><span class="arrow">→</span>
             </a>
           </div>

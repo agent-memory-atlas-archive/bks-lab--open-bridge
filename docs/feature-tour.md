@@ -187,6 +187,10 @@ means a *machine*, not `git remote`. Always check
 **Hard rule:** Tailscale IP first, LAN as fallback. Never store credentials
 in the yaml, only secret references. Honor `wake_on_lan.enabled: false`.
 
+**Always-on machine:** mark the one that stays on with `arm` under
+`capabilities`. It runs the watchers and files what needs you into the inbox
+while your laptop sleeps. Guide: [`docs/always-on-machine.md`](always-on-machine.md).
+
 Full doc: [`docs/remotes.md`](remotes.md).
 
 ## infra/channels/
@@ -392,6 +396,10 @@ of `bridge-config.yaml`.
 **Workflow rule:** there is no `status:` field, deliberately. A declared status
 is never the truth; the service manager is. State comes from `reconcile` asking
 the live source ([`rules/deploy-reconciliation.md`](../rules/deploy-reconciliation.md)).
+**Reporting:** the optional `reports_to: inbox` makes a watcher or poller that
+notices something file it into the inbox under a stable key, so a repeat stays
+one item. See [`docs/workloads.md`](workloads.md#where-a-finding-lands-reports_to).
+
 Full model: [`docs/workloads.md`](workloads.md).
 
 ## workflow/workspaces/
@@ -416,6 +424,9 @@ Full doc: [`docs/workspaces.md`](workspaces.md).
 
 - **`work/`**: task board, daily log, archives. Activated via
   `work.enabled: true`. See [`AGENTS.md` § Task Management](../AGENTS.md).
+  - `work/inbox/`: everything that needs a person, one folder per item,
+    shown first by `/briefing` (`python3 scripts/inbox.py list`).
+    See [`docs/inbox.md`](inbox.md).
 - **`protocols/standing-orders/`**: always-on rules (e.g. "auto-log every
   commit"). CORE ships the defaults; your own orders live in
   `protocols/standing-orders/user/`.

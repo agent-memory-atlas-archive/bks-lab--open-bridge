@@ -72,6 +72,11 @@ User wants to...
 - **Timeouts**: Ping 800ms, HTTP 1.5s, Git 3s per repo — the whole dashboard builds in <4s.
 - **No secrets**: The HTML contains only paths and metrics, no tokens.
 
+## Sister skill
+
+What needs a person is the inbox (`scripts/inbox.py list`), shown first by
+`/briefing`. This dashboard shows state, the inbox shows what waits on you.
+
 ## Roadmap (non-blocking)
 
 1. Integration tile: cloud-function health + log-error count via provider CLI.

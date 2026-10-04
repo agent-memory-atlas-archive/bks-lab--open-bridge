@@ -32,7 +32,7 @@ which ones is per-instance, so the live list is the skill listing itself.
 
 | Command | Short form | Backing skill | Action |
 |---------|------------|---------------|--------|
-| `/briefing` | | `briefing` | Daily briefing: board, git activity, goals, alerts |
+| `/briefing` | | `briefing` | Daily briefing: the inbox first (what needs you, with approve, defer, drop and agent tabs to steer the day), then board, git activity, goals, alerts |
 | `/bridge-status` | | `bridge-status` | Status dashboard: ecosystem, agents, work, remotes |
 | `/dashboard` | | `dashboard` | Project dashboard for the current project: GitHub or ADO tasks, git activity, deployment status (`--all`, `--html`) |
 | `/bridge-dashboard` | | `bridge-dashboard` | Control Center: one HTML page with fleet, board, the next 24h of calendar, channels, git activity and upstream drift |
