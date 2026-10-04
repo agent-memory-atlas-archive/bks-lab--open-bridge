@@ -1,16 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="open-bridge">
   <!-- CORE and USER, bridged. The same two hubs and the bright span between them
        that the hero canvas draws. Literal hex because a favicon cannot read CSS
-       custom properties: #667EEA is --accent-from, #764BA2 is --accent-to,
-       #6366F1 is --accent and #8B5CF6 is --accent-secondary, all from DESIGN.md. -->
+       custom properties. BKS palette from brand.css: #2D5B8F is the light accent,
+       #5690D2 the link blue and #5FA0D9 the dark-mode accent. The dark tile
+       reads the same on light and dark browser chrome. -->
   <defs>
     <linearGradient id="span" gradientUnits="userSpaceOnUse" x1="9" y1="16" x2="23" y2="16">
-      <stop offset="0" stop-color="#667EEA"/>
-      <stop offset="1" stop-color="#764BA2"/>
+      <stop offset="0" stop-color="#2D5B8F"/>
+      <stop offset="1" stop-color="#5FA0D9"/>
     </linearGradient>
   </defs>
   <rect width="32" height="32" rx="7" fill="#0B1220"/>
   <path d="M9 16 H23" stroke="url(#span)" stroke-width="3.4" stroke-linecap="round" fill="none"/>
-  <circle cx="9" cy="16" r="5" fill="#6366F1"/>
-  <circle cx="23" cy="16" r="5" fill="#8B5CF6"/>
+  <circle cx="9" cy="16" r="5" fill="#5690D2"/>
+  <circle cx="23" cy="16" r="5" fill="#5FA0D9"/>
 </svg>
