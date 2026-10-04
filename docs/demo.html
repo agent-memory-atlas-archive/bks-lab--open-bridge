@@ -83,15 +83,40 @@ html{scroll-behavior:smooth}
 body{margin:0;font-family:var(--font-sans);font-size:16px;line-height:1.6;color:var(--on-surface);
   background:var(--surface);-webkit-font-smoothing:antialiased;
   transition:background-color .4s cubic-bezier(.16,1,.3,1),color .4s cubic-bezier(.16,1,.3,1)}
-.wrap{max-width:920px;margin:0 auto;padding:0 24px}
+.wrap{max-width:var(--hero-w);margin:0 auto;padding:0 24px}
 h1{font-weight:300;letter-spacing:-.02em;line-height:1.1;color:var(--ink);font-size:clamp(30px,4.6vw,44px);margin:.2em 0 0}
-.grad{background:linear-gradient(120deg,var(--accent-from),var(--accent-to));-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:400}
+/* solid accent, no gradient: the brand has none, and clipped-text gradients
+   lose the words once page-motion.js wraps them for the rise */
+.grad{color:var(--accent-text)}
 .eyebrow{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .lead{font-size:18px;font-weight:300;color:var(--on-surface);max-width:68ch;margin-top:10px}
 kbd{font-family:var(--font-mono);font-size:.86em;border:1px solid var(--line);border-bottom-width:2px;border-radius:var(--radius-sm);padding:1px 6px;background:var(--surface)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:var(--radius-sm)}
 
-header.doc{padding:48px 0 6px}
+header.doc{padding:64px 0 28px}
+/* Hero: copy on the left, the four chapters as a picker on the right (>=1100px) */
+.demo-hero{display:grid;gap:28px}
+.dh-copy{min-width:0}
+.dh-copy .lead{max-width:40rem}
+.dh-what{margin-top:20px;max-width:40rem;font-size:14.5px;line-height:1.6;color:var(--on-surface);
+  border-left:2px solid var(--accent-text);padding:2px 0 2px 14px}
+.dh-what .k{display:block;font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-text);margin-bottom:2px}
+.dh-chapters{list-style:none;margin:0;padding:0;display:grid;gap:10px;min-width:0}
+.dh-chapters a{display:grid;grid-template-columns:28px 1fr;gap:3px 12px;align-items:start;text-decoration:none;color:inherit;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:13px 16px;
+  transition:border-color .2s ease,background .2s ease}
+.dh-chapters a:hover{border-color:var(--accent-text);background:var(--surface-subtle)}
+.dh-chapters a.on{border-color:var(--accent-text);background:var(--accent-soft)}
+.dh-chapters .n{grid-row:span 2;width:28px;height:28px;border-radius:9999px;display:grid;place-items:center;
+  font:600 12px var(--font-sans);color:var(--accent-text);border:1px solid var(--accent-text)}
+.dh-chapters a.on .n{background:var(--accent-text);color:var(--surface)}
+.dh-chapters .t{font-size:15px;font-weight:600;color:var(--ink);line-height:1.35}
+.dh-chapters .d{font-size:13.5px;line-height:1.5;color:var(--on-surface)}
+#stage{scroll-margin-top:84px}
+@media (min-width:700px) and (max-width:1099px){.dh-chapters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (min-width:1100px){.demo-hero{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:56px;align-items:center}}
+/* phone: the tab row right above the terminal does the same job */
+@media (max-width:699px){.dh-chapters{display:none}}
 
 #stage{display:none}
 html.anim #stage{display:block}
@@ -104,8 +129,10 @@ html.anim #source{display:none}
 .tab.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-text);font-weight:600}
 .tab .tn{font-family:var(--font-mono);opacity:.7;margin-right:5px}
 
+/* the terminal output is 76 columns; a wider box only adds empty space */
+#stage{max-width:940px;margin-inline:auto}
 .term{background:var(--code-bg);border:1px solid var(--line);border-radius:var(--radius-lg);
-  overflow:hidden;box-shadow:var(--shadow-hover)}
+  overflow:hidden}
 .term-bar{display:flex;align-items:center;gap:7px;padding:11px 15px;border-bottom:1px solid var(--line);background:var(--surface-muted)}
 .td{width:11px;height:11px;border-radius:50%}.td.r{background:#ef4444}.td.y{background:#f59e0b}.td.g{background:#10b981}
 .term-title{color:var(--muted);font-size:12px;font-family:var(--font-mono);margin-left:6px}
@@ -137,7 +164,7 @@ html.anim #source{display:none}
 .term-foot button{font-family:var(--font-sans);font-size:12.5px;color:var(--ink);border:1px solid var(--line);
   background:var(--surface);border-radius:var(--radius-md);padding:5px 11px;cursor:pointer}
 .term-foot button:hover{background:var(--surface-subtle)}
-.caption{font-size:12.5px;color:var(--muted);max-width:80ch;margin:14px 0 0}
+.caption{font-size:12.5px;color:var(--muted);max-width:80ch;margin:14px 0 72px}
 .caption code{font-family:var(--font-mono)}
 .skip-hint{margin:8px 0 0;font-size:12px;color:var(--muted)}
 /* one-shot money-line highlight: existing accent token, no permanent glow */
@@ -149,23 +176,12 @@ html.anim .line.money.show{animation:moneyFlash 1.4s ease-out 1}
 #source .lines{padding:16px 18px;font-family:var(--font-mono);font-size:13px;line-height:1.6;overflow-x:auto}
 #source .line{opacity:1;transform:none}
 
-/* ─── Funnel CTA (end of page): bilingual via the shared ob-lang choice; EN is the no-JS default ─── */
+/* bilingual via the shared ob-lang choice; EN is the no-JS default */
 [data-lang="de"]{display:none}
 html[data-active-lang="de"] [data-lang="en"]{display:none}
 html[data-active-lang="de"] [data-lang="de"]{display:revert}
-.cta-funnel{margin:44px 0 0;padding:28px 24px;border:1px solid var(--line);border-radius:var(--radius-lg);
-  background:var(--surface-subtle);text-align:center}
-.cta-funnel .cta-lead{margin:0;font-size:17px;font-weight:300;color:var(--ink);max-width:60ch;margin-inline:auto}
-.cta-funnel .cta-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:18px}
-.cta-funnel a{display:inline-flex;align-items:center;gap:7px;font-size:14px;font-weight:500;
-  text-decoration:none;padding:10px 20px;border-radius:var(--radius-md);border:1px solid transparent;
-  transition:transform .2s ease,background .2s ease}
-.cta-funnel a.cta-go{background:var(--accent);color:var(--on-primary)}
-.cta-funnel a.cta-go:hover{transform:translateY(-1px)}
-.cta-funnel a.cta-alt{background:var(--surface);color:var(--on-surface);border-color:var(--line)}
-.cta-funnel a.cta-alt:hover{background:var(--surface-muted)}
 
-footer.foot{background:none;max-width:920px;margin:40px auto 32px;padding:16px 24px 0;border-top:1px solid var(--line-subtle);font-size:12px;color:var(--muted)}
+footer.foot{background:none;max-width:var(--hero-w);margin:40px auto 32px;padding:16px 24px 0;border-top:1px solid var(--line-subtle);font-size:12px;color:var(--muted)}
 footer.foot code{font-family:var(--font-mono)}
 @media (max-width:560px){ .wrap,footer.foot{padding-inline:16px} footer.foot{padding-bottom:64px} }
 
@@ -212,13 +228,42 @@ footer.foot code{font-family:var(--font-mono)}
 </header>
 <script defer src="assets/site-nav.js"></script>
 
-<main class="wrap">
-  <header class="doc page-hero">
-    <div class="eyebrow">BKS open-bridge · live demo</div>
-    <h1>What a real session <span class="grad">looks like</span></h1>
-    <p class="lead">Four flows from the team that builds BKS open-bridge, replayed from BKS-Lab's own instance. Branding and work are real; client names are kept generic. The formats are exactly what a live session prints: the morning greeting, the briefing dashboard, an incident handed to a specialist, and first-run onboarding.</p>
-  </header>
+<main>
+  <header class="doc page-hero"><div class="wrap demo-hero">
+    <div class="dh-copy">
+      <div class="eyebrow"><span data-lang="en">BKS open-bridge · live demo</span><span data-lang="de">BKS open-bridge · Live-Demo</span></div>
+      <h1><span data-lang="en">What a real session <span class="grad">looks like</span></span><span data-lang="de">So sieht eine echte Session <span class="grad">aus</span></span></h1>
+      <p class="lead">
+        <span data-lang="en">Four flows from the team that builds BKS open-bridge, replayed from BKS-Lab's own instance. Branding and work are real; client names are kept generic. The formats are exactly what a live session prints: the morning greeting, the briefing dashboard, an incident handed to a specialist, and first-run onboarding.</span>
+        <span data-lang="de">Vier Abläufe vom Team, das BKS open-bridge baut, abgespielt aus der eigenen Instanz von BKS-Lab. Branding und Arbeit sind echt, Kundennamen bleiben generisch. Die Formate sind genau das, was eine echte Session ausgibt: die Morgenbegrüßung, das Briefing-Dashboard, ein Vorfall, der an einen Spezialisten geht, und das Onboarding beim ersten Start.</span>
+      </p>
+      <p class="dh-what" data-reveal>
+        <span class="k"><span data-lang="en">What you are looking at</span><span data-lang="de">Was du hier siehst</span></span>
+        <span data-lang="en">A replay, not a live connection: the session is typed out as text in your browser. Hover the terminal to pause it, click it to skip ahead.</span>
+        <span data-lang="de">Eine Wiedergabe, keine Live-Verbindung: die Session wird als Text in deinem Browser getippt. Maus aufs Terminal hält an, ein Klick spult vor.</span>
+      </p>
+    </div>
+    <ol class="dh-chapters" data-reveal="stagger" aria-label="Chapters">
+      <li><a href="#ch-1" data-chap="0">
+        <span class="n" aria-hidden="true">1</span><span class="t">Morning</span>
+        <span class="d"><span data-lang="en">Session start: a briefing, not a status dump.</span><span data-lang="de">Sessionstart: ein Briefing statt einer Statusliste.</span></span>
+      </a></li>
+      <li><a href="#ch-2" data-chap="1">
+        <span class="n" aria-hidden="true">2</span><span class="t">Briefing</span>
+        <span class="d"><span data-lang="en">/briefing: a 76-column dashboard from plain Markdown and YAML.</span><span data-lang="de">/briefing: ein Dashboard mit 76 Spalten aus schlichtem Markdown und YAML.</span></span>
+      </a></li>
+      <li><a href="#ch-3" data-chap="2">
+        <span class="n" aria-hidden="true">3</span><span class="t">Operator</span>
+        <span class="d"><span data-lang="en">Incident to code fix: test first, shipped to UAT, stops at the prod gate.</span><span data-lang="de">Vom Vorfall zum Code-Fix: Test zuerst, nach UAT ausgeliefert, Halt vor dem Prod-Gate.</span></span>
+      </a></li>
+      <li><a href="#ch-4" data-chap="3">
+        <span class="n" aria-hidden="true">4</span><span class="t">First run</span>
+        <span class="d"><span data-lang="en">Onboarding on a fresh clone, each step gated on your yes.</span><span data-lang="de">Onboarding auf einem frischen Klon, jeder Schritt wartet auf dein Ja.</span></span>
+      </a></li>
+    </ol>
+  </div></header>
 
+  <div class="wrap">
   <div id="stage">
     <div id="tabs"></div>
     <div class="term" id="term">
@@ -243,7 +288,7 @@ footer.foot code{font-family:var(--font-mono)}
   <div id="source">
 
     <!-- ───── Chapter 1: Morning (session start) ───── -->
-    <div class="chap" data-title="Morning"
+    <div class="chap" id="ch-1" data-title="Morning"
          data-sub="<b>Session start.</b> Not a status dump but a briefing: an overnight CI failure, its collision with today's 14:00 review, and an answer quoted from a dated log row.">
       <h3 class="chap-h">① Morning: session start</h3>
       <div class="lines">
@@ -293,7 +338,7 @@ footer.foot code{font-family:var(--font-mono)}
     </div>
 
     <!-- ───── Chapter 2: /briefing ───── -->
-    <div class="chap" data-title="Briefing"
+    <div class="chap" id="ch-2" data-title="Briefing"
          data-sub="<b>/briefing.</b> A 76-column dashboard (warnings, focus, trackers, PRs, 7-day activity, calendar, next steps) generated from plain Markdown + YAML.">
       <h3 class="chap-h">② /briefing: the daily dashboard</h3>
       <div class="lines">
@@ -334,7 +379,7 @@ footer.foot code{font-family:var(--font-mono)}
     </div>
 
     <!-- ───── Chapter 3: Operator, find the bug, TDD the fix, ship (UAT autonomous, prod gated) ───── -->
-    <div class="chap" data-title="Operator"
+    <div class="chap" id="ch-3" data-title="Operator"
          data-sub="<b>Incident → code fix.</b> The log-analyst pinpoints the bug in the code; the agent writes a failing test (red), fixes it (green), passes suite, lint and types, ships to UAT, and stops at the prod gate.">
       <h3 class="chap-h">③ Operator: find the bug, TDD the fix, ship</h3>
       <div class="lines">
@@ -369,7 +414,7 @@ footer.foot code{font-family:var(--font-mono)}
     </div>
 
     <!-- ───── Chapter 4: First run, onboarding (NEW_USER, realistic BKS stack) ───── -->
-    <div class="chap" data-title="First run"
+    <div class="chap" id="ch-4" data-title="First run"
          data-sub="<b>Onboarding.</b> On a fresh clone ELOPe introduces itself, then a guided, reversible 5-minute wizard scans your real setup and wires features from the evidence, each one gated on your yes. <i>This chapter captures an earlier onboarding revision. Today's flow opens with a four-lane front door instead of the [y]/[t]/[n] prompt shown here.</i>">
       <h3 class="chap-h">④ First run: onboarding</h3>
       <div class="lines">
@@ -403,32 +448,27 @@ footer.foot code{font-family:var(--font-mono)}
 
   </div>
 
-  <p class="caption">The live instance of <code>BKS-Lab</code>, the team behind BKS open-bridge. Branding, repos and stack are real, though chapter ④ shows an earlier onboarding revision (see note above); client names are kept generic and there is <b>no customer data, no secrets, no PII</b>. Formats mirror the live <code>briefing</code>, session-start, coordinator/sub-agent and <code>bridge-onboard</code> flows.</p>
-
-  <!-- ─── Funnel CTA ─── -->
-  <div class="cta-funnel">
-    <p class="cta-lead">
-      <span data-lang="en">Liked what you saw? Set up your own: one prompt to your agent creates a private copy and walks you through onboarding.</span>
-      <span data-lang="de">Gefällt dir, was du siehst? Richte deine eigene ein: Ein Prompt an deinen Agenten legt eine private Kopie an und führt dich durchs Onboarding.</span>
-    </p>
-    <div class="cta-btns">
-      <a class="cta-go" href="index.html#get-started">
-        <span data-lang="en">Set up your own</span>
-        <span data-lang="de">Eigene Bridge einrichten</span>
-        <span aria-hidden="true">→</span>
-      </a>
-      <a class="cta-alt" href="use-cases.html">
-        <span data-lang="en">What people run on it</span>
-        <span data-lang="de">Was darauf läuft</span>
-        <span aria-hidden="true">→</span>
-      </a>
-    </div>
+  <p class="caption" data-reveal>
+    <span data-lang="en">The live instance of <code>BKS-Lab</code>, the team behind BKS open-bridge. Branding, repos and stack are real, though chapter ④ shows an earlier onboarding revision (see note above); client names are kept generic and there is <b>no customer data, no secrets, no PII</b>. Formats mirror the live <code>briefing</code>, session-start, coordinator/sub-agent and <code>bridge-onboard</code> flows.</span>
+    <span data-lang="de">Die echte Instanz von <code>BKS-Lab</code>, dem Team hinter BKS open-bridge. Branding, Repos und Stack sind echt, Kapitel ④ zeigt allerdings einen früheren Stand des Onboardings (siehe Hinweis oben). Kundennamen bleiben generisch, und es gibt <b>keine Kundendaten, keine Secrets, keine personenbezogenen Daten</b>. Die Formate folgen den echten Abläufen von <code>briefing</code>, Sessionstart, Koordinator mit Sub-Agent und <code>bridge-onboard</code>.</span>
+  </p>
   </div>
+
 </main>
 
+<!-- ─── end-of-page: the shared install band (brand.css .cta-band) ─── -->
+<section class="cta-band"><div class="container" data-reveal="stagger">
+  <p class="eyebrow"><span data-lang="en">Get started</span><span data-lang="de">Loslegen</span></p>
+  <h2><span data-lang="en">One prompt. Your own private bridge.</span><span data-lang="de">Ein Prompt. Deine eigene, private Bridge.</span></h2>
+  <p><span data-lang="en">Liked what you saw? Set up your own: one prompt to your agent creates a private copy and walks you through onboarding.</span><span data-lang="de">Gefällt dir, was du siehst? Richte deine eigene ein: Ein Prompt an deinen Agenten legt eine private Kopie an und führt dich durchs Onboarding.</span></p>
+  <div class="cta-row"><a class="btn btn-primary" href="index.html#get-started"><span data-lang="en">Get the prompt</span><span data-lang="de">Zum Prompt</span> <span class="arrow" aria-hidden="true">→</span></a><a class="btn btn-secondary" href="use-cases.html"><span data-lang="en">What people run on it</span><span data-lang="de">Was darauf läuft</span> <span class="arrow" aria-hidden="true">→</span></a></div>
+</div></section>
+
 <footer class="foot">
-  Generated 2026-06-22 · <code>BKS open-bridge</code> session demo · single-file, offline, no external dependencies ·
-  <kbd>T</kbd> theme · github.com/bks-lab/open-bridge
+  <span data-lang="en">Generated 2026-06-22 · <code>BKS open-bridge</code> session demo · single-file, offline, no external dependencies ·
+  <kbd>T</kbd> theme · github.com/bks-lab/open-bridge</span>
+  <span data-lang="de">Erzeugt am 2026-06-22 · <code>BKS open-bridge</code> Session-Demo · eine Datei, offline, ohne externe Abhängigkeiten ·
+  <kbd>T</kbd> Design · github.com/bks-lab/open-bridge</span>
 </footer>
 
 <!-- ─── Theme controller ─── -->
@@ -566,6 +606,27 @@ footer.foot code{font-family:var(--font-mono)}
   play();
 })();
 </script>
+<!-- ─── Hero chapter picker: drives the existing tab row, never the engine ─── -->
+<script>
+(function(){
+  var root=document.documentElement, tabs=document.getElementById('tabs'), stage=document.getElementById('stage');
+  var cards=[].slice.call(document.querySelectorAll('.dh-chapters a[data-chap]'));
+  if(!cards.length) return;
+  function mark(){ if(!tabs) return; var b=[].slice.call(tabs.children);
+    cards.forEach(function(a){ var t=b[+a.getAttribute('data-chap')]; a.classList.toggle('on', !!(t && t.classList.contains('active'))); }); }
+  cards.forEach(function(a){
+    a.addEventListener('click',function(ev){
+      if(!root.classList.contains('anim') || !tabs || !stage) return;   /* no replay: plain anchor into the transcript */
+      var t=tabs.children[+a.getAttribute('data-chap')]; if(!t) return;
+      ev.preventDefault(); t.click(); mark();
+      stage.scrollIntoView({block:'start',behavior:'smooth'});
+    });
+  });
+  if(tabs && window.MutationObserver){ new MutationObserver(mark).observe(tabs,{subtree:true,attributes:true,attributeFilter:['class'],childList:true}); }
+  mark();
+})();
+</script>
+<script defer src="assets/page-motion.js"></script>
   <script defer src="assets/agent-config.js"></script>
   <script defer src="assets/agent-widget.js"></script>
 </body>

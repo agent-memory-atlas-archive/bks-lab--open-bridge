@@ -55,62 +55,170 @@
 <!-- ============ page-specific styles (changelog.html) ============ -->
 <style>
 /* offset the anchor target so the sticky header never hides a heading */
-:target{scroll-margin-top:84px}
-[id]{scroll-margin-top:84px}
+:target{scroll-margin-top:110px}
+[id]{scroll-margin-top:110px}
 
-/* ---- intro / hero of the page ---- */
-.page-hero p.lede code{
+/* ---- hero: copy left, how a release gets here right (>= 1100px) ---- */
+.cl-hero{display:grid;gap:36px}
+.cl-hero .copy{max-width:var(--prose-w);margin-inline:auto;width:100%}
+.cl-hero .steps-fig{margin:0 auto;width:100%;max-width:34rem}
+@media (min-width:1100px){
+  .cl-hero{grid-template-columns:minmax(0,1fr) minmax(0,30rem);gap:64px;align-items:center}
+  .cl-hero .copy{margin-inline:0;max-width:38rem}
+  .cl-hero .steps-fig{max-width:none}
+}
+.page-hero p.lede code,.cl-def code{
   font-family:var(--mono);font-size:0.86em;background:var(--code-bg);
   border:1px solid var(--border-subtle);border-radius:var(--r-sm);padding:1px 6px;color:var(--on-surface);
 }
-.page-hero .src{margin-top:22px;font-size:15px}
+.page-hero .src{margin-top:18px;font-size:15px}
 .page-hero .src a{font-weight:500;text-decoration:none;color:var(--accent-text)}
 .page-hero .src a:hover{text-decoration:underline}
 
-/* ---- changelog list ---- */
-.cl-root{max-width:var(--prose-w);margin:0 auto;display:flex;flex-direction:column;gap:24px}
+/* the definition box */
+.cl-def{margin-top:26px;border:1px solid var(--line);border-left:3px solid var(--accent-text);border-radius:var(--r-md);background:var(--surface);padding:16px 20px;max-width:38rem}
+.cl-def .k{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-text);margin-bottom:6px}
+.cl-def p{font-size:15.5px;line-height:1.6;color:var(--on-surface)}
+.cl-def strong{color:var(--ink);font-weight:600}
 
-/* ---- a single release card ---- */
-.cl-card{
-  border:1px solid var(--border);border-radius:var(--r-lg);
-  background:var(--surface);box-shadow:var(--shadow-soft);
-  padding:30px 34px;
+/* live numbers under the lede */
+.cl-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin-top:28px;border-top:1px solid var(--line);max-width:38rem}
+.cl-stats>div{padding:14px 16px 0 0}
+.cl-stats>div+div{padding-left:16px;border-left:1px solid var(--line)}
+.cl-stats dt{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.cl-stats dd,.cl-kinds .kc b,.cl-ver{font-variant-numeric:lining-nums;font-feature-settings:"lnum" 1}
+.cl-stats dd{font-family:var(--font-display);font-size:clamp(22px,2.4vw,30px);line-height:1.2;color:var(--ink);margin-top:4px;white-space:nowrap}
+.cl-stats.is-off{display:none}
+
+/* hero figure: a little larger type, it reads at phone width too */
+.cl-fig .sf-lbl{font-size:14.5px}
+.cl-fig .sf-sub{font-size:12px}
+.cl-fig .sf-mono{font-size:12.5px}
+
+/* ---- section rhythm ---- */
+.cl-history{padding-block:80px 96px}
+.cl-head{max-width:var(--prose-w);margin:0 auto 34px;text-align:center}
+.cl-head .eyebrow{color:var(--accent-text);margin-bottom:10px}
+.cl-head p{margin:12px auto 0;max-width:40rem;color:var(--on-surface)}
+
+/* the three kinds of release */
+.cl-kinds{list-style:none;display:grid;gap:14px;max-width:62rem;margin:0 auto 56px}
+@media (min-width:760px){ .cl-kinds{grid-template-columns:repeat(3,minmax(0,1fr))} }
+.cl-kinds li{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);padding:18px 20px;display:grid;grid-template-columns:22px 1fr;column-gap:12px;row-gap:4px;align-items:start}
+.cl-kinds .kn{grid-row:span 3;justify-self:center;margin-top:5px}
+.cl-kinds h3{font-family:var(--font-sans);font-size:16px;font-weight:600;color:var(--ink);letter-spacing:0}
+.cl-kinds h3 code{font-family:var(--mono);font-size:12.5px;font-weight:400;color:var(--muted);margin-left:6px}
+.cl-kinds p{font-size:14.5px;line-height:1.55;color:var(--on-surface)}
+.cl-kinds p code{font-family:var(--mono);font-size:.88em}
+.cl-kinds .kc{font-size:13px;color:var(--muted);margin-top:4px}
+.cl-kinds .kc b{font-family:var(--font-display);font-weight:500;font-size:18px;color:var(--ink);margin-right:4px}
+
+/* node symbols, shared by the legend and the timeline */
+.kn{display:block;border-radius:var(--r-full);box-sizing:border-box}
+.kn.k-patch{width:10px;height:10px;border:1.5px solid var(--muted);background:var(--surface)}
+.kn.k-minor{width:14px;height:14px;background:var(--accent-text)}
+.kn.k-major{width:18px;height:18px;background:var(--ink);border:3px solid var(--accent-text)}
+.kn.k-other{width:10px;height:10px;background:var(--muted)}
+
+/* ---- layout: jump index + timeline ---- */
+.cl-layout{display:grid;gap:28px;max-width:72rem;margin:0 auto}
+@media (min-width:1100px){
+  .cl-layout{grid-template-columns:15.5rem minmax(0,1fr);gap:48px;align-items:start}
+  .cl-index{position:sticky;top:120px}
+  .cl-layout:has(> .cl-index[hidden]){grid-template-columns:minmax(0,1fr)}
 }
-.cl-top{
-  display:flex;align-items:baseline;gap:10px 18px;flex-wrap:wrap;
-  padding-bottom:16px;margin-bottom:18px;border-bottom:1px solid var(--border-subtle);
-}
-.cl-name{font-size:23px;font-weight:600;line-height:1.25;color:var(--primary);letter-spacing:-0.01em}
-.cl-date{
-  font-family:var(--mono);font-size:12.5px;color:var(--secondary);
-  margin-left:auto;white-space:nowrap;
-}
-@media (max-width:560px){ .cl-date{margin-left:0} }
+.cl-index{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);padding:16px 16px 14px}
+.cl-index[hidden]{display:none}
+.cl-ix-k{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.cl-ix-latest{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);font-weight:500;font-size:14.5px;padding:8px 10px;border-radius:var(--r-md);background:var(--accent-soft);margin-bottom:12px}
+.cl-ix-latest .kn{outline:3px solid var(--surface);flex:none}
+.cl-ix-latest .v{font-family:var(--mono);font-size:13.5px;color:var(--accent-text)}
+.cl-ix-months{list-style:none;display:grid;gap:2px}
+@media (max-width:1099px){ .cl-ix-months{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:4px 12px} }
+.cl-ix-months a{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 10px;text-decoration:none;color:var(--on-surface);font-size:14px;padding:7px 10px;border-radius:var(--r-md);border:1px solid transparent;transition:background .2s,border-color .2s,color .2s}
+.cl-ix-months a:hover{background:var(--surface-subtle)}
+.cl-ix-months a.on{border-color:var(--line);background:var(--surface-subtle);color:var(--ink)}
+.cl-ix-months .n{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.cl-ix-months .bar{grid-column:1 / -1;height:3px;border-radius:var(--r-full);background:var(--surface-muted);overflow:hidden}
+.cl-ix-months .bar i{display:block;height:100%;background:var(--accent-text);opacity:.55;border-radius:var(--r-full)}
+.cl-ix-months a.on .bar i{opacity:1}
+.cl-ix-toggle{margin-top:12px;width:100%;font:500 13.5px var(--font-sans);color:var(--on-surface);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-full);padding:8px 12px;cursor:pointer}
+.cl-ix-toggle:hover{border-color:var(--accent-text);color:var(--ink)}
+
+/* ---- the timeline ---- */
+.cl-root{position:relative;min-width:0}
+.cl-tl{position:relative;padding-left:40px}
+.cl-tl::before{content:"";position:absolute;left:13px;top:10px;bottom:24px;width:1px;background:var(--line)}
+.cl-month{position:relative}
+.cl-month+.cl-month{margin-top:44px}
+.cl-mhead{position:relative;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.cl-mhead::before{content:"";position:absolute;left:-33px;top:50%;width:13px;height:1px;background:var(--muted)}
+.cl-mhead h3{font-size:clamp(22px,2.4vw,27px);line-height:1.2;font-family:var(--font-display);font-weight:500;color:var(--ink)}
+.cl-mhead .n{font-size:13.5px;color:var(--muted)}
+.cl-list{list-style:none;display:flex;flex-direction:column;gap:10px}
+
+.cl-rel{position:relative}
+.cl-rel>.kn{position:absolute;top:20px;transform:translate(-50%,-50%)}
+.cl-rel>.kn{left:-26.5px}
+.cl-rel.is-latest>.kn{outline:4px solid var(--accent-soft)}
+.cl-card{border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);transition:border-color .2s}
+.cl-card:hover{border-color:var(--muted)}
+.cl-rel.is-latest .cl-card{border-color:var(--accent-text)}
+.cl-rel.k-minor .cl-card,.cl-rel.k-major .cl-card{border-radius:var(--r-lg)}
+
+.cl-sum{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;padding:10px 16px;min-height:40px}
+.cl-sum::-webkit-details-marker{display:none}
+.cl-sum::marker{content:""}
+.cl-ver{font-family:var(--mono);font-size:14px;color:var(--ink);font-weight:500}
+.cl-rel.k-minor .cl-ver,.cl-rel.k-major .cl-ver{font-family:var(--font-display);font-size:20px;font-weight:500;letter-spacing:-.01em}
+.cl-rel.k-minor .cl-sum,.cl-rel.k-major .cl-sum{padding-block:12px}
+.cl-tag{font-size:11.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;border-radius:var(--r-full);padding:2px 8px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.cl-rel.k-minor .cl-tag.kind{color:var(--accent-text);border-color:var(--accent-text)}
+.cl-rel.k-major .cl-tag.kind{color:var(--surface);background:var(--ink);border-color:var(--ink)}
+.cl-tag.latest{background:var(--accent-text);border-color:var(--accent-text);color:var(--surface)}
+.cl-name{font-size:15px;font-weight:500;color:var(--ink)}
+.cl-peek{flex:1 1 12rem;min-width:0;font-size:14px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+details[open] .cl-peek{display:none}
+.cl-when{margin-left:auto;display:flex;align-items:center;gap:10px;white-space:nowrap;font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+.cl-chev{width:8px;height:8px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(-45deg);transition:transform .25s ease;margin:0 2px 0 4px;flex:none}
+details[open] .cl-chev{transform:rotate(45deg)}
+.cl-note{margin:8px 0 0;font-size:13.5px;line-height:1.55;color:var(--on-surface);border:1px dashed var(--line);border-radius:var(--r-md);padding:10px 14px;background:var(--surface-subtle)}
+.cl-note b{color:var(--ink);font-weight:600}
+.cl-note a{color:var(--accent-text)}
 
 /* ---- rendered release-note markdown ---- */
-.cl-body{font-size:16px;line-height:1.7;color:var(--on-surface)}
-.cl-body>*:first-child{margin-top:0}
+.cl-body{font-size:15.5px;line-height:1.65;color:var(--on-surface);padding:4px 20px 18px;border-top:1px solid var(--line-subtle);max-width:46rem}
+.cl-body>*:first-child{margin-top:12px}
 .cl-body>*:last-child{margin-bottom:0}
-.cl-body p{margin:0 0 14px}
-.cl-body h3.cl-mdh{font-size:19px;font-weight:600;color:var(--primary);margin:24px 0 10px;letter-spacing:-0.01em}
-.cl-body h4.cl-mdh{font-size:16.5px;font-weight:600;color:var(--primary);margin:20px 0 8px}
-.cl-body h5.cl-mdh{font-size:15px;font-weight:600;color:var(--primary);margin:18px 0 8px}
-.cl-body ul{margin:0 0 14px;padding-left:22px;display:flex;flex-direction:column;gap:6px}
-.cl-body li{line-height:1.6}
-.cl-body a{color:var(--accent-text);text-decoration:none}
+.cl-body p{margin:0 0 12px}
+.cl-body p.cl-full{font-size:13.5px;color:var(--muted);margin-top:14px}
+.cl-body h3.cl-mdh{font-size:18px;font-weight:600;color:var(--primary);margin:20px 0 8px;font-family:var(--font-sans)!important;letter-spacing:-.01em}
+.cl-body h4.cl-mdh,.cl-body h5.cl-mdh{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px}
+.cl-body ul{margin:0 0 12px;padding-left:20px;display:flex;flex-direction:column;gap:7px}
+.cl-body ul.cl-changes{list-style:none;padding-left:0}
+.cl-body li{line-height:1.55}
+.cl-body a{color:var(--accent-text);text-decoration:none;overflow-wrap:anywhere}
 .cl-body a:hover{text-decoration:underline}
 .cl-body code{
   font-family:var(--mono);font-size:0.86em;background:var(--code-bg);
   border:1px solid var(--border-subtle);border-radius:var(--r-sm);padding:1px 6px;color:var(--on-surface);
 }
 .cl-body strong{font-weight:600;color:var(--primary)}
+.cl-type{display:inline-block;font-family:var(--mono);font-size:12px;line-height:1.5;border-radius:var(--r-sm);padding:0 6px;margin-right:8px;border:1px solid var(--line);color:var(--muted);vertical-align:1px;overflow-wrap:anywhere}
+.cl-type.t-feat{color:var(--accent-text);border-color:var(--accent-text);background:var(--accent-soft)}
+.cl-type.t-fix{color:var(--ok-text);border-color:var(--ok-text)}
+.cl-by{font-size:13px;color:var(--muted);white-space:nowrap;margin-left:4px}
 .cl-empty-body{color:var(--secondary);font-style:italic}
+
+.cl-more{margin:12px 0 0;font:500 14px var(--font-sans);color:var(--accent-text);background:transparent;border:1px dashed var(--line);border-radius:var(--r-md);padding:10px 16px;width:100%;text-align:left;cursor:pointer;transition:border-color .2s}
+.cl-more:hover{border-color:var(--accent-text)}
+.cl-month:not(.all) .cl-rest{display:none}
 
 /* ---- loading / empty / error states ---- */
 .cl-state{
   max-width:var(--prose-w);margin:0 auto;text-align:center;
   border:1px solid var(--border);border-radius:var(--r-lg);
-  background:var(--surface-subtle);padding:40px 32px;color:var(--on-surface);box-shadow:var(--shadow-soft);
+  background:var(--surface);padding:40px 32px;color:var(--on-surface);
 }
 .cl-state p{font-size:16px;line-height:1.6}
 .cl-state .cl-state-link{margin-top:14px}
@@ -118,20 +226,35 @@
 .cl-state a:hover{text-decoration:underline}
 
 /* ---- loading skeleton ---- */
-.cl-loading-note{text-align:center;font-size:15px;color:var(--secondary);margin-bottom:4px}
+.cl-loading-note{text-align:center;font-size:15px;color:var(--secondary);margin-bottom:12px}
 .cl-skel{
   border:1px solid var(--border);border-radius:var(--r-lg);
-  background:var(--surface);box-shadow:var(--shadow-soft);padding:30px 34px;
+  background:var(--surface);padding:24px 28px;margin-bottom:12px;
 }
 .cl-skel .bar{height:14px;border-radius:var(--r-full);background:var(--surface-muted);animation:cl-pulse 1.4s ease-in-out infinite}
-.cl-skel .bar.t{width:42%;height:20px;margin-bottom:22px}
+.cl-skel .bar.t{width:42%;height:20px;margin-bottom:18px}
 .cl-skel .bar.a{width:100%;margin-bottom:11px}
-.cl-skel .bar.b{width:94%;margin-bottom:11px}
 .cl-skel .bar.c{width:66%}
 @keyframes cl-pulse{0%,100%{opacity:1}50%{opacity:.45}}
-@media (prefers-reduced-motion:reduce){ .cl-skel .bar{animation:none} }
+@media (prefers-reduced-motion:reduce){ .cl-skel .bar{animation:none} .cl-chev{transition:none} }
 
-@media (max-width:560px){ .cl-card,.cl-skel{padding:24px 22px} }
+@media (max-width:640px){
+  .cl-history{padding-block:56px 72px}
+  .cl-tl{padding-left:30px}
+  .cl-tl::before{left:8px}
+  .cl-mhead::before{left:-22px;width:10px}
+  .cl-rel>.kn{left:-21.5px}
+  .cl-sum{padding:10px 12px}
+  .cl-peek{flex-basis:100%;order:5}
+  .cl-when{margin-left:auto}
+  .cl-n{display:none}
+  .cl-body{padding:2px 14px 16px;font-size:15px}
+  .cl-by{white-space:normal}
+  .cl-stats>div{padding-right:10px}
+  .cl-stats>div+div{padding-left:10px}
+  .cl-stats dd{font-size:21px}
+  .cl-def{padding:14px 16px}
+}
 </style>
 </head>
 <body>
@@ -175,18 +298,32 @@
 <!-- ============================ PAGE CONTENT ============================ -->
 <main id="top">
 
-  <!-- ---- intro ---- -->
+  <!-- ---- intro: copy left, how a release reaches this page right ---- -->
   <section class="page-hero">
-    <div class="container">
-      <div class="prose">
-        <p class="eyebrow" data-lang="en">Changelog</p>
-        <p class="eyebrow" data-lang="de">Changelog</p>
+    <div class="container cl-hero">
+      <div class="copy">
+        <p class="eyebrow" data-lang="en">Releases</p>
+        <p class="eyebrow" data-lang="de">Releases</p>
         <h1 class="h1">
           <span data-lang="en">Changelog</span>
           <span data-lang="de">Changelog</span>
         </h1>
         <p class="lede" data-lang="en">Every release, generated automatically on each merge to <code>main</code>.</p>
         <p class="lede" data-lang="de">Jedes Release, automatisch bei jedem Merge auf <code>main</code> erzeugt.</p>
+
+        <div class="cl-def" data-reveal>
+          <div class="k" data-lang="en">What cuts a release?</div>
+          <div class="k" data-lang="de">Was löst ein Release aus?</div>
+          <p data-lang="en"><strong>A merged PR whose title starts with <code>feat:</code> or <code>fix:</code>.</strong> A <code>fix:</code> bumps the patch, a <code>feat:</code> the minor. <code>docs:</code>, <code>chore:</code> and the like never cut a release.</p>
+          <p data-lang="de"><strong>Ein gemergter PR, dessen Titel mit <code>feat:</code> oder <code>fix:</code> beginnt.</strong> Ein <code>fix:</code> erhöht den Patch, ein <code>feat:</code> den Minor. <code>docs:</code>, <code>chore:</code> und Ähnliches lösen nie ein Release aus.</p>
+        </div>
+
+        <dl class="cl-stats" id="cl-stats" data-reveal="stagger" aria-live="polite">
+          <div><dt><span data-lang="en">Releases</span><span data-lang="de">Releases</span></dt><dd id="st-total">…</dd></div>
+          <div><dt><span data-lang="en">Latest</span><span data-lang="de">Neuestes</span></dt><dd id="st-latest">…</dd></div>
+          <div><dt><span data-lang="en">First</span><span data-lang="de">Erstes</span></dt><dd id="st-first">…</dd></div>
+        </dl>
+
         <p class="src">
           <a href="https://github.com/bks-lab/open-bridge/releases" target="_blank" rel="noopener">
             <span data-lang="en">Canonical source: GitHub Releases →</span>
@@ -194,24 +331,110 @@
           </a>
         </p>
       </div>
+
+      <!-- How a release reaches this page, as docs/releasing.md describes it:
+           PR merged to main, release.yml computes the version from the commit
+           types, tag + GitHub Release with generated notes, this page reads the
+           Releases API live. -->
+      <figure class="steps-fig cl-fig" data-steps>
+        <svg viewBox="0 0 400 388" role="img" aria-label="How a release reaches this page. A pull request whose title starts with feat or fix is merged to main. The release workflow computes the next version from the commit types since the last tag: fix bumps the patch, feat the minor. It creates the tag and a GitHub Release with notes generated from the merged pull requests. This page reads the GitHub Releases API live, newest first.">
+          <defs>
+            <marker id="clArr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--accent-text)"/></marker>
+          </defs>
+
+          <g data-step="1">
+            <rect class="sf-box" x="16" y="8" width="368" height="76" rx="10"/>
+            <text class="sf-lbl" x="34" y="34"><tspan data-lang="en">PR merged to main</tspan><tspan data-lang="de">PR auf main gemergt</tspan></text>
+            <text class="sf-mono" x="34" y="55">feat: … · fix: …</text>
+            <text class="sf-sub" x="34" y="74"><tspan data-lang="en">docs: chore: ci: cut no release</tspan><tspan data-lang="de">docs: chore: ci: kein Release</tspan></text>
+          </g>
+          <path class="sf-line" data-step="2" data-draw d="M200 84 V101" marker-end="url(#clArr)"/>
+
+          <g data-step="2">
+            <rect class="sf-box" x="16" y="106" width="368" height="76" rx="10"/>
+            <text class="sf-lbl" x="34" y="132"><tspan data-lang="en">release.yml computes the version</tspan><tspan data-lang="de">release.yml berechnet die Version</tspan></text>
+            <text class="sf-mono" x="34" y="153">fix → patch · feat → minor</text>
+            <text class="sf-sub" x="34" y="172"><tspan data-lang="en">from the commit types since the last tag</tspan><tspan data-lang="de">aus den Commit-Typen seit dem letzten Tag</tspan></text>
+          </g>
+          <path class="sf-line" data-step="3" data-draw d="M200 182 V199" marker-end="url(#clArr)"/>
+
+          <g data-step="3">
+            <rect class="sf-box" x="16" y="204" width="368" height="76" rx="10"/>
+            <text class="sf-lbl" x="34" y="230"><tspan data-lang="en">Tag + GitHub Release</tspan><tspan data-lang="de">Tag + GitHub Release</tspan></text>
+            <text class="sf-mono" x="34" y="251">vX.Y.Z</text>
+            <text class="sf-sub" x="34" y="270"><tspan data-lang="en">notes generated from the merged PRs</tspan><tspan data-lang="de">Notes aus den gemergten PRs erzeugt</tspan></text>
+          </g>
+          <path class="sf-line" data-step="4" data-draw d="M200 280 V297" marker-end="url(#clArr)"/>
+
+          <g data-step="4">
+            <rect class="sf-box hi" x="16" y="302" width="368" height="76" rx="10"/>
+            <text class="sf-lbl" x="34" y="328"><tspan data-lang="en">This page</tspan><tspan data-lang="de">Diese Seite</tspan></text>
+            <text class="sf-mono" x="34" y="349"><tspan data-lang="en">GitHub Releases API, read live</tspan><tspan data-lang="de">GitHub Releases API, live gelesen</tspan></text>
+            <text class="sf-sub" x="34" y="368"><tspan data-lang="en">newest first, in your browser</tspan><tspan data-lang="de">neuestes zuerst, in deinem Browser</tspan></text>
+          </g>
+        </svg>
+        <ol class="steps-legend">
+          <li data-step="1"><b>1</b><span data-lang="en">Merge</span><span data-lang="de">Merge</span></li>
+          <li data-step="2"><b>2</b><span data-lang="en">Version</span><span data-lang="de">Version</span></li>
+          <li data-step="3"><b>3</b><span data-lang="en">Release</span><span data-lang="de">Release</span></li>
+          <li data-step="4"><b>4</b><span data-lang="en">This page</span><span data-lang="de">Diese Seite</span></li>
+        </ol>
+      </figure>
     </div>
   </section>
 
-  <!-- ---- the live release list (populated from the GitHub Releases API) ---- -->
-  <section class="alt" style="padding-block:48px 96px">
+  <!-- ---- the release history: kinds, jump index, timeline ---- -->
+  <section class="alt cl-history" id="history">
     <div class="container">
-      <div class="cl-root" id="cl-root" aria-live="polite">
-        <div class="cl-loading" aria-busy="true">
-          <p class="cl-loading-note">
-            <span data-lang="en">Loading releases…</span>
-            <span data-lang="de">Releases werden geladen…</span>
-          </p>
-          <div class="cl-skel"><div class="bar t"></div><div class="bar a"></div><div class="bar b"></div><div class="bar c"></div></div>
-          <div class="cl-skel"><div class="bar t"></div><div class="bar a"></div><div class="bar b"></div><div class="bar c"></div></div>
+      <header class="cl-head" data-reveal>
+        <p class="eyebrow"><span data-lang="en">Release history</span><span data-lang="de">Release-Verlauf</span></p>
+        <h2 class="h2"><span data-lang="en">Every version, newest first</span><span data-lang="de">Jede Version, die neueste zuerst</span></h2>
+        <p><span data-lang="en">The newest releases are open. Older ones fold into one line each, and each month shows its first few; open any of them for the full notes.</span><span data-lang="de">Die neuesten Releases sind aufgeklappt. Ältere stehen in je einer Zeile, und jeder Monat zeigt zuerst nur die ersten; jedes lässt sich für die vollständigen Notes öffnen.</span></p>
+      </header>
+
+      <ul class="cl-kinds" data-reveal="stagger">
+        <li>
+          <span class="kn k-minor" aria-hidden="true"></span>
+          <h3><span data-lang="en">Minor</span><span data-lang="de">Minor</span><code>0.Y.0</code></h3>
+          <p><span data-lang="en">A <code>feat:</code> merged: a new capability. While in <code>0.x</code>, a breaking change lands here too.</span><span data-lang="de">Ein <code>feat:</code> wurde gemergt: eine neue Fähigkeit. Solange <code>0.x</code> gilt, landet auch ein Breaking Change hier.</span></p>
+          <p class="kc"><b data-kind-count="minor">…</b><span data-lang="en">releases</span><span data-lang="de">Releases</span></p>
+        </li>
+        <li>
+          <span class="kn k-patch" aria-hidden="true"></span>
+          <h3><span data-lang="en">Patch</span><span data-lang="de">Patch</span><code>0.y.Z</code></h3>
+          <p><span data-lang="en">A <code>fix:</code> merged. Ordinary fixes bump only the last digit.</span><span data-lang="de">Ein <code>fix:</code> wurde gemergt. Gewöhnliche Fixes erhöhen nur die letzte Stelle.</span></p>
+          <p class="kc"><b data-kind-count="patch">…</b><span data-lang="en">releases</span><span data-lang="de">Releases</span></p>
+        </li>
+        <li>
+          <span class="kn k-major" aria-hidden="true"></span>
+          <h3><span data-lang="en">Major</span><span data-lang="de">Major</span><code>X.0.0</code></h3>
+          <p><span data-lang="en">From <code>1.0.0</code> on, a breaking change bumps the major. While <code>major == 0</code> it bumps the minor instead.</span><span data-lang="de">Ab <code>1.0.0</code> erhöht ein Breaking Change den Major. Solange <code>major == 0</code>, erhöht er stattdessen den Minor.</span></p>
+          <p class="kc"><b data-kind-count="major">…</b><span data-lang="en">releases</span><span data-lang="de">Releases</span></p>
+        </li>
+      </ul>
+
+      <div class="cl-layout">
+        <nav class="cl-index" id="cl-index" aria-label="Jump to a month" hidden></nav>
+        <div class="cl-root" id="cl-root" aria-live="polite">
+          <div class="cl-loading" aria-busy="true">
+            <p class="cl-loading-note">
+              <span data-lang="en">Loading releases…</span>
+              <span data-lang="de">Releases werden geladen…</span>
+            </p>
+            <div class="cl-skel"><div class="bar t"></div><div class="bar a"></div><div class="bar c"></div></div>
+            <div class="cl-skel"><div class="bar t"></div><div class="bar a"></div><div class="bar c"></div></div>
+          </div>
         </div>
       </div>
     </div>
   </section>
+
+  <section class="cta-band"><div class="container">
+    <p class="eyebrow"><span data-lang="en">Get started</span><span data-lang="de">Loslegen</span></p>
+    <h2><span data-lang="en">One prompt. Your own private bridge.</span><span data-lang="de">Ein Prompt. Deine eigene, private Bridge.</span></h2>
+    <p><span data-lang="en">Paste it into Claude Code, Codex or Copilot CLI. Your agent follows SETUP.md, shows you its plan and waits for your go.</span><span data-lang="de">Kopier ihn in Claude Code, Codex oder Copilot CLI. Dein Agent folgt SETUP.md, zeigt dir seinen Plan und wartet auf dein Go.</span></p>
+    <div class="cta-row"><a class="btn btn-primary" href="index.html#get-started"><span data-lang="en">Get the prompt</span><span data-lang="de">Zum Prompt</span> <span class="arrow">→</span></a><a class="btn btn-secondary" href="demo.html"><span data-lang="en">See it work</span><span data-lang="de">Sieh es arbeiten</span></a></div>
+  </div></section>
 
 </main>
 <!-- ========================== END PAGE CONTENT ============================== -->
@@ -370,6 +593,10 @@
 
   var API = "https://api.github.com/repos/bks-lab/open-bridge/releases?per_page=100";
   var RELEASES_URL = "https://github.com/bks-lab/open-bridge/releases";
+  var RELEASING_DOC = "https://github.com/bks-lab/open-bridge/blob/main/docs/releasing.md";
+  var OPEN_TOP = 3;          // the newest releases show their notes open
+  var PER_MONTH = 6;         // each month shows this many rows before "show more"
+  var html = document.documentElement;
 
   // ---- safe text: escape HTML-significant characters FIRST ----
   function esc(s){
@@ -378,30 +605,68 @@
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
   }
+  function bi(en, de){ return '<span data-lang="en">' + en + '</span><span data-lang="de">' + de + "</span>"; }
 
-  // ---- inline markdown, applied to ALREADY-ESCAPED text ----
-  // supports `code`, **bold**, [text](http/https url). Code first so ** inside
-  // a code span stays literal; links validated to http(s) with no quote chars.
+  // ---- links: markdown links and bare http(s) URLs, on ALREADY-ESCAPED text ----
+  function linkLabel(url){
+    var m;
+    if((m = /\/pull\/(\d+)\/?$/.exec(url))) return "#" + m[1];
+    if((m = /\/compare\/([^\/?#]+)$/.exec(url))) return m[1];
+    if((m = /\/releases\/tag\/([^\/?#]+)$/.exec(url))) return m[1];
+    return url.replace(/^https?:\/\//, "");
+  }
+  function anchor(url, text){ return '<a href="' + url + '" target="_blank" rel="noopener">' + text + "</a>"; }
+  // code spans are parked behind placeholders first, so **bold `code`** and
+  // [`code`](url) work while ** or a URL inside a code span stays literal
   function inline(s){
-    s = s.replace(/`([^`]+)`/g, function(_m, code){ return "<code>" + code + "</code>"; });
+    var codes = [];
+    s = s.replace(/`([^`]+)`/g, function(_m, c){ codes.push("<code>" + c + "</code>"); return "\u0000" + (codes.length - 1) + "\u0000"; });
     s = s.replace(/\*\*([^*]+)\*\*/g, function(_m, b){ return "<strong>" + b + "</strong>"; });
-    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function(m, text, url){
-      if(/^https?:\/\//i.test(url) && url.indexOf('"') === -1 && url.indexOf("'") === -1){
-        return '<a href="' + url + '" target="_blank" rel="noopener">' + text + "</a>";
+    s = s.replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?![*\w])/g, function(_m, pre, i){ return pre + "<em>" + i + "</em>"; });
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<\u0000]+)/g, function(m, text, url, bare){
+      if(bare){
+        var trail = /[.,;:!?)]+$/.exec(bare); trail = trail ? trail[0] : "";
+        if(trail) bare = bare.slice(0, -trail.length);
+        if(/["']/.test(bare)) return m;
+        return anchor(bare, linkLabel(bare)) + trail;
       }
+      if(/^https?:\/\//i.test(url) && !/["']/.test(url)) return anchor(url, text);
       return m; // leave the escaped literal in place
     });
-    return s;
+    return s.replace(/\u0000(\d+)\u0000/g, function(_m, n){ return codes[+n]; });
+  }
+  function plain(s){ return s.replace(/`/g, "").replace(/\*\*/g, "").replace(/\[([^\]]+)\]\([^)]*\)/g, "$1"); }
+
+  // ---- one list item; GitHub's generated "subject by @user in <pull url>" gets a type badge ----
+  var PR = /^(.*?) by @([A-Za-z0-9-]+(?:\[bot\])?) in (https:\/\/github\.com\/\S+\/pull\/(\d+))\s*$/;
+  function item(text, info){
+    var m = PR.exec(text);
+    if(!m) return "<li>" + inline(text) + "</li>";
+    var subj = m[1], badge = "", type = "";
+    var t = /^([a-z]+)(\([^)]*\))?(!)?:\s*/i.exec(subj);
+    if(t){
+      type = t[1].toLowerCase();
+      var cls = (type === "feat" || type === "fix") ? type : "other";
+      badge = '<span class="cl-type t-' + cls + '">' + t[0].replace(/:\s*$/, "") + "</span>";
+      subj = subj.slice(t[0].length);
+    }
+    info.prs++;
+    if(!info.peek){ info.peek = plain(subj); info.peekType = t ? t[0].replace(/:\s*$/, "") : ""; }
+    return '<li class="cl-chg">' + badge + '<span class="cl-subj">' + inline(subj) + "</span>"
+      + '<span class="cl-by">@' + m[2] + " · " + anchor(m[3], "#" + m[4]) + "</span></li>";
   }
 
-  // ---- block markdown: #/##/### headings, "- " lists, blank-line paragraphs ----
+  // ---- block markdown: headings, "-"/"*" lists (with wrapped lines), paragraphs ----
   function renderMarkdown(md){
-    var text = esc(md).replace(/\r\n?/g, "\n");
-    var lines = text.split("\n");
-    var out = [];
-    var para = [];
+    var info = { prs: 0, peek: "", peekType: "" };
+    var lines = esc(md).replace(/\r\n?/g, "\n").split("\n");
+    var out = [], para = [];
     function flushPara(){
-      if(para.length){ out.push("<p>" + inline(para.join(" ")) + "</p>"); para = []; }
+      if(!para.length) return;
+      var txt = para.join(" ");
+      if(!info.peek && !info.firstPara) info.firstPara = plain(txt);
+      out.push(/^\*\*Full Changelog\*\*/.test(txt) ? '<p class="cl-full">' + inline(txt) + "</p>" : "<p>" + inline(txt) + "</p>");
+      para = [];
     }
     var i = 0;
     while(i < lines.length){
@@ -414,78 +679,258 @@
         out.push("<h" + lvl + ' class="cl-mdh">' + inline(h[2]) + "</h" + lvl + ">");
         i++; continue;
       }
-      if(/^\s*-\s+/.test(line)){
+      if(/^\s*[-*]\s+/.test(line)){
         flushPara();
-        var items = [];
-        while(i < lines.length && /^\s*-\s+/.test(lines[i])){
-          items.push("<li>" + inline(lines[i].replace(/^\s*-\s+/, "")) + "</li>");
+        var items = [], prsBefore = info.prs;
+        while(i < lines.length && /^\s*[-*]\s+/.test(lines[i])){
+          var txt = lines[i].replace(/^\s*[-*]\s+/, "").replace(/\s+$/, "");
           i++;
+          // a wrapped item continues on indented lines that are not a new item
+          while(i < lines.length && /^\s+\S/.test(lines[i]) && !/^\s*[-*]\s+/.test(lines[i])){
+            txt += " " + lines[i].replace(/^\s+/, "").replace(/\s+$/, ""); i++;
+          }
+          items.push(item(txt, info));
         }
-        out.push("<ul>" + items.join("") + "</ul>");
+        out.push((info.prs > prsBefore ? '<ul class="cl-changes">' : "<ul>") + items.join("") + "</ul>");
         continue;
       }
       para.push(line.replace(/^\s+/, "").replace(/\s+$/, ""));
       i++;
     }
     flushPara();
-    return out.join("\n");
+    info.html = out.join("\n");
+    if(!info.peek) info.peek = info.firstPara || "";
+    return info;
   }
 
-  // ---- date: render BOTH locales, let the site's data-lang CSS pick the active one ----
-  function formatDate(iso){
+  // ---- dates: both locales, the site's data-lang CSS picks the active one (UTC, so grouping is stable) ----
+  function dateSpans(iso, opts){
     var d = new Date(iso);
     if(isNaN(d.getTime())) return "";
-    var opts = { year: "numeric", month: "long", day: "numeric" };
-    var en = d.toLocaleDateString("en-US", opts);
-    var de = d.toLocaleDateString("de-DE", opts);
-    return '<time class="cl-date" datetime="' + esc(iso) + '">'
-      + '<span data-lang="en">' + esc(en) + "</span>"
-      + '<span data-lang="de">' + esc(de) + "</span></time>";
+    opts.timeZone = "UTC";
+    return bi(esc(d.toLocaleDateString("en-US", opts)), esc(d.toLocaleDateString("de-DE", opts)));
   }
 
-  function card(rel){
-    var name = rel.name || rel.tag_name || "Release";
+  function kindOf(tag){
+    var m = /^v?(\d+)\.(\d+)\.(\d+)/.exec(tag || "");
+    if(!m) return "other";
+    if(+m[3] > 0) return "patch";
+    if(+m[2] === 0 && +m[1] > 0) return "major";
+    return "minor";
+  }
+  var KIND = { minor: bi("Minor", "Minor"), patch: bi("Patch", "Patch"), major: bi("Major", "Major"), other: bi("Release", "Release") };
+
+  function row(rel, n, isRest){
+    var tag = rel.tag_name || rel.name || "release";
+    var kind = kindOf(tag);
     var iso = rel.created_at || rel.published_at || "";  // tag date = real ship date (published_at is the re-publish time)
-    var body = (rel.body && rel.body.trim())
-      ? renderMarkdown(rel.body)
-      : '<p class="cl-empty-body"><span data-lang="en">No release notes.</span><span data-lang="de">Keine Release-Notes.</span></p>';
-    return '<article class="cl-card reveal">'
-      + '<header class="cl-top">'
-      + '<h2 class="cl-name">' + esc(name) + "</h2>"
-      + (iso ? formatDate(iso) : "")
-      + "</header>"
+    // a release title beyond the bare tag, e.g. "v0.5.0 - org overlays" -> "org overlays"
+    var title = (rel.name || "").trim();
+    if(title.indexOf(tag) === 0) title = title.slice(tag.length).replace(/^[\s\u2014\u2013:\-]+/, "");
+    else if(title === tag) title = "";
+    var info = (rel.body && rel.body.trim()) ? renderMarkdown(rel.body) : { html: "", prs: 0, peek: "" };
+    var body = info.html || '<p class="cl-empty-body">' + bi("No release notes.", "Keine Release-Notes.") + "</p>";
+    var count = info.prs ? '<span class="cl-n">' + (info.prs === 1 ? bi("1 change", "1 Änderung") : bi(info.prs + " changes", info.prs + " Änderungen")) + "</span>" : "";
+    var note = "";
+    if(tag === "v0.7.0"){
+      note = '<p class="cl-note">' + bi(
+        "<b>The version line was re-based here on 2026-07-13.</b> The automatic minor digit had over-counted to v0.16.0; the inflated tags above v0.7 were removed, and the milestone releases v0.2.0 to v0.7.0 keep their real ship dates. " + anchor(RELEASING_DOC, "releasing.md"),
+        "<b>Die Versionslinie wurde hier am 13.07.2026 neu aufgesetzt.</b> Die automatische Minor-Stelle hatte bis v0.16.0 zu viel gezählt; die aufgeblähten Tags über v0.7 wurden entfernt, die Meilenstein-Releases v0.2.0 bis v0.7.0 behalten ihr echtes Datum. " + anchor(RELEASING_DOC, "releasing.md")
+      ) + "</p>";
+    }
+    return '<li class="cl-rel k-' + kind + (n === 0 ? " is-latest" : "") + (isRest ? " cl-rest" : "") + '" id="' + esc(tag).replace(/"/g, "") + '">'
+      + '<span class="kn k-' + kind + '" aria-hidden="true"></span>'
+      + '<details class="cl-card"' + (n < OPEN_TOP ? " open" : "") + ">"
+      + '<summary class="cl-sum">'
+      + '<span class="cl-ver">' + esc(tag) + "</span>"
+      + '<span class="cl-tag kind">' + KIND[kind] + "</span>"
+      + (n === 0 ? '<span class="cl-tag latest">' + bi("Latest", "Neuestes") + "</span>" : "")
+      + (title ? '<span class="cl-name">' + esc(title) + "</span>" : "")
+      + '<span class="cl-peek">' + (info.peekType ? info.peekType + ": " : "") + info.peek + "</span>"
+      + '<span class="cl-when">' + count + (iso ? '<time datetime="' + esc(iso) + '">' + dateSpans(iso, { month: "short", day: "numeric" }) + "</time>" : "")
+      + '<span class="cl-chev" aria-hidden="true"></span></span>'
+      + "</summary>"
       + '<div class="cl-body">' + body + "</div>"
-      + "</article>";
+      + "</details>" + note + "</li>";
   }
 
   function stateBox(en, de, withLink){
     var link = withLink
       ? '<p class="cl-state-link"><a href="' + RELEASES_URL + '" target="_blank" rel="noopener">'
-        + '<span data-lang="en">View releases on GitHub →</span>'
-        + '<span data-lang="de">Releases auf GitHub ansehen →</span></a></p>'
+        + bi("View releases on GitHub →", "Releases auf GitHub ansehen →") + "</a></p>"
       : "";
-    return '<div class="cl-state"><p><span data-lang="en">' + en + "</span>"
-      + '<span data-lang="de">' + de + "</span></p>" + link + "</div>";
+    return '<div class="cl-state"><p>' + bi(en, de) + "</p>" + link + "</div>";
   }
 
+  // ---- motion: rows rise in once as they scroll into view (only where page-motion.js is active) ----
   function reveal(container){
-    var els = Array.prototype.slice.call(container.querySelectorAll(".reveal"));
-    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    function showAll(){ els.forEach(function(el){ el.classList.add("in"); }); }
-    if("IntersectionObserver" in window && !reduce){
-      var io = new IntersectionObserver(function(entries){
-        entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add("in"); io.unobserve(e.target); } });
-      }, { threshold: 0, rootMargin: "0px 0px -8% 0px" });
-      els.forEach(function(el){ io.observe(el); });
-      setTimeout(showAll, 1600);
-    } else {
-      showAll();
+    if(!html.classList.contains("pm") || !("IntersectionObserver" in window)) return;
+    var els = [].slice.call(container.querySelectorAll(".cl-mhead,.cl-rel,.cl-more"));
+    els.forEach(function(e){ e.classList.add("pm-r"); });
+    var io = new IntersectionObserver(function(es){
+      var k = 0;
+      es.forEach(function(e){
+        if(!e.isIntersecting) return;
+        var t = e.target;
+        t.style.transitionDelay = Math.min(k++, 6) * 60 + "ms";
+        t.classList.add("pm-in");
+        setTimeout(function(){ t.style.transitionDelay = ""; }, 1400);
+        io.unobserve(t);
+      });
+    }, { rootMargin: "0px 0px -6% 0px", threshold: 0 });
+    els.forEach(function(e){ io.observe(e); });
+  }
+  function countTo(el, n){
+    if(!el) return;
+    if(!html.classList.contains("pm") || !window.requestAnimationFrame){ el.textContent = n; return; }
+    var t0 = performance.now();
+    (function step(now){
+      var k = Math.min(1, (now - t0) / 1200), e = 1 - Math.pow(1 - k, 3);
+      el.textContent = Math.round(n * e);
+      if(k < 1) requestAnimationFrame(step);
+    })(t0);
+  }
+
+  // ---- deep link: #v0.40.0 opens that release, even inside a folded month ----
+  function openHash(){
+    var id = "";
+    try { id = decodeURIComponent(location.hash.slice(1)); } catch(e){ return; }
+    var el = id && document.getElementById(id);
+    if(!el || !el.classList.contains("cl-rel")) return;
+    var month = el.closest(".cl-month");
+    if(month) setMonth(month, true);
+    var d = el.querySelector("details"); if(d) d.open = true;
+    el.classList.add("pm-in");
+    el.scrollIntoView({ block: "start" });
+  }
+  function setMonth(month, all){
+    month.classList.toggle("all", all);
+    var b = month.querySelector(".cl-more");
+    if(b){
+      b.setAttribute("aria-expanded", all ? "true" : "false");
+      b.innerHTML = all ? b.getAttribute("data-less") : b.getAttribute("data-more");
     }
   }
 
-  function init(){
+  function render(releases){
     var root = document.getElementById("cl-root");
-    if(!root) return;
+    releases.sort(function(a, b){
+      return (Date.parse(b.created_at || b.published_at || "") || 0)
+           - (Date.parse(a.created_at || a.published_at || "") || 0);
+    });
+
+    // group by month, newest first
+    var months = [], byKey = {};
+    releases.forEach(function(r){
+      var iso = r.created_at || r.published_at || "";
+      var key = iso.slice(0, 7) || "undated";
+      if(!byKey[key]){ byKey[key] = { key: key, iso: iso, list: [] }; months.push(byKey[key]); }
+      byKey[key].list.push(r);
+    });
+
+    var n = 0, out = '<div class="cl-tl">';
+    months.forEach(function(m){
+      var label = m.key === "undated" ? bi("Undated", "Ohne Datum") : dateSpans(m.iso, { month: "long", year: "numeric" });
+      var cnt = m.list.length;
+      out += '<div class="cl-month" id="m-' + m.key + '" aria-label="' + esc(m.key) + '">'
+        + '<div class="cl-mhead"><h3>' + label + '</h3><span class="n">'
+        + (cnt === 1 ? bi("1 release", "1 Release") : bi(cnt + " releases", cnt + " Releases")) + "</span></div>"
+        + '<ol class="cl-list">';
+      m.list.forEach(function(r, i){ out += row(r, n++, i >= PER_MONTH); });
+      out += "</ol>";
+      if(cnt > PER_MONTH){
+        var more = cnt - PER_MONTH;
+        var lm = m.key === "undated" ? "" : " · ";
+        var dm = bi("Show " + more + " more", more + " weitere zeigen") + lm + label;
+        var dl = bi("Show fewer", "Weniger zeigen");
+        out += '<button class="cl-more" type="button" aria-expanded="false" data-more="' + dm.replace(/"/g, "&quot;") + '" data-less="' + dl.replace(/"/g, "&quot;") + '">' + dm + "</button>";
+      }
+      out += "</div>";
+    });
+    out += "</div>";
+    root.innerHTML = out;
+
+    // live numbers in the hero and on the kind cards
+    var kinds = { minor: 0, patch: 0, major: 0, other: 0 };
+    releases.forEach(function(r){ kinds[kindOf(r.tag_name || r.name)]++; });
+    countTo(document.getElementById("st-total"), releases.length);
+    var latest = releases[0], first = releases[releases.length - 1];
+    var stL = document.getElementById("st-latest");
+    if(stL) stL.textContent = latest.tag_name || latest.name || "";
+    var stF = document.getElementById("st-first");
+    if(stF) stF.innerHTML = dateSpans(first.created_at || first.published_at || "", { month: "short", year: "numeric" });
+    [].slice.call(document.querySelectorAll("[data-kind-count]")).forEach(function(el){
+      countTo(el, kinds[el.getAttribute("data-kind-count")] || 0);
+    });
+
+    // jump index: latest + one row per month, bar = releases that month
+    var ix = document.getElementById("cl-index");
+    if(ix){
+      var max = months.reduce(function(a, m){ return Math.max(a, m.list.length); }, 1);
+      var latestTag = esc(latest.tag_name || latest.name || "");
+      var s = '<p class="cl-ix-k">' + bi("Jump to", "Springe zu") + "</p>"
+        + '<a class="cl-ix-latest" href="#' + latestTag + '"><span class="kn k-' + kindOf(latest.tag_name) + '" aria-hidden="true"></span>'
+        + "<span>" + bi("Latest", "Neuestes") + ' <span class="v">' + latestTag + "</span></span></a>"
+        + '<ol class="cl-ix-months">';
+      months.forEach(function(m){
+        var label = m.key === "undated" ? bi("Undated", "Ohne Datum") : dateSpans(m.iso, { month: "long", year: "numeric" });
+        s += '<li><a href="#m-' + m.key + '" data-m="' + m.key + '"><span>' + label + '</span><span class="n">' + m.list.length + "</span>"
+          + '<span class="bar" aria-hidden="true"><i style="width:' + Math.max(4, Math.round(m.list.length / max * 100)) + '%"></i></span></a></li>';
+      });
+      s += "</ol>"
+        + '<button class="cl-ix-toggle" type="button" aria-pressed="false">' + bi("Open all notes", "Alle Notes öffnen") + "</button>";
+      ix.innerHTML = s;
+      ix.hidden = false;
+
+      var tog = ix.querySelector(".cl-ix-toggle");
+      tog.addEventListener("click", function(){
+        var on = tog.getAttribute("aria-pressed") !== "true";
+        tog.setAttribute("aria-pressed", on ? "true" : "false");
+        tog.innerHTML = on ? bi("Close all notes", "Alle Notes schließen") : bi("Open all notes", "Alle Notes öffnen");
+        [].slice.call(root.querySelectorAll(".cl-month")).forEach(function(m){ if(on) setMonth(m, true); });
+        [].slice.call(root.querySelectorAll("details.cl-card")).forEach(function(d){ d.open = on; });
+      });
+
+      // the month in view is marked in the index
+      if("IntersectionObserver" in window){
+        var links = {};
+        [].slice.call(ix.querySelectorAll("a[data-m]")).forEach(function(a){ links[a.getAttribute("data-m")] = a; });
+        var mio = new IntersectionObserver(function(es){
+          es.forEach(function(e){
+            if(!e.isIntersecting) return;
+            Object.keys(links).forEach(function(k){ links[k].classList.remove("on"); });
+            var a = links[e.target.id.slice(2)]; if(a) a.classList.add("on");
+          });
+        }, { rootMargin: "-35% 0px -60% 0px", threshold: 0 });
+        [].slice.call(root.querySelectorAll(".cl-month")).forEach(function(m){ mio.observe(m); });
+      }
+    }
+
+    root.addEventListener("click", function(ev){
+      var b = ev.target.closest && ev.target.closest(".cl-more");
+      if(!b) return;
+      var month = b.closest(".cl-month");
+      var all = !month.classList.contains("all");
+      setMonth(month, all);
+      if(!all) month.scrollIntoView({ block: "start" });
+    });
+
+    reveal(root);
+    if(location.hash) openHash();
+    window.addEventListener("hashchange", openHash);
+  }
+
+  function failed(en, de){
+    var st = document.getElementById("cl-stats");
+    if(st) st.classList.add("is-off");
+    [].slice.call(document.querySelectorAll("[data-kind-count]")).forEach(function(el){
+      var p = el.closest(".kc"); if(p) p.hidden = true;
+    });
+    document.getElementById("cl-root").innerHTML = stateBox(en, de, true);
+  }
+
+  function init(){
+    if(!document.getElementById("cl-root")) return;
     fetch(API, { headers: { "Accept": "application/vnd.github+json" } })
       .then(function(resp){
         if(!resp.ok){ throw new Error("HTTP " + resp.status); }
@@ -493,23 +938,15 @@
       })
       .then(function(releases){
         if(!Array.isArray(releases) || releases.length === 0){
-          root.innerHTML = stateBox("No releases yet.", "Noch keine Releases.", true);
+          failed("No releases yet.", "Noch keine Releases.");
           return;
         }
-        releases.sort(function(a, b){
-          return (Date.parse(b.created_at || b.published_at || "") || 0)
-               - (Date.parse(a.created_at || a.published_at || "") || 0);
-        });
-        var html = "";
-        for(var i = 0; i < releases.length; i++){ html += card(releases[i]); }
-        root.innerHTML = html;
-        reveal(root);
+        render(releases);
       })
       .catch(function(){
-        root.innerHTML = stateBox(
+        failed(
           "The changelog couldn't be loaded right now. GitHub may be rate-limiting anonymous requests. Please try again shortly.",
-          "Das Changelog ließ sich gerade nicht laden. GitHub limitiert evtl. anonyme Anfragen. Bitte gleich erneut versuchen.",
-          true
+          "Das Changelog ließ sich gerade nicht laden. GitHub limitiert evtl. anonyme Anfragen. Bitte gleich erneut versuchen."
         );
       });
   }
@@ -522,6 +959,8 @@
 })();
 </script>
 
+  <script defer src="assets/diagram-steps.js"></script>
+  <script defer src="assets/page-motion.js"></script>
   <script defer src="assets/agent-config.js"></script>
   <script defer src="assets/agent-widget.js"></script>
 </body>

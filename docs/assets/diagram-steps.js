@@ -31,7 +31,9 @@
       if (o.draw && e.getTotalLength) { o.len = e.getTotalLength(); e.style.strokeDasharray = o.len + " " + o.len; }
       return o;
     });
-    return { fig: fig, n: Math.max(1, n), items: items, cur: reduce ? 1 : 0 };
+    // a figure that starts inside the first screen (a hero figure) builds completely on load
+    var hero = fig.getBoundingClientRect().top + scrollY < innerHeight * .75;
+    return { fig: fig, n: Math.max(1, n), items: items, cur: reduce ? 1 : 0, hero: hero };
   });
 
   function paint(f, p) {
@@ -47,7 +49,8 @@
       else { o.el.style.opacity = k.toFixed(3); o.el.style.transform = "translateY(" + ((1 - k) * 8).toFixed(1) + "px)"; }
     });
   }
-  function target(fig) {
+  function target(fig, hero) {
+    if (hero) return 1;
     var r = fig.getBoundingClientRect(), vh = innerHeight;
     return clamp(0, 1, (vh * .9 - r.top) / (vh * .9 - vh * .45 + r.height * .5));
   }
@@ -58,7 +61,7 @@
   function tick() {
     var moving = false;
     all.forEach(function (f) {
-      var t = target(f.fig), d = t - f.cur;
+      var t = target(f.fig, f.hero), d = t - f.cur;
       if (Math.abs(d) > .0005) { f.cur += d * .09; moving = true; paint(f, f.cur); }
     });
     if (moving) requestAnimationFrame(tick); else running = false;

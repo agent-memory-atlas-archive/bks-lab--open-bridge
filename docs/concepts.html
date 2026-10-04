@@ -58,14 +58,23 @@
 :target{scroll-margin-top:84px}
 [id]{scroll-margin-top:84px}
 
-/* ---- intro / hero of the page ---- */
+/* ---- intro / hero of the page: text left, the stack figure right ---- */
+.page-hero .prose p.lede{max-width:42rem}
+@media (min-width:1100px){
+  .hero-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,31rem);gap:64px;align-items:start}
+  .hero-grid .prose{max-width:38rem;margin-inline:0}
+  .hero-grid .lead-def{margin-inline:0;max-width:38rem}
+  .hero-grid .lead-def .def{font-size:19px}
+  .hero-grid .hero-fig{margin:0;position:sticky;top:104px;align-self:start}
+  .hero-grid .hero-fig .steps-legend{justify-content:flex-start}
+}
 
 /* ---- "What is a bridge?" lead card ---- */
 .lead-def{
   margin-top:40px;max-width:var(--prose-w);margin-inline:auto;
   border:1px solid var(--border);border-left:3px solid var(--accent-text);
   border-radius:var(--r-lg);background:var(--surface-subtle);
-  padding:30px 34px;box-shadow:var(--shadow-soft);
+  padding:30px 34px;
 }
 .lead-def .k{font-size:13px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--accent-text)}
 .lead-def .def{margin-top:12px;font-size:22px;font-weight:300;line-height:1.45;color:var(--primary)}
@@ -73,25 +82,52 @@
 .lead-def .more a{font-weight:500;text-decoration:none}
 .lead-def .more a:hover{text-decoration:underline}
 
-/* ---- table of contents ---- */
+/* ---- the index: grouped, numbered, a status dot per concept ----
+   Below 1100px it is a block above the cards; from 1100px it becomes a
+   sticky rail beside them and marks the concept being read (.on). */
+.concepts-sec{padding-block:56px 96px}
 .toc{
-  max-width:var(--container);margin:0 auto;
   border:1px solid var(--border);border-radius:var(--r-lg);
-  background:var(--surface);box-shadow:var(--shadow-soft);
-  padding:28px 30px;
+  background:var(--surface);padding:26px 28px;
 }
-.toc h2{font-size:16px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--secondary);margin-bottom:20px}
-.toc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:26px}
-.toc-group h3{font-size:13px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:var(--accent-text);margin-bottom:12px}
-.toc-group ul{list-style:none;display:flex;flex-direction:column;gap:7px}
+.toc .toc-title{font-family:var(--font-sans)!important;font-size:13px;font-weight:600!important;letter-spacing:0.08em;text-transform:uppercase;color:var(--secondary);margin:0}
+.toc-key{display:flex;flex-wrap:wrap;gap:6px 14px;margin:10px 0 20px;font-size:12.5px;color:var(--muted)}
+.toc-key .k-item{display:inline-flex;align-items:center;gap:6px}
+.toc .dot{width:8px;height:8px;border-radius:var(--r-full);flex:none;display:inline-block;background:var(--muted)}
+.toc .dot.proven{background:var(--ok)}
+.toc .dot.bet{background:var(--info)}
+.toc .dot.open{background:var(--accent-secondary)}
+.toc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px 26px}
+.toc-group h3{display:flex;align-items:baseline;gap:10px;font-size:12.5px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--accent-text);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.gn{font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:0;color:var(--muted)}
+.toc-group li a .dot{margin-top:.5em}
+.toc-group ul{list-style:none;display:flex;flex-direction:column;gap:2px}
 .toc-group li a{
-  font-size:14.5px;line-height:1.4;text-decoration:none;color:var(--on-surface);
-  display:inline-flex;align-items:baseline;gap:8px;
+  font-size:14.5px;line-height:1.35;text-decoration:none;color:var(--on-surface);
+  display:flex;align-items:flex-start;gap:10px;padding:5px 8px;margin-inline:-8px;
+  border-radius:var(--r-sm);border-left:2px solid transparent;
+  transition:background .2s ease,color .2s ease,border-color .2s ease;
 }
-.toc-group li a:hover{color:var(--primary)}
-.toc-group li a:hover .lbl{text-decoration:underline}
+.toc-group li a:hover{color:var(--primary);background:var(--surface-subtle)}
+.toc-group li a.on{color:var(--primary);background:var(--accent-soft);border-left-color:var(--accent-text)}
+.toc-extra{margin-top:24px}
+@media (max-width:1099px){ .toc-extra ul{flex-direction:row;flex-wrap:wrap;gap:2px 22px} }
+.toc-extra a .lbl{color:var(--accent-text)}
+.concepts-main{min-width:0;margin-top:40px}
 @media (max-width:860px){ .toc-grid{grid-template-columns:1fr 1fr} }
 @media (max-width:560px){ .toc-grid{grid-template-columns:1fr} }
+@media (min-width:1100px){
+  .concepts-layout{display:grid;grid-template-columns:272px minmax(0,1fr);gap:56px;align-items:start}
+  .toc-rail{position:sticky;top:var(--rail-top,88px);max-height:calc(100vh - var(--rail-top,88px) - 20px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+  .toc{padding:22px 22px 20px}
+  .toc-grid{grid-template-columns:1fr;gap:18px}
+  .toc-group h3{margin-bottom:6px;padding-bottom:6px}
+  .toc-group li a{font-size:13.5px;padding:4px 8px}
+  .toc-extra{margin-top:18px}
+  .concepts-main{margin-top:0}
+  .concepts-main .concept,.concepts-main .grp{max-width:54rem;margin-inline:0}
+}
+@media (prefers-reduced-motion:reduce){ .toc-group li a{transition:none} }
 
 /* ---- status chips (proven / bet / open) ---- */
 .st{
@@ -110,7 +146,8 @@
 
 /* ---- group divider heading ---- */
 .grp{max-width:var(--prose-w);margin:0 auto 8px;padding-top:8px}
-.grp .eyebrow{color:var(--accent-text)}
+.grp .eyebrow{color:var(--accent-text);display:flex;align-items:baseline;gap:12px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.concept + .grp{margin-top:56px}
 .grp .h2{margin-top:8px}
 .grp + .concept{margin-top:36px}
 
@@ -121,6 +158,7 @@
   background:var(--surface);box-shadow:var(--shadow-soft);
   padding:32px 36px;
 }
+.concept .c-deep{max-width:70ch}
 .concept .c-top{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap}
 .concept .c-title{flex:1;min-width:0}
 .concept h3.h3{font-size:24px;font-weight:600;line-height:1.25;color:var(--primary)}
@@ -152,23 +190,24 @@
 #stack-fig .sf-cap{fill:var(--muted);font:600 10px var(--font-mono);letter-spacing:.08em}
 #stack-fig .sf-sub.sm{font-size:10px}
 #stack-fig .sf-head{fill:var(--accent-text);stroke:none}
-
-/* ---- static links under the index: the sections lifted from the landing page ---- */
-.toc-extra{max-width:var(--container);margin:14px auto 0;display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;font-size:14px}
-.toc-extra .lab{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-right:4px}
-.toc-extra a{text-decoration:none;color:var(--accent-text);border:1px solid var(--line);border-radius:var(--r-full);padding:4px 12px;background:var(--surface);font-weight:500;font-size:13.5px}
-.toc-extra a:hover{background:var(--accent-soft)}
+/* scope & promote figure inside its card */
+.concept .promote-fig{margin:26px 0 4px;max-width:none}
+#promote-fig svg{max-width:560px;margin-inline:auto}
+#promote-fig .sf-cap{fill:var(--muted);font:600 10px var(--font-mono);letter-spacing:.08em}
+#promote-fig .pf-head{fill:var(--accent-text)}
 
 @media (max-width:560px){
   .concept{padding:24px 22px}
   .lead-def{padding:24px 22px}
   .toc{padding:22px 20px}
+  .concept .promote-fig{margin-inline:-18px;padding:12px 6px}
+  .lead-def .def{font-size:18px}
 }
 </style>
 <style id="from-landing-css">
 /* Lifted from index.html with the sections below (problem, substrate, properties,
    capabilities) when the landing page was shortened. */
-.reveal,.reset-line{opacity:1!important;transform:none!important}
+.reveal{opacity:1!important;transform:none!important}
 .cta-row{display:flex;flex-wrap:wrap;gap:14px;margin-top:32px}
 .code{font-family:var(--mono);font-size:14px;line-height:1.7;
   background:var(--surface-subtle);border:1px solid var(--border);
@@ -199,9 +238,7 @@ html.dark .artifact{background:var(--code-bg)}
 .artifact .cmt{color:var(--secondary)}
 .split{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:stretch}
 .reset-lines{display:flex;flex-direction:column;gap:12px;max-width:46rem;margin:0 auto 48px}
-.reset-line{display:flex;align-items:center;gap:12px;font-size:16px;color:var(--on-surface);
-  opacity:0;transform:translateY(8px);transition:opacity .5s ease,transform .5s ease;}
-.reset-line.in{opacity:1;transform:none}
+.reset-line{display:flex;align-items:center;gap:12px;font-size:16px;color:var(--on-surface)}
 .reset-line .x{color:var(--attention-text);font-family:var(--mono);flex:none;font-weight:600}
 .doc-card h4{margin-bottom:14px}
 .doc-card .cap{margin-top:14px;font-size:13px;color:var(--secondary)}
@@ -258,10 +295,20 @@ html.dark .tile .demo{background:var(--code-bg)}
 .uc-strip .cap-benefit{color:var(--on-surface)}
 .path .code{position:relative;max-width:none;margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
 @media (max-width:860px){.split,.tiles,.compare,.board3,.cap-grid{grid-template-columns:1fr}.split>*,.tiles>*,.compare>*,.board3>*,.foot-grid>*,.cap-grid>*{min-width:0}.code,.artifact{font-size:12.5px;min-width:0;overflow-x:auto}.artifact .row{min-width:max-content}}
-@media (prefers-reduced-motion:reduce){.reveal,.reset-line{opacity:1;transform:none}}
-@media print{.reveal,.reset-line{opacity:1!important;transform:none!important}}
-#from-landing .reveal,#from-landing .reset-line{opacity:1!important;transform:none!important}
+@media print{.reveal{opacity:1!important;transform:none!important}}
 #from-landing>section{padding-block:var(--section-y)}
+/* the moved landing sections speak at the same size as the rest of this page */
+#from-landing .sec-head .h1{font-size:clamp(26px,3.6vw,36px);line-height:1.15}
+#from-landing .sec-head{margin-bottom:44px}
+#from-landing .sec-head p{font-size:17px;max-width:42rem;margin-inline:auto}
+#from-landing .reset-lines{max-width:40rem}
+#from-landing .reset-line{border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);padding:12px 16px}
+.substrate-pair{display:grid;grid-template-columns:1fr;gap:24px;max-width:46rem;margin:0 auto}
+.substrate-pair>*{min-width:0}
+@media (min-width:1100px){
+  .substrate-pair{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);max-width:none;align-items:start}
+  .substrate-pair .artifact .row{white-space:pre-wrap}
+}
 </style>
 </head>
 <body>
@@ -307,7 +354,8 @@ html.dark .tile .demo{background:var(--code-bg)}
 
   <!-- ---- intro + lead "What is a bridge?" definition ---- -->
   <section class="page-hero">
-    <div class="container">
+    <div class="container hero-grid">
+      <div class="hero-text">
       <div class="prose">
         <p class="eyebrow" data-lang="en">Concepts in depth</p>
         <p class="eyebrow" data-lang="de">Konzepte im Detail</p>
@@ -320,7 +368,7 @@ html.dark .tile .demo{background:var(--code-bg)}
       </div>
 
       <!-- the clearest possible plain-words "What is a bridge?" -->
-      <div class="lead-def">
+      <div class="lead-def" data-reveal>
         <div class="k" data-lang="en">What is a bridge?</div>
         <div class="k" data-lang="de">Was ist eine Bridge?</div>
         <p class="def" data-lang="en">A bridge is your agent's memory of your world: a plain folder of markdown and YAML in git that an AI coding agent reads at the start of every session, so it always knows who you are, your repos and clients, your rules, and what you worked on yesterday. The folder itself runs nothing (no database, no daemon, no hosted service), so there is nothing to host and no second app to maintain. Everything else here lives inside a bridge.</p>
@@ -329,9 +377,10 @@ html.dark .tile .demo{background:var(--code-bg)}
           <a href="#bridge"><span data-lang="en">Read the bridge concept in full →</span><span data-lang="de">Das Bridge-Konzept im Detail →</span></a>
         </p>
       </div>
+      </div>
 
       <!-- how the concepts stack: substrate, cluster wrappers + work/, always-on layer, agent -->
-      <figure class="steps-fig" id="stack-fig" data-steps aria-label="How the concepts stack">
+      <figure class="steps-fig hero-fig" id="stack-fig" data-steps aria-label="How the concepts stack">
         <svg viewBox="0 0 480 432" role="img" aria-labelledby="stack-fig-t">
           <title id="stack-fig-t">The substrate at the bottom, the cluster wrappers and work/ on it, the always-on layer above, and the agent on top, which reads that layer at session start and writes back to work/log.md.</title>
 
@@ -404,49 +453,129 @@ html.dark .tile .demo{background:var(--code-bg)}
     </div>
   </section>
 
-  <!-- ---- table of contents ---- -->
-  <section style="padding-block:24px 48px">
-    <div class="container">
-      <nav class="toc" aria-label="Concepts index">
-        <h2 data-lang="en">On this page</h2>
-        <h2 data-lang="de">Auf dieser Seite</h2>
-        <div class="toc-grid" id="toc-grid">
-          <!-- populated from data -->
-        </div>
-      </nav>
-      <nav class="toc-extra" aria-label="Further sections">
-        <span class="lab"><span data-lang="en">Further down</span><span data-lang="de">Weiter unten</span></span>
-        <a href="#lp-problem"><span data-lang="en">The cold start</span><span data-lang="de">Der Kaltstart</span></a>
-        <a href="#lp-substrate"><span data-lang="en">The substrate, shown</span><span data-lang="de">Das Substrat, gezeigt</span></a>
-        <a href="#lp-properties"><span data-lang="en">What your agent gains</span><span data-lang="de">Was dein Agent gewinnt</span></a>
-        <a href="#lp-capabilities"><span data-lang="en">What else it does</span><span data-lang="de">Was es noch kann</span></a>
-      </nav>
+  <!-- ---- the deep-dive sections (built from data) ---- -->
+  <section class="alt concepts-sec" id="index">
+    <div class="container concepts-layout">
+      <!-- the index: a grouped, sticky rail on wide screens, a block above the cards below that -->
+      <aside class="toc-rail" data-reveal>
+        <nav class="toc" aria-label="Concepts index">
+          <h2 class="toc-title"><span data-lang="en">On this page</span><span data-lang="de">Auf dieser Seite</span></h2>
+          <p class="toc-key" aria-hidden="true">
+            <span class="k-item"><span class="dot proven"></span><span data-lang="en">proven</span><span data-lang="de">bewiesen</span></span>
+            <span class="k-item"><span class="dot bet"></span><span data-lang="en">a bet</span><span data-lang="de">Wette</span></span>
+            <span class="k-item"><span class="dot open"></span><span data-lang="en">open</span><span data-lang="de">offen</span></span>
+          </p>
+          <div class="toc-grid" id="toc-grid">
+            <!-- populated from data -->
+          </div>
+          <div class="toc-group toc-extra">
+            <h3><span class="gn" aria-hidden="true">+</span><span data-lang="en">Further down</span><span data-lang="de">Weiter unten</span></h3>
+            <ul>
+              <li><a href="#lp-problem"><span class="lbl"><span data-lang="en">The cold start</span><span data-lang="de">Der Kaltstart</span></span></a></li>
+              <li><a href="#lp-substrate"><span class="lbl"><span data-lang="en">The substrate, shown</span><span data-lang="de">Das Substrat, gezeigt</span></span></a></li>
+              <li><a href="#lp-properties"><span class="lbl"><span data-lang="en">What your agent gains</span><span data-lang="de">Was dein Agent gewinnt</span></span></a></li>
+              <li><a href="#lp-capabilities"><span class="lbl"><span data-lang="en">What else it does</span><span data-lang="de">Was es noch kann</span></span></a></li>
+            </ul>
+          </div>
+        </nav>
+      </aside>
+      <div class="concepts-main" id="concepts-root">
+        <!-- populated from data -->
+      </div>
     </div>
   </section>
 
-  <!-- ---- the deep-dive sections (built from data) ---- -->
-  <section class="alt" style="padding-block:56px 96px">
-    <div class="container" id="concepts-root">
-      <!-- populated from data -->
-    </div>
-  </section>
+
+  <!-- Scope & promote, drawn: moved into the #scope-promote card by the render script.
+       Every label comes from that card's text and the CORE/USER split card. -->
+  <figure class="steps-fig promote-fig" id="promote-fig" data-steps hidden aria-label="How promote routes files by scope">
+    <svg viewBox="0 0 460 346" role="img" aria-labelledby="promote-fig-t">
+      <title id="promote-fig-t">Where a file lives decides its scope. /bridge-promote reads each file's scope: scope core goes upstream to BKS open-bridge as a PR, scope org goes to the optional org overlay, scope user stays local. CORE updates flow back down with git merge main.</title>
+      <defs>
+        <marker id="pf-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="pf-head" d="M0 0 L10 5 L0 10 Z"/></marker>
+      </defs>
+
+      <!-- 1: your bridge, three kinds of file -->
+      <g data-step="1">
+        <rect class="sf-zone" x="16" y="8" width="432" height="104" rx="14"/>
+        <text class="sf-cap" x="30" y="28"><tspan data-lang="en">YOUR BRIDGE · user/{name}</tspan><tspan data-lang="de">DEINE BRIDGE · user/{name}</tspan></text>
+        <rect class="sf-box" x="28" y="40" width="128" height="58" rx="9"/>
+        <text class="sf-mono" x="92" y="64" text-anchor="middle">scope: core</text>
+        <text class="sf-sub" x="92" y="83" text-anchor="middle">docs/ · _template</text>
+        <rect class="sf-box" x="166" y="40" width="128" height="58" rx="9"/>
+        <text class="sf-mono" x="230" y="64" text-anchor="middle">scope: org</text>
+        <text class="sf-sub" x="230" y="83" text-anchor="middle"><tspan data-lang="en">skill frontmatter</tspan><tspan data-lang="de">Skill-Frontmatter</tspan></text>
+        <rect class="sf-box hi" x="304" y="40" width="128" height="58" rx="9"/>
+        <text class="sf-mono" x="368" y="64" text-anchor="middle">scope: user</text>
+        <text class="sf-sub" x="368" y="83" text-anchor="middle"><tspan data-lang="en">work/ · instances</tspan><tspan data-lang="de">work/ · Instanzen</tspan></text>
+      </g>
+
+      <!-- 2: promote reads each file's scope -->
+      <path class="sf-line soft" data-step="2" data-draw d="M92 98 L196 150"/>
+      <path class="sf-line soft" data-step="2" data-draw d="M230 98 L230 150"/>
+      <path class="sf-line soft" data-step="2" data-draw d="M368 98 L264 150"/>
+      <g data-step="2">
+        <rect class="sf-box hi" x="150" y="150" width="160" height="56" rx="10"/>
+        <text class="sf-lbl" x="230" y="174" text-anchor="middle">/bridge-promote</text>
+        <text class="sf-sub" x="230" y="193" text-anchor="middle"><tspan data-lang="en">reads each scope</tspan><tspan data-lang="de">liest jeden Scope</tspan></text>
+      </g>
+
+      <!-- 3: core goes upstream -->
+      <path class="sf-line" data-step="3" data-draw marker-end="url(#pf-arrow)" d="M196 206 L96 252"/>
+      <g data-step="3">
+        <rect class="sf-box hi" x="28" y="256" width="128" height="56" rx="9"/>
+        <text class="sf-lbl" x="92" y="280" text-anchor="middle">BKS open-bridge</text>
+        <text class="sf-sub" x="92" y="299" text-anchor="middle"><tspan data-lang="en">upstream · PR</tspan><tspan data-lang="de">Upstream · PR</tspan></text>
+      </g>
+
+      <!-- 4: org goes to the optional overlay -->
+      <path class="sf-line" data-step="4" data-draw marker-end="url(#pf-arrow)" d="M230 206 L230 252"/>
+      <g data-step="4">
+        <rect class="sf-box" x="166" y="256" width="128" height="56" rx="9"/>
+        <text class="sf-lbl" x="230" y="280" text-anchor="middle"><tspan data-lang="en">org overlay</tspan><tspan data-lang="de">Org-Overlay</tspan></text>
+        <text class="sf-sub" x="230" y="299" text-anchor="middle"><tspan data-lang="en">optional</tspan><tspan data-lang="de">optional</tspan></text>
+      </g>
+
+      <!-- 5: user stays local -->
+      <path class="sf-line" data-step="5" data-draw marker-end="url(#pf-arrow)" d="M264 206 L364 252"/>
+      <g data-step="5">
+        <rect class="sf-box" x="304" y="256" width="128" height="56" rx="9"/>
+        <text class="sf-lbl" x="368" y="280" text-anchor="middle"><tspan data-lang="en">stays local</tspan><tspan data-lang="de">bleibt lokal</tspan></text>
+        <text class="sf-sub" x="368" y="299" text-anchor="middle">user/{name}</text>
+      </g>
+
+      <!-- 6: CORE updates flow back down -->
+      <path class="sf-line" data-step="6" data-draw marker-end="url(#pf-arrow)" d="M28 284 H8 V69 H24"/>
+      <g data-step="6">
+        <text class="sf-mono" x="28" y="336"><tspan data-lang="en">git merge main: CORE updates flow down</tspan><tspan data-lang="de">git merge main: CORE-Updates fließen zurück</tspan></text>
+      </g>
+    </svg>
+    <ol class="steps-legend">
+      <li data-step="1"><b>1</b><span data-lang="en">Where a file lives decides its scope</span><span data-lang="de">Wo eine Datei liegt, entscheidet ihren Scope</span></li>
+      <li data-step="2"><b>2</b><span data-lang="en">/bridge-promote reads each file's scope</span><span data-lang="de">/bridge-promote liest den Scope jeder Datei</span></li>
+      <li data-step="3"><b>3</b><span data-lang="en">scope: core goes upstream as a PR</span><span data-lang="de">scope: core geht als PR nach upstream</span></li>
+      <li data-step="4"><b>4</b><span data-lang="en">scope: org goes to your optional org overlay</span><span data-lang="de">scope: org geht in dein optionales Org-Overlay</span></li>
+      <li data-step="5"><b>5</b><span data-lang="en">scope: user stays local</span><span data-lang="de">scope: user bleibt lokal</span></li>
+      <li data-step="6"><b>6</b><span data-lang="en">Template updates come back with git merge main</span><span data-lang="de">Template-Updates kommen mit git merge main zurück</span></li>
+    </ol>
+  </figure>
 
   <!-- ---- From the landing page: the cold start, the substrate shown, what you get, what else it does ---- -->
   <div id="from-landing">
-<section class="alt" id="lp-problem">
+<section id="lp-problem">
   <div class="container">
-    <div class="sec-head reveal">
+    <div class="sec-head" data-reveal>
       <p class="eyebrow"><span data-lang="en">The cold-start problem</span><span data-lang="de">Das Kaltstart-Problem</span></p>
       <h2 class="h1"><span data-lang="en">Every session starts from scratch.</span><span data-lang="de">Jede Session beginnt bei null.</span></h2>
     </div>
 
-    <div class="reset-lines">
+    <div class="reset-lines" data-reveal="stagger">
       <div class="reset-line"><span class="x">✕</span><span data-lang="en">Re-explain your conventions to the agent, again.</span><span data-lang="de">Dem Agenten deine Konventionen wieder neu erklären.</span></div>
       <div class="reset-line"><span class="x">✕</span><span data-lang="en">Load the wrong client's context and only notice halfway through.</span><span data-lang="de">Den falschen Kunden-Kontext laden und es erst auf halbem Weg merken.</span></div>
       <div class="reset-line"><span class="x">✕</span><span data-lang="en">No record of what you decided last week.</span><span data-lang="de">Kein Protokoll dessen, was du letzte Woche entschieden hast.</span></div>
     </div>
 
-    <div class="split reveal">
+    <div class="split" data-reveal="stagger">
       <div class="doc-card card">
         <h4 class="h4"><span data-lang="en">Most AI work today</span><span data-lang="de">KI-Arbeit heute</span></h4>
         <div class="flat-dump" aria-hidden="true">
@@ -476,16 +605,17 @@ html.dark .tile .demo{background:var(--code-bg)}
   </div>
 </section>
 
-<section id="lp-substrate">
+<section class="alt" id="lp-substrate">
   <div class="container">
-    <div class="sec-head reveal">
+    <div class="sec-head" data-reveal>
       <p class="eyebrow"><span data-lang="en">The substrate, shown</span><span data-lang="de">Das Substrat, gezeigt</span></p>
       <h2 class="h1"><span data-lang="en">Plain text in git. Clone it and look.</span><span data-lang="de">Plain Text in Git: Klone es und schau rein.</span></h2>
       <p><span data-lang="en">No adjectives. <code>examples/agency/</code> is a real, complete config you can clone today; the <code>STATUS</code> and work log below are the shape your own <code>work/</code> takes once you start logging.</span><span data-lang="de">Keine Adjektive. <code>examples/agency/</code> ist eine echte, vollständige Config, die du heute klonen kannst; der <code>STATUS</code> und das Arbeitslog unten sind die Form, die dein eigenes <code>work/</code> annimmt, sobald du anfängst zu loggen.</span></p>
     </div>
 
     
-    <div class="reveal" style="max-width:46rem;margin:0 auto">
+    <div class="substrate-pair" data-reveal="stagger">
+      <div>
         <div class="code-label"><span>examples/agency/</span><span data-lang="en">2 separated clients</span><span data-lang="de">2 getrennte Kunden</span></div>
         <div class="code"><span class="dir">examples/agency/</span>
 ├── ecosystem.yaml            <span class="cmt"># repo + client registry</span>
@@ -499,8 +629,8 @@ html.dark .tile .demo{background:var(--code-bg)}
 ├── <span class="dir">infra/</span>
 │   ├── <span class="dir">channels/</span>  <span class="dir">remotes/</span>  <span class="dir">backups/</span>
 └── <span class="dir">.claude/agents/</span>          <span class="cmt"># ops-officer, code-analyst …</span></div>
-
-        <div style="height:24px"></div>
+      </div>
+      <div>
 
         <!-- Verbatim README STATUS.md (README lines 203-207) -->
         <div class="code-label"><span>work/tasks/bigcorp-migration/STATUS.md</span><span data-lang="en">verbatim from the README</span><span data-lang="de">wortgetreu aus dem README</span></div>
@@ -511,17 +641,13 @@ html.dark .tile .demo{background:var(--code-bg)}
           <div class="row add"><span class="gut">+</span><span class="ln"><span class="k">last:</span> Migrated the invoice pipeline to the new schema; one test still red.</span></div>
           <div class="row add"><span class="gut">+</span><span class="ln"><span class="k">next:</span> Fix the failing UBL-validation case, then open the PR.</span></div>
         </div>
-
-        <div style="height:24px"></div>
-
-        
+      </div>
     </div>
     <!-- ===== POINTER to the mini-site (explore + concepts) ===== -->
-    <div class="reveal sub-cta" style="margin-top:36px;text-align:center">
+    <div class="sub-cta" data-reveal style="margin-top:36px;text-align:center">
       <p style="font-size:16px;line-height:1.7;margin-bottom:18px"><span data-lang="en">BKS open-bridge's pieces form one connected web. Click through them on the interactive map, or read the plain-language guide.</span><span data-lang="de">Die Bausteine von BKS open-bridge bilden ein verbundenes Netz. Sieh jeden einzelnen auf einer interaktiven Karte zum Klicken, oder lies den Leitfaden in einfacher Sprache.</span></p>
       <div class="cta-row" style="justify-content:center">
         <a class="btn btn-primary" href="explore.html"><span data-lang="en">Explore the concepts</span><span data-lang="de">Konzepte erkunden</span><span class="arrow">→</span></a>
-        <a class="btn btn-secondary" href="concepts.html"><span data-lang="en">Read the concept guide</span><span data-lang="de">Konzept-Leitfaden lesen</span><span class="arrow">→</span></a>
       </div>
     </div>
 
@@ -529,17 +655,17 @@ html.dark .tile .demo{background:var(--code-bg)}
   </div>
 </section>
 
-<section class="alt" id="lp-properties">
+<section id="lp-properties">
   <div class="container">
-    <div class="sec-head reveal">
+    <div class="sec-head" data-reveal>
       <p class="eyebrow"><span data-lang="en">What your agent gains</span><span data-lang="de">Was dein Agent gewinnt</span></p>
       <h2 class="h1"><span data-lang="en">Two things this gives your agent: more context, less chaos.</span><span data-lang="de">Zwei Dinge, die das deinem Agenten gibt: mehr Kontext, weniger Chaos.</span></h2>
       <p><span data-lang="en">Both were coined by the team at BKS-Lab. The plain meaning leads, the name follows.</span><span data-lang="de">Beide wurden im Team bei BKS-Lab geprägt. Die schlichte Bedeutung führt, der Name folgt.</span></p>
     </div>
 
-    <div class="tiles">
+    <div class="tiles" data-reveal="stagger">
       <!-- Tile 1: helm / scan motif (page-chrome tokens, flat) -->
-      <div class="tile reveal">
+      <div class="tile">
         <svg class="tile-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="24" cy="24" r="16"/>
           <circle cx="24" cy="24" r="4" fill="currentColor" stroke="none"/>
@@ -551,7 +677,7 @@ html.dark .tile .demo{background:var(--code-bg)}
       </div>
 
       <!-- Tile 2: four-room / filing grid motif -->
-      <div class="tile reveal">
+      <div class="tile">
         <svg class="tile-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
           <rect x="7" y="7" width="14" height="14" rx="2" fill="currentColor" stroke="none"/>
           <rect x="27" y="7" width="14" height="14" rx="2"/>
@@ -568,7 +694,7 @@ html.dark .tile .demo{background:var(--code-bg)}
       </div>
     </div>
 
-    <p class="stance-note reveal">
+    <p class="stance-note" data-reveal>
       <span class="tag-bet">Bet / Roadmap</span>
       <span data-lang="en"><strong>Workspace separation as the default</strong> is the intended stance: agreed in principle, not yet built (labelled honestly below).</span>
       <span data-lang="de"><strong>Workspace-Trennung als Default</strong> ist die beabsichtigte Haltung. Im Prinzip vereinbart, noch nicht gebaut (unten ehrlich gekennzeichnet).</span>
@@ -578,20 +704,20 @@ html.dark .tile .demo{background:var(--code-bg)}
 
 <section class="alt" id="lp-capabilities">
   <div class="container">
-    <div class="sec-head reveal" style="margin-bottom:40px">
+    <div class="sec-head" data-reveal style="margin-bottom:40px">
       <p class="eyebrow"><span data-lang="en">What else it can do</span><span data-lang="de">Was es noch kann</span></p>
       <h2 class="h2"><span data-lang="en">The four core pieces stand on their own. The rest is optional.</span><span data-lang="de">Schon die vier Kernteile bringen dir etwas. Der Rest ist optional.</span></h2>
     </div>
 
-    <p class="cap-intro reveal" style="margin-bottom:28px"><span data-lang="en">The four core pieces (<strong>context registry</strong>, <strong>task management</strong>, <strong>skills &amp; commands</strong>, <strong>standing orders</strong>) run from a fresh clone; they're what powered the day above. Everything below is optional, USER-scope, off until you turn it on.</span><span data-lang="de">Die vier Kernteile: <strong>Kontext-Registry</strong>, <strong>Task-Management</strong>, <strong>Skills &amp; Befehle</strong>, <strong>Standing Orders</strong>. Sie laufen direkt aus einem frischen Clone heraus (du hast sie oben im Tagesablauf gesehen). Alles darunter ist optional, USER-scope, und bleibt aus, bis du es einschaltest.</span></p>
+    <p class="cap-intro" data-reveal style="margin-bottom:28px"><span data-lang="en">The four core pieces (<strong>context registry</strong>, <strong>task management</strong>, <strong>skills &amp; commands</strong>, <strong>standing orders</strong>) run from a fresh clone; they're what powered the day above. Everything below is optional, USER-scope, off until you turn it on.</span><span data-lang="de">Die vier Kernteile: <strong>Kontext-Registry</strong>, <strong>Task-Management</strong>, <strong>Skills &amp; Befehle</strong>, <strong>Standing Orders</strong>. Sie laufen direkt aus einem frischen Clone heraus (du hast sie oben im Tagesablauf gesehen). Alles darunter ist optional, USER-scope, und bleibt aus, bis du es einschaltest.</span></p>
 
-    <div class="cap-group reveal">
+    <div class="cap-group" data-reveal>
       <!-- The heading two lines up calls this list optional, so the page now
            treats it as optional instead of stacking nine more cards on the
            reader. One <summary> with inner spans, never two with data-lang:
            [data-lang]{display:none} would hide the first, and <details> takes
            its FIRST summary child as the control, so the German one would
-           never become clickable. .cap-group keeps .reveal and stays outside,
+           never become clickable. .cap-group keeps data-reveal and stays outside,
            or the IntersectionObserver has nothing left to see. -->
       <details class="cap-fold">
         <summary class="cap-grouphead">
@@ -640,15 +766,15 @@ html.dark .tile .demo{background:var(--code-bg)}
       </details>
     </div>
 
-    <p class="cap-more reveal"><a href="https://github.com/bks-lab/open-bridge/tree/main/docs" target="_blank" rel="noopener"><span data-lang="en">And the full layout (every path, the CORE/USER split, the rest) is in the docs →</span><span data-lang="de">Und das ganze Layout (jeder Pfad, der CORE/USER-Split, der Rest) steht in den Docs →</span></a></p>
+    <p class="cap-more" data-reveal><a href="https://github.com/bks-lab/open-bridge/tree/main/docs" target="_blank" rel="noopener"><span data-lang="en">And the full layout (every path, the CORE/USER split, the rest) is in the docs →</span><span data-lang="de">Und das ganze Layout (jeder Pfad, der CORE/USER-Split, der Rest) steht in den Docs →</span></a></p>
 
-    <p class="cap-honesty reveal"><span data-lang="en">Everything here ships and runs today. What is not built yet (workspace separation as the default, and more) is in the status section below, labelled as a bet or open, not as a feature.</span><span data-lang="de">Alles hier wird mitgeliefert und läuft heute. Was noch nicht gebaut ist, etwa die Workspace-Trennung als Default, steht unten im Status-Abschnitt, als Wette oder offen gekennzeichnet, nicht als Feature.</span></p>
+    <p class="cap-honesty" data-reveal><span data-lang="en">Everything here ships and runs today. What is not built yet (workspace separation as the default, and more) is in the <a href="index.html#honesty">status section on the start page</a>, labelled as a bet or open, not as a feature.</span><span data-lang="de">Alles hier wird mitgeliefert und läuft heute. Was noch nicht gebaut ist, etwa die Workspace-Trennung als Default, steht im <a href="index.html#honesty">Status-Abschnitt der Startseite</a>, als Wette oder offen gekennzeichnet, nicht als Feature.</span></p>
   </div>
 </section>
   </div>
 
   <!-- ---- closing call: install ---- -->
-  <section class="cta-band"><div class="container">
+  <section class="cta-band"><div class="container" data-reveal>
     <p class="eyebrow"><span data-lang="en">Get started</span><span data-lang="de">Loslegen</span></p>
     <h2><span data-lang="en">One prompt. Your own private bridge.</span><span data-lang="de">Ein Prompt. Deine eigene, private Bridge.</span></h2>
     <p><span data-lang="en">Paste it into Claude Code, Codex or Copilot CLI. Your agent follows SETUP.md, shows you its plan and waits for your go.</span><span data-lang="de">Kopier ihn in Claude Code, Codex oder Copilot CLI. Dein Agent folgt SETUP.md, zeigt dir seinen Plan und wartet auf dein Go.</span></p>
@@ -848,15 +974,17 @@ html.dark .tile .demo{background:var(--code-bg)}
 
   // ---- build TOC ----
   var tocGrid = document.getElementById("toc-grid");
-  var tocHtml = "";
+  var tocHtml = "", gi = 0;
   DATA.groups.forEach(function(g){
     var members = DATA.concepts.filter(function(c){ return c.group === g.id; });
     if(!members.length) return;
+    gi++;
     tocHtml += '<div class="toc-group">';
-    tocHtml += '<h3><span data-lang="en">'+esc(g.label_en)+'</span><span data-lang="de">'+esc(g.label_de)+'</span></h3>';
+    tocHtml += '<h3><span class="gn" aria-hidden="true">'+(gi<10?"0":"")+gi+'</span><span data-lang="en">'+esc(g.label_en)+'</span><span data-lang="de">'+esc(g.label_de)+'</span></h3>';
     tocHtml += '<ul>';
     members.forEach(function(c){
       tocHtml += '<li><a href="#'+esc(c.id)+'">'
+        + '<span class="dot '+esc(c.status)+'" aria-hidden="true"></span>'
         + '<span class="lbl"><span data-lang="en">'+esc(c.label_en)+'</span><span data-lang="de">'+esc(c.label_de)+'</span></span>'
         + '</a></li>';
     });
@@ -866,19 +994,19 @@ html.dark .tile .demo{background:var(--code-bg)}
 
   // ---- build concept sections ----
   var root = document.getElementById("concepts-root");
-  var html = "";
+  var html = "", gj = 0;
   DATA.groups.forEach(function(g){
     var members = DATA.concepts.filter(function(c){ return c.group === g.id; });
     if(!members.length) return;
 
     // group divider
-    html += '<div class="grp reveal">'
-      + '<p class="eyebrow"><span data-lang="en">'+esc(g.label_en)+'</span><span data-lang="de">'+esc(g.label_de)+'</span></p>'
+    html += '<div class="grp" data-reveal>'
+      + '<p class="eyebrow"><span class="gn" aria-hidden="true">'+(++gj<10?"0":"")+gj+'</span><span data-lang="en">'+esc(g.label_en)+'</span><span data-lang="de">'+esc(g.label_de)+'</span></p>'
       + '</div>';
 
     members.forEach(function(c){
       var stl = STATUS_LABEL[c.status] || STATUS_LABEL.proven;
-      html += '<article class="concept reveal" id="'+esc(c.id)+'">';
+      html += '<article class="concept" data-reveal id="'+esc(c.id)+'">';
       // top: title + status chip
       html += '<div class="c-top">';
       html += '<div class="c-title">';
@@ -907,25 +1035,55 @@ html.dark .tile .demo{background:var(--code-bg)}
   });
   root.innerHTML = html;
 
-  // ---- re-run reveal observer over freshly injected nodes ----
-  // rootMargin pulls the trigger line above the fold so a tall card reveals as
-  // soon as its top edge approaches the viewport; a safety timer guarantees
-  // everything ends up visible even if the observer never fires (no-scroll
-  // renders, headless capture, scrapers).
-  var revealEls = Array.prototype.slice.call(root.querySelectorAll(".reveal"));
-  function showAll(){ revealEls.forEach(function(el){ el.classList.add("in"); }); }
-  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if("IntersectionObserver" in window && !reduceMotion){
-    var io = new IntersectionObserver(function(entries){
+  // Reveal motion comes from assets/page-motion.js (deferred, so it runs after
+  // this inline script and finds the data-reveal attributes set above).
+
+  // ---- the scope & promote figure lives in the markup and moves into its card ----
+  var promoteFig = document.getElementById("promote-fig");
+  var promoteCard = document.getElementById("scope-promote");
+  if(promoteFig && promoteCard){
+    var rel = promoteCard.querySelector(".related");
+    promoteCard.insertBefore(promoteFig, rel || null);
+    promoteFig.hidden = false;
+  }
+
+  // ---- the index rail sits just under the sticky header, whose height
+  //      changes with the language (the nav wraps in German) ----
+  var rail = document.querySelector(".toc-rail");
+  var hdr = document.querySelector("header.nav");
+  function placeRail(){
+    if(!rail || !hdr) return;
+    var h = hdr.offsetHeight + 20;
+    rail.style.setProperty("--rail-top", h + "px");
+  }
+  placeRail();
+  if("ResizeObserver" in window && hdr){ new ResizeObserver(placeRail).observe(hdr); }
+  else { window.addEventListener("resize", placeRail); }
+
+  // ---- the index rail marks the concept being read ----
+  var railLinks = {};
+  Array.prototype.forEach.call(tocGrid.querySelectorAll("a[href^='#']"), function(a){
+    railLinks[a.getAttribute("href").slice(1)] = a;
+  });
+  if("IntersectionObserver" in window){
+    var current = null;
+    var spy = new IntersectionObserver(function(entries){
       entries.forEach(function(en){
-        if(en.isIntersecting){ en.target.classList.add("in"); io.unobserve(en.target); }
+        if(!en.isIntersecting) return;
+        var a = railLinks[en.target.id];
+        if(!a || a === current) return;
+        if(current){ current.classList.remove("on"); current.removeAttribute("aria-current"); }
+        a.classList.add("on"); a.setAttribute("aria-current", "true"); current = a;
+        // keep the marked entry inside the rail's own scroll box, never scroll the page
+        if(rail && rail.scrollHeight > rail.clientHeight){
+          var top = a.offsetTop, h = a.offsetHeight;
+          if(top < rail.scrollTop + 40 || top + h > rail.scrollTop + rail.clientHeight - 40){
+            rail.scrollTop = Math.max(0, top - rail.clientHeight / 3);
+          }
+        }
       });
-    }, { threshold: 0, rootMargin: "0px 0px -8% 0px" });
-    revealEls.forEach(function(el){ io.observe(el); });
-    // safety net: if a node is still hidden after 1.6s of no scrolling, show it.
-    setTimeout(showAll, 1600);
-  } else {
-    showAll();
+    }, { rootMargin: "-35% 0px -60% 0px" });
+    Array.prototype.forEach.call(root.querySelectorAll("article.concept"), function(el){ spy.observe(el); });
   }
 
   // ---- if loaded with a deep-link hash (explore.html#<id>), scroll to it ----
@@ -939,5 +1097,6 @@ html.dark .tile .demo{background:var(--code-bg)}
   <script defer src="assets/agent-config.js"></script>
   <script defer src="assets/agent-widget.js"></script>
 <script defer src="assets/diagram-steps.js"></script>
+<script defer src="assets/page-motion.js"></script>
 </body>
 </html>
