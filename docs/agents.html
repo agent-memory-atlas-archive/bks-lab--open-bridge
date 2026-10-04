@@ -181,6 +181,17 @@ html.dark .code{background:var(--code-bg)}
 }
 .pointers-sub a:hover{background:var(--accent-soft)}
 
+/* at-a-glance figure (shared .steps-fig from brand.css): a wide drawing for
+   desktop and a tall one for phones, same steps, one legend */
+.ag-fig{margin-top:44px}
+.steps-fig svg.ag-tall{display:none}
+.ag-fig .ag-cap{letter-spacing:.06em}
+.ag-fig .ag-x{fill:var(--attention-text);font:600 15px var(--font-mono)}
+@media (max-width:700px){
+  .steps-fig svg.ag-wide{display:none}
+  .steps-fig svg.ag-tall{display:block;max-width:420px;margin:0 auto}
+}
+
 @media (max-width:560px){ .lead-def{padding:24px 22px} .split .card{padding:22px 20px} .use{padding:24px 22px} }
 </style>
 </head>
@@ -245,6 +256,176 @@ html.dark .code{background:var(--code-bg)}
           <a href="https://github.com/bks-lab/open-bridge/blob/main/docs/representative-agent.md" target="_blank" rel="noopener"><span data-lang="en">Read the representative-agent guide →</span><span data-lang="de">Den Representative-Agent-Guide lesen →</span></a>
         </p>
       </div>
+
+      <!-- At a glance: a request from outside reaches the AgentCard endpoint, the
+           runtime answers from the grounding dir only, bookings and replies wait at
+           a human gate before they go out in the persona's name. Below the line, the inward sub-agent for contrast.
+           Two drawings of the same figure: wide for desktop, tall for phones. -->
+      <figure class="steps-fig ag-fig" data-steps>
+        <svg class="ag-wide" viewBox="0 0 800 440" role="img"
+             aria-label="A visitor, a foreign agent or a peer bridge with a bearer token sends an A2A request to the AgentCard endpoint of the Bridge-Agent. The runtime starts one claude -p per turn with the grounding dir as working directory, so it reads public content only and cannot reach the private tree. Requests, bookings and replies go to a human gate with a fixed recipient; only what you approve goes out as the persona. Below a line, for contrast: a sub-agent inside your session takes one task from the orchestrator and returns a summary, with no address and no card.">
+          <defs>
+            <marker id="agArr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--accent-text)"/></marker>
+            <marker id="agArrM" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--muted)"/></marker>
+          </defs>
+
+          <!-- 1 · callers from outside -->
+          <g data-step="1">
+            <text class="sf-sub ag-cap" x="16" y="30"><tspan data-lang="en">OUTSIDE</tspan><tspan data-lang="de">AUSSEN</tspan></text>
+            <rect class="sf-box" x="16" y="62" width="184" height="72" rx="10"/>
+            <text class="sf-lbl" x="30" y="86"><tspan data-lang="en">Outer face</tspan><tspan data-lang="de">Äußeres Gesicht</tspan></text>
+            <text class="sf-sub" x="30" y="106"><tspan data-lang="en">visitor · widget</tspan><tspan data-lang="de">Besucher · Widget</tspan></text>
+            <text class="sf-sub" x="30" y="122"><tspan data-lang="en">foreign agent</tspan><tspan data-lang="de">fremder Agent</tspan></text>
+            <rect class="sf-box" x="16" y="152" width="184" height="72" rx="10"/>
+            <text class="sf-lbl" x="30" y="176"><tspan data-lang="en">Peer bridge</tspan><tspan data-lang="de">Peer-Bridge</tspan></text>
+            <text class="sf-mono" x="30" y="196">trust: peer</text>
+            <text class="sf-sub" x="30" y="212"><tspan data-lang="en">bearer token</tspan><tspan data-lang="de">Bearer-Token</tspan></text>
+          </g>
+
+          <!-- 2 · the AgentCard endpoint -->
+          <g data-step="2">
+            <rect class="sf-zone" x="212" y="40" width="392" height="280" rx="14"/>
+            <text class="sf-sub ag-cap" x="228" y="30"><tspan data-lang="en">YOUR BRIDGE-AGENT · agents/&lt;name&gt;/</tspan><tspan data-lang="de">DEIN BRIDGE-AGENT · agents/&lt;name&gt;/</tspan></text>
+            <rect class="sf-box hi" x="228" y="62" width="240" height="72" rx="10"/>
+            <text class="sf-lbl" x="242" y="86"><tspan data-lang="en">AgentCard endpoint</tspan><tspan data-lang="de">AgentCard-Endpunkt</tspan></text>
+            <text class="sf-mono" x="242" y="106">/.well-known/agent-card.json</text>
+            <text class="sf-sub" x="242" y="122">message/send · message/stream</text>
+          </g>
+          <path class="sf-line" data-step="2" data-draw d="M200 98 H222" marker-end="url(#agArr)"/>
+          <path class="sf-line" data-step="2" data-draw d="M200 188 C214 188 210 120 222 120" marker-end="url(#agArr)"/>
+
+          <!-- 3 · runtime reads public content only -->
+          <path class="sf-line" data-step="3" data-draw d="M348 134 V158" marker-end="url(#agArr)"/>
+          <g data-step="3">
+            <rect class="sf-box" x="228" y="164" width="240" height="60" rx="10"/>
+            <text class="sf-lbl" x="242" y="188"><tspan data-lang="en">Runtime</tspan><tspan data-lang="de">Runtime</tspan> <tspan class="sf-mono" dx="4">claude -p</tspan></text>
+            <text class="sf-sub" x="242" y="208"><tspan data-lang="en">one subprocess per turn</tspan><tspan data-lang="de">ein Subprozess pro Turn</tspan></text>
+            <rect class="sf-box" x="228" y="250" width="160" height="54" rx="10"/>
+            <text class="sf-mono" x="240" y="272">grounding_dir</text>
+            <text class="sf-sub" x="240" y="290"><tspan data-lang="en">public · read</tspan><tspan data-lang="de">öffentlich · lesen</tspan></text>
+            <rect class="sf-zone" x="400" y="250" width="160" height="54" rx="10"/>
+            <text class="sf-sub" x="414" y="272"><tspan data-lang="en">private tree</tspan><tspan data-lang="de">privater Baum</tspan></text>
+            <text class="sf-sub" x="414" y="290">identity/ · work/</text>
+            <text class="ag-x" x="440" y="243" text-anchor="middle">✕</text>
+          </g>
+          <path class="sf-line" data-step="3" data-draw d="M284 224 V244" marker-end="url(#agArr)"/>
+          <path class="sf-line soft" data-step="3" d="M440 224 V230"/>
+
+          <!-- 4 · the human gate -->
+          <path class="sf-line" data-step="4" data-draw d="M468 194 H612" marker-end="url(#agArr)"/>
+          <g data-step="4">
+            <text class="sf-sub" x="480" y="178"><tspan data-lang="en">bookings · replies</tspan><tspan data-lang="de">Buchung · Antwort</tspan></text>
+            <text class="sf-sub" x="480" y="214"><tspan data-lang="en">fixed recipient</tspan><tspan data-lang="de">fester Empfänger</tspan></text>
+            <text class="sf-sub ag-cap" x="620" y="140"><tspan data-lang="en">YOU</tspan><tspan data-lang="de">DU</tspan></text>
+            <rect class="sf-box hi" x="620" y="152" width="164" height="84" rx="10"/>
+            <text class="sf-lbl" x="634" y="176"><tspan data-lang="en">Human gate</tspan><tspan data-lang="de">Menschliches Gate</tspan></text>
+            <text class="sf-sub" x="634" y="198"><tspan data-lang="en">you approve</tspan><tspan data-lang="de">du gibst frei</tspan></text>
+            <text class="sf-sub" x="634" y="216"><tspan data-lang="en">nothing autonomous</tspan><tspan data-lang="de">nichts autonom</tspan></text>
+            <rect class="sf-box" x="620" y="262" width="164" height="54" rx="10"/>
+            <text class="sf-lbl" x="634" y="284"><tspan data-lang="en">Goes out</tspan><tspan data-lang="de">Geht raus</tspan></text>
+            <text class="sf-sub" x="634" y="302"><tspan data-lang="en">as the persona</tspan><tspan data-lang="de">als die Persona</tspan></text>
+          </g>
+          <path class="sf-line" data-step="4" data-draw d="M702 236 V256" marker-end="url(#agArr)"/>
+
+          <!-- 5 · contrast: the inward sub-agent -->
+          <g data-step="5">
+            <path class="sf-line soft" d="M16 342 H784"/>
+            <text class="sf-sub ag-cap" x="16" y="376"><tspan data-lang="en">INWARD</tspan><tspan data-lang="de">NACH INNEN</tspan></text>
+            <text class="sf-sub ag-cap" x="16" y="394"><tspan data-lang="en">INSIDE YOUR SESSION</tspan><tspan data-lang="de">IN DEINER SESSION</tspan></text>
+            <rect class="sf-zone" x="212" y="350" width="392" height="78" rx="14"/>
+            <rect class="sf-box" x="228" y="364" width="150" height="50" rx="10"/>
+            <text class="sf-lbl" x="242" y="386"><tspan data-lang="en">Orchestrator</tspan><tspan data-lang="de">Orchestrator</tspan></text>
+            <text class="sf-sub" x="242" y="404"><tspan data-lang="en">your session</tspan><tspan data-lang="de">deine Session</tspan></text>
+            <rect class="sf-box" x="438" y="364" width="150" height="50" rx="10"/>
+            <text class="sf-lbl" x="452" y="386"><tspan data-lang="en">Sub-agent</tspan><tspan data-lang="de">Sub-Agent</tspan></text>
+            <text class="sf-mono" x="452" y="404">.claude/agents/</text>
+            <path class="sf-line soft" d="M380 380 H432" marker-end="url(#agArrM)"/>
+            <path class="sf-line soft" d="M436 398 H384" marker-end="url(#agArrM)"/>
+            <text class="sf-sub" x="620" y="378"><tspan data-lang="en">no address,</tspan><tspan data-lang="de">keine Adresse,</tspan></text>
+            <text class="sf-sub" x="620" y="396"><tspan data-lang="en">no card,</tspan><tspan data-lang="de">keine Card,</tspan></text>
+            <text class="sf-sub" x="620" y="414"><tspan data-lang="en">one task, then gone</tspan><tspan data-lang="de">eine Aufgabe, dann weg</tspan></text>
+          </g>
+        </svg>
+
+        <svg class="ag-tall" viewBox="0 0 360 720" role="img"
+             aria-label="A visitor, a foreign agent or a peer bridge sends an A2A request to the AgentCard endpoint. The runtime reads public content only. Bookings and replies wait at a human gate before they go out as the persona. Below a line: a sub-agent inside your session, with no address and no card.">
+          <defs>
+            <marker id="agArrT" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--accent-text)"/></marker>
+            <marker id="agArrTM" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--muted)"/></marker>
+          </defs>
+          <g data-step="1">
+            <text class="sf-sub ag-cap" x="12" y="18"><tspan data-lang="en">OUTSIDE</tspan><tspan data-lang="de">AUSSEN</tspan></text>
+            <rect class="sf-box" x="12" y="28" width="160" height="70" rx="10"/>
+            <text class="sf-lbl" x="24" y="50"><tspan data-lang="en">Outer face</tspan><tspan data-lang="de">Äußeres Gesicht</tspan></text>
+            <text class="sf-sub" x="24" y="70"><tspan data-lang="en">visitor · widget</tspan><tspan data-lang="de">Besucher · Widget</tspan></text>
+            <text class="sf-sub" x="24" y="86"><tspan data-lang="en">foreign agent</tspan><tspan data-lang="de">fremder Agent</tspan></text>
+            <rect class="sf-box" x="188" y="28" width="160" height="70" rx="10"/>
+            <text class="sf-lbl" x="200" y="50"><tspan data-lang="en">Peer bridge</tspan><tspan data-lang="de">Peer-Bridge</tspan></text>
+            <text class="sf-mono" x="200" y="70">trust: peer</text>
+            <text class="sf-sub" x="200" y="86"><tspan data-lang="en">bearer token</tspan><tspan data-lang="de">Bearer-Token</tspan></text>
+          </g>
+          <g data-step="2">
+            <rect class="sf-zone" x="4" y="116" width="352" height="272" rx="14"/>
+            <text class="sf-sub ag-cap" x="180" y="134" text-anchor="middle">agents/&lt;name&gt;/</text>
+            <path class="sf-line" d="M92 98 V140" marker-end="url(#agArrT)"/>
+            <path class="sf-line" d="M268 98 V140" marker-end="url(#agArrT)"/>
+            <rect class="sf-box hi" x="20" y="146" width="320" height="70" rx="10"/>
+            <text class="sf-lbl" x="34" y="168"><tspan data-lang="en">AgentCard endpoint</tspan><tspan data-lang="de">AgentCard-Endpunkt</tspan></text>
+            <text class="sf-mono" x="34" y="188">/.well-known/agent-card.json</text>
+            <text class="sf-sub" x="34" y="204">message/send · message/stream</text>
+          </g>
+          <g data-step="3">
+            <path class="sf-line" d="M180 216 V234" marker-end="url(#agArrT)"/>
+            <rect class="sf-box" x="20" y="240" width="320" height="56" rx="10"/>
+            <text class="sf-lbl" x="34" y="262"><tspan data-lang="en">Runtime</tspan><tspan data-lang="de">Runtime</tspan> <tspan class="sf-mono" dx="4">claude -p</tspan></text>
+            <text class="sf-sub" x="34" y="282"><tspan data-lang="en">one subprocess per turn</tspan><tspan data-lang="de">ein Subprozess pro Turn</tspan></text>
+            <path class="sf-line" d="M94 296 V314" marker-end="url(#agArrT)"/>
+            <rect class="sf-box" x="20" y="320" width="150" height="54" rx="10"/>
+            <text class="sf-mono" x="32" y="342">grounding_dir</text>
+            <text class="sf-sub" x="32" y="360"><tspan data-lang="en">public · read</tspan><tspan data-lang="de">öffentlich · lesen</tspan></text>
+            <path class="sf-line soft" d="M240 296 V302"/>
+            <text class="ag-x" x="240" y="316" text-anchor="middle">✕</text>
+            <rect class="sf-zone" x="186" y="320" width="140" height="54" rx="10"/>
+            <text class="sf-sub" x="198" y="342"><tspan data-lang="en">private tree</tspan><tspan data-lang="de">privater Baum</tspan></text>
+            <text class="sf-sub" x="198" y="360">identity/ · work/</text>
+          </g>
+          <g data-step="4">
+            <path class="sf-line" d="M340 268 H348 V412" marker-end="url(#agArrT)"/>
+            <text class="sf-sub" x="20" y="430"><tspan data-lang="en">bookings · replies</tspan><tspan data-lang="de">Buchung · Antwort</tspan></text>
+            <text class="sf-sub" x="20" y="448"><tspan data-lang="en">fixed recipient</tspan><tspan data-lang="de">fester Empfänger</tspan></text>
+            <path class="sf-line" d="M150 440 H172" marker-end="url(#agArrT)"/>
+            <rect class="sf-box hi" x="180" y="418" width="168" height="80" rx="10"/>
+            <text class="sf-lbl" x="194" y="442"><tspan data-lang="en">Human gate</tspan><tspan data-lang="de">Menschliches Gate</tspan></text>
+            <text class="sf-sub" x="194" y="462"><tspan data-lang="en">you approve</tspan><tspan data-lang="de">du gibst frei</tspan></text>
+            <text class="sf-sub" x="194" y="480"><tspan data-lang="en">nothing autonomous</tspan><tspan data-lang="de">nichts autonom</tspan></text>
+            <path class="sf-line" d="M264 498 V514" marker-end="url(#agArrT)"/>
+            <rect class="sf-box" x="180" y="520" width="168" height="52" rx="10"/>
+            <text class="sf-lbl" x="194" y="542"><tspan data-lang="en">Goes out</tspan><tspan data-lang="de">Geht raus</tspan></text>
+            <text class="sf-sub" x="194" y="560"><tspan data-lang="en">as the persona</tspan><tspan data-lang="de">als die Persona</tspan></text>
+          </g>
+          <g data-step="5">
+            <path class="sf-line soft" d="M4 592 H356"/>
+            <text class="sf-sub ag-cap" x="12" y="614"><tspan data-lang="en">INWARD · INSIDE YOUR SESSION</tspan><tspan data-lang="de">NACH INNEN · IN DEINER SESSION</tspan></text>
+            <rect class="sf-box" x="12" y="626" width="140" height="50" rx="10"/>
+            <text class="sf-lbl" x="24" y="648"><tspan data-lang="en">Orchestrator</tspan><tspan data-lang="de">Orchestrator</tspan></text>
+            <text class="sf-sub" x="24" y="666"><tspan data-lang="en">your session</tspan><tspan data-lang="de">deine Session</tspan></text>
+            <rect class="sf-box" x="208" y="626" width="140" height="50" rx="10"/>
+            <text class="sf-lbl" x="220" y="648"><tspan data-lang="en">Sub-agent</tspan><tspan data-lang="de">Sub-Agent</tspan></text>
+            <text class="sf-mono" x="220" y="666">.claude/agents/</text>
+            <path class="sf-line soft" d="M154 642 H202" marker-end="url(#agArrTM)"/>
+            <path class="sf-line soft" d="M206 660 H158" marker-end="url(#agArrTM)"/>
+            <text class="sf-sub" x="180" y="704" text-anchor="middle"><tspan data-lang="en">no address, no card · one task, then gone</tspan><tspan data-lang="de">keine Adresse, keine Card · eine Aufgabe, dann weg</tspan></text>
+          </g>
+        </svg>
+
+        <ol class="steps-legend">
+          <li data-step="1"><b>1</b><span data-lang="en">A visitor, foreign agent or peer bridge asks</span><span data-lang="de">Besucher, fremder Agent oder Peer-Bridge fragt</span></li>
+          <li data-step="2"><b>2</b><span data-lang="en">The A2A request lands at the AgentCard endpoint</span><span data-lang="de">Die A2A-Anfrage landet am AgentCard-Endpunkt</span></li>
+          <li data-step="3"><b>3</b><span data-lang="en">The runtime answers from public content only</span><span data-lang="de">Die Runtime antwortet nur aus öffentlichem Inhalt</span></li>
+          <li data-step="4"><b>4</b><span data-lang="en">Bookings and replies wait at a human gate</span><span data-lang="de">Buchungen und Antworten warten an einem menschlichen Gate</span></li>
+          <li data-step="5"><b>5</b><span data-lang="en">Unlike a sub-agent: inward, no address, no card</span><span data-lang="de">Anders als ein Sub-Agent: nach innen, ohne Adresse, ohne Card</span></li>
+        </ol>
+      </figure>
     </div>
   </section>
 
@@ -720,6 +901,7 @@ html.dark .code{background:var(--code-bg)}
         <a href="https://github.com/bks-lab/open-bridge/blob/main/docs/representative-agent.md" target="_blank" rel="noopener"><span data-lang="en">Representative-agent guide</span><span data-lang="de">Representative-Agent-Guide</span></a>
         <a href="https://github.com/bks-lab/open-bridge/tree/main/agents" target="_blank" rel="noopener"><span data-lang="en">The agents/ runtime &amp; template</span><span data-lang="de">Der agents/-Runtime &amp; das Template</span></a>
         <a href="https://github.com/bks-lab/open-bridge/tree/main/agents/_gateway" target="_blank" rel="noopener"><span data-lang="en">MCP→A2A gateway (agents/_gateway/README.md)</span><span data-lang="de">MCP→A2A-Gateway (agents/_gateway/README.md)</span></a>
+        <a href="concepts.html"><span data-lang="en">The concept guide</span><span data-lang="de">Der Konzept-Guide</span></a>
       </div>
       <div class="pointers-sub reveal">
         <span class="lab" data-lang="en">Issues</span><span class="lab" data-lang="de">Issues</span>
@@ -729,12 +911,16 @@ html.dark .code{background:var(--code-bg)}
         <a href="https://github.com/bks-lab/open-bridge/issues/124" target="_blank" rel="noopener">#124</a>
         <a href="https://github.com/bks-lab/open-bridge/pull/125" target="_blank" rel="noopener">PR #125</a>
       </div>
-      <div class="prose" style="margin-top:44px;text-align:center">
-        <a class="btn btn-primary" href="concepts.html"><span data-lang="en">Read the concept guide</span><span data-lang="de">Den Konzept-Guide lesen</span> <span class="arrow">→</span></a>
-        <a class="btn btn-secondary" href="index.html#get-started" style="margin-left:10px"><span data-lang="en">Set up your own</span><span data-lang="de">Eigene Bridge einrichten</span> <span class="arrow">→</span></a>
-      </div>
     </div>
   </section>
+
+  <!-- ---- end-of-page: the shared install band (brand.css .cta-band) ---- -->
+  <section class="cta-band"><div class="container">
+    <p class="eyebrow"><span data-lang="en">Get started</span><span data-lang="de">Loslegen</span></p>
+    <h2><span data-lang="en">One prompt. Your own private bridge.</span><span data-lang="de">Ein Prompt. Deine eigene, private Bridge.</span></h2>
+    <p><span data-lang="en">Paste it into Claude Code, Codex or Copilot CLI. Your agent follows SETUP.md, shows you its plan and waits for your go.</span><span data-lang="de">Kopier ihn in Claude Code, Codex oder Copilot CLI. Dein Agent folgt SETUP.md, zeigt dir seinen Plan und wartet auf dein Go.</span></p>
+    <div class="cta-row"><a class="btn btn-primary" href="index.html#get-started"><span data-lang="en">Get the prompt</span><span data-lang="de">Zum Prompt</span> <span class="arrow">→</span></a><a class="btn btn-secondary" href="demo.html"><span data-lang="en">See it work</span><span data-lang="de">Sieh es arbeiten</span></a></div>
+  </div></section>
 
 </main>
 <!-- ========================== END PAGE CONTENT ============================== -->
@@ -888,5 +1074,6 @@ html.dark .code{background:var(--code-bg)}
 <!-- A2A chat widget: the Bridge-Agents page fronts a Bridge-Agent (dogfooding). -->
 <script defer src="assets/agent-config.js"></script>
 <script defer src="assets/agent-widget.js"></script>
+<script defer src="assets/diagram-steps.js"></script>
 </body>
 </html>

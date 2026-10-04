@@ -187,6 +187,12 @@ html.dark .code{background:var(--code-bg)}
 }
 .pointers-sub a:hover{background:var(--accent-soft)}
 
+/* life-of-a-workload figure: a wide drawing on desktop, a tall one on phones */
+.wl-fig .wl-tall{display:none}
+.wl-fig .sf-strike{stroke:var(--muted);stroke-width:1.2}
+.wl-fig .sf-x{fill:var(--muted);font:600 14px var(--font-sans)}
+@media (max-width:640px){ .wl-fig .wl-wide{display:none} .wl-fig .wl-tall{display:block;max-width:420px;margin-inline:auto} }
+
 @media (max-width:560px){ .lead-def{padding:24px 22px} .split .card{padding:22px 20px} .use{padding:24px 22px} }
 </style>
 </head>
@@ -251,6 +257,127 @@ html.dark .code{background:var(--code-bg)}
           <a href="https://github.com/bks-lab/open-bridge/blob/main/docs/workloads.md" target="_blank" rel="noopener"><span data-lang="en">Read the full workloads guide →</span><span data-lang="de">Den vollständigen Workloads-Guide lesen →</span></a>
         </p>
       </div>
+
+      <!-- The life of one workload: declared in one file, rendered onto one
+           machine, reconciled against the live machine (stamp + marker), retired.
+           There is no status field; the machine answers. -->
+      <figure class="steps-fig wl-fig" data-steps>
+        <svg class="wl-wide" viewBox="0 0 800 384" role="img" aria-label="The life of one workload. One declaration file in workflow/workloads is the truth and has no status field. It is rendered and provisioned onto one machine as a unit file for launchd, systemd or cron, with an ownership stamp on the machine and a marker inside the artifact. Reconcile asks the live machine and requires both signals to agree; unknown never becomes absent. Retiring takes a date and a written reason.">
+          <defs>
+            <marker id="wlArr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--accent-text)"/></marker>
+            <marker id="wlArrM" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--muted)"/></marker>
+          </defs>
+
+          <!-- 1 declare -->
+          <g data-step="1">
+            <rect class="sf-box hi" x="24" y="60" width="250" height="92" rx="10"/>
+            <text class="sf-lbl" x="40" y="84"><tspan data-lang="en">Declaration: the truth</tspan><tspan data-lang="de">Deklaration: die Wahrheit</tspan></text>
+            <text class="sf-mono" x="40" y="104">workflow/workloads/&lt;id&gt;.yaml</text>
+            <text class="sf-sub" x="40" y="124">placement · schedule</text>
+            <text class="sf-sub" x="40" y="140">execution · response</text>
+            <rect class="sf-zone" x="24" y="172" width="250" height="46" rx="10"/>
+            <text class="sf-mono" x="40" y="192" style="fill:var(--muted)">status:</text>
+            <line class="sf-strike" x1="38" y1="188" x2="92" y2="188"/>
+            <text class="sf-sub" x="40" y="209"><tspan data-lang="en">no such field, ever</tspan><tspan data-lang="de">dieses Feld gibt es nie</tspan></text>
+            <text class="sf-x" x="254" y="200" text-anchor="middle">✕</text>
+          </g>
+
+          <!-- 2 render + provision onto one machine -->
+          <g data-step="2">
+            <rect class="sf-zone" x="430" y="24" width="346" height="224" rx="12"/>
+            <text class="sf-sub" x="446" y="46"><tspan data-lang="en">ONE MACHINE · host-a</tspan><tspan data-lang="de">EINE MASCHINE · host-a</tspan></text>
+            <rect class="sf-box" x="450" y="60" width="306" height="100" rx="10"/>
+            <text class="sf-lbl" x="466" y="84"><tspan data-lang="en">Unit file: an artifact</tspan><tspan data-lang="de">Einheitsdatei: ein Artefakt</tspan></text>
+            <text class="sf-mono" x="466" y="104">launchd · systemd · cron</text>
+            <text class="sf-sub" x="466" y="122"><tspan data-lang="en">rebuilt from the file any time</tspan><tspan data-lang="de">jederzeit aus der Datei neu gebaut</tspan></text>
+            <text class="sf-sub" x="466" y="144"><tspan data-lang="en">+ ownership marker inside</tspan><tspan data-lang="de">+ Besitzmarke im Artefakt</tspan></text>
+            <rect class="sf-box" x="450" y="176" width="306" height="52" rx="10"/>
+            <text class="sf-lbl" x="466" y="198"><tspan data-lang="en">Ownership stamp</tspan><tspan data-lang="de">Besitzstempel</tspan></text>
+            <text class="sf-sub" x="466" y="216"><tspan data-lang="en">on the machine</tspan><tspan data-lang="de">auf der Maschine</tspan></text>
+            <text class="sf-mono" x="352" y="96" text-anchor="middle">render · provision</text>
+            <text class="sf-sub" x="352" y="126" text-anchor="middle"><tspan data-lang="en">same bytes every time</tspan><tspan data-lang="de">immer dieselben Bytes</tspan></text>
+          </g>
+          <path class="sf-line" data-step="2" data-draw d="M274 106 H444" marker-end="url(#wlArr)"/>
+
+          <!-- 3 reconcile against the live machine -->
+          <g data-step="3">
+            <rect class="sf-box hi" x="250" y="290" width="300" height="80" rx="10"/>
+            <text class="sf-lbl" x="400" y="315" text-anchor="middle"><tspan data-lang="en">Reconcile: ask the live machine</tspan><tspan data-lang="de">Abgleich: die lebende Maschine fragen</tspan></text>
+            <text class="sf-mono" x="400" y="336" text-anchor="middle"><tspan data-lang="en">stamp + marker must agree</tspan><tspan data-lang="de">Stempel + Marke müssen passen</tspan></text>
+            <text class="sf-sub" x="400" y="356" text-anchor="middle"><tspan data-lang="en">unknown never becomes absent</tspan><tspan data-lang="de">unknown wird nie zu absent</tspan></text>
+            <text class="sf-sub" x="164" y="262"><tspan data-lang="en">what should be there</tspan><tspan data-lang="de">was da sein soll</tspan></text>
+            <text class="sf-sub" x="528" y="272"><tspan data-lang="en">two signals, asked live</tspan><tspan data-lang="de">zwei Signale, live gefragt</tspan></text>
+          </g>
+          <path class="sf-line soft" data-step="3" data-draw d="M150 218 C150 300 190 330 246 330" marker-end="url(#wlArrM)"/>
+          <path class="sf-line" data-step="3" data-draw d="M520 248 V286" marker-end="url(#wlArr)"/>
+
+          <!-- 4 retire -->
+          <g data-step="4">
+            <rect class="sf-box" x="584" y="290" width="192" height="86" rx="10"/>
+            <text class="sf-lbl" x="600" y="314"><tspan data-lang="en">Retire</tspan><tspan data-lang="de">Stilllegen</tspan></text>
+            <text class="sf-sub" x="600" y="334"><tspan data-lang="en">date + written reason</tspan><tspan data-lang="de">Datum + Grund</tspan></text>
+            <text class="sf-sub" x="600" y="352"><tspan data-lang="en">marked when proven down</tspan><tspan data-lang="de">erst markiert, wenn</tspan></text>
+            <text class="sf-sub" x="600" y="367"><tspan data-lang="de">nachweislich unten</tspan></text>
+          </g>
+          <path class="sf-line soft" data-step="4" data-draw d="M550 330 H580" marker-end="url(#wlArrM)"/>
+        </svg>
+
+        <svg class="wl-tall" viewBox="0 0 360 640" role="img" aria-label="The life of one workload. One declaration file is the truth and has no status field. It is rendered and provisioned onto one machine as a unit file with an ownership marker, plus an ownership stamp on the machine. Reconcile asks the live machine and requires both signals to agree. Retiring takes a date and a written reason.">
+          <defs>
+            <marker id="wlArrT" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--accent-text)"/></marker>
+            <marker id="wlArrTM" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--muted)"/></marker>
+          </defs>
+          <g data-step="1">
+            <rect class="sf-box hi" x="12" y="12" width="336" height="92" rx="10"/>
+            <text class="sf-lbl" x="28" y="38"><tspan data-lang="en">Declaration: the truth</tspan><tspan data-lang="de">Deklaration: die Wahrheit</tspan></text>
+            <text class="sf-mono" x="28" y="58">workflow/workloads/&lt;id&gt;.yaml</text>
+            <text class="sf-sub" x="28" y="80">placement · schedule</text>
+            <text class="sf-sub" x="28" y="95">execution · response</text>
+            <rect class="sf-zone" x="12" y="116" width="250" height="46" rx="10"/>
+            <text class="sf-mono" x="28" y="136" style="fill:var(--muted)">status:</text>
+            <line class="sf-strike" x1="26" y1="132" x2="80" y2="132"/>
+            <text class="sf-sub" x="28" y="153"><tspan data-lang="en">no such field, ever</tspan><tspan data-lang="de">dieses Feld gibt es nie</tspan></text>
+            <text class="sf-x" x="242" y="144" text-anchor="middle">✕</text>
+          </g>
+          <g data-step="2">
+            <text class="sf-mono" x="292" y="182" text-anchor="end">render · provision</text>
+            <text class="sf-sub" x="292" y="198" text-anchor="end"><tspan data-lang="en">same bytes every time</tspan><tspan data-lang="de">immer dieselben Bytes</tspan></text>
+            <rect class="sf-zone" x="12" y="212" width="336" height="202" rx="12"/>
+            <text class="sf-sub" x="28" y="232"><tspan data-lang="en">ONE MACHINE · host-a</tspan><tspan data-lang="de">EINE MASCHINE · host-a</tspan></text>
+            <rect class="sf-box" x="28" y="244" width="304" height="100" rx="10"/>
+            <text class="sf-lbl" x="44" y="268"><tspan data-lang="en">Unit file: an artifact</tspan><tspan data-lang="de">Einheitsdatei: ein Artefakt</tspan></text>
+            <text class="sf-mono" x="44" y="288">launchd · systemd · cron</text>
+            <text class="sf-sub" x="44" y="306"><tspan data-lang="en">rebuilt from the file any time</tspan><tspan data-lang="de">jederzeit aus der Datei neu gebaut</tspan></text>
+            <text class="sf-sub" x="44" y="328"><tspan data-lang="en">+ ownership marker inside</tspan><tspan data-lang="de">+ Besitzmarke im Artefakt</tspan></text>
+            <rect class="sf-box" x="28" y="354" width="304" height="48" rx="10"/>
+            <text class="sf-lbl" x="44" y="374"><tspan data-lang="en">Ownership stamp</tspan><tspan data-lang="de">Besitzstempel</tspan></text>
+            <text class="sf-sub" x="44" y="392"><tspan data-lang="en">on the machine</tspan><tspan data-lang="de">auf der Maschine</tspan></text>
+          </g>
+          <path class="sf-line" data-step="2" data-draw d="M310 104 V240" marker-end="url(#wlArrT)"/>
+          <g data-step="3">
+            <text class="sf-sub" x="132" y="438"><tspan data-lang="en">two signals, asked live</tspan><tspan data-lang="de">zwei Signale, live gefragt</tspan></text>
+            <rect class="sf-box hi" x="12" y="456" width="336" height="80" rx="10"/>
+            <text class="sf-lbl" x="180" y="481" text-anchor="middle"><tspan data-lang="en">Reconcile: ask the live machine</tspan><tspan data-lang="de">Abgleich: die lebende Maschine fragen</tspan></text>
+            <text class="sf-mono" x="180" y="502" text-anchor="middle"><tspan data-lang="en">stamp + marker must agree</tspan><tspan data-lang="de">Stempel + Marke müssen passen</tspan></text>
+            <text class="sf-sub" x="180" y="522" text-anchor="middle"><tspan data-lang="en">unknown never becomes absent</tspan><tspan data-lang="de">unknown wird nie zu absent</tspan></text>
+          </g>
+          <path class="sf-line" data-step="3" data-draw d="M120 414 V452" marker-end="url(#wlArrT)"/>
+          <g data-step="4">
+            <rect class="sf-box" x="12" y="560" width="336" height="66" rx="10"/>
+            <text class="sf-lbl" x="28" y="584"><tspan data-lang="en">Retire</tspan><tspan data-lang="de">Stilllegen</tspan></text>
+            <text class="sf-sub" x="28" y="602"><tspan data-lang="en">date + written reason</tspan><tspan data-lang="de">Datum + geschriebener Grund</tspan></text>
+            <text class="sf-sub" x="28" y="617"><tspan data-lang="en">marked only once every unit is down</tspan><tspan data-lang="de">markiert erst, wenn jede Einheit unten ist</tspan></text>
+          </g>
+          <path class="sf-line soft" data-step="4" data-draw d="M180 536 V556" marker-end="url(#wlArrTM)"/>
+        </svg>
+
+        <ol class="steps-legend">
+          <li data-step="1"><b>1</b><span data-lang="en">Declare: one file, no status field</span><span data-lang="de">Deklarieren: eine Datei, kein Status-Feld</span></li>
+          <li data-step="2"><b>2</b><span data-lang="en">Render onto one machine</span><span data-lang="de">Auf eine Maschine rendern</span></li>
+          <li data-step="3"><b>3</b><span data-lang="en">Reconcile: the live machine answers</span><span data-lang="de">Abgleichen: die lebende Maschine antwortet</span></li>
+          <li data-step="4"><b>4</b><span data-lang="en">Retire with a date and a reason</span><span data-lang="de">Stilllegen mit Datum und Grund</span></li>
+        </ol>
+      </figure>
     </div>
   </section>
 
@@ -526,7 +653,7 @@ skills/workload/                    <span class="cmt"># CORE  the engine and the
   </section>
 
   <!-- ---- closing pointers ---- -->
-  <section style="padding-block:64px 88px">
+  <section style="padding-block:64px 64px">
     <div class="container">
       <div class="prose">
         <h2 class="h2" data-lang="en">Read on</h2>
@@ -539,6 +666,13 @@ skills/workload/                    <span class="cmt"># CORE  the engine and the
       </div>
     </div>
   </section>
+
+  <section class="cta-band"><div class="container">
+    <p class="eyebrow"><span data-lang="en">Get started</span><span data-lang="de">Loslegen</span></p>
+    <h2><span data-lang="en">One prompt. Your own private bridge.</span><span data-lang="de">Ein Prompt. Deine eigene, private Bridge.</span></h2>
+    <p><span data-lang="en">Paste it into Claude Code, Codex or Copilot CLI. Your agent follows SETUP.md, shows you its plan and waits for your go.</span><span data-lang="de">Kopier ihn in Claude Code, Codex oder Copilot CLI. Dein Agent folgt SETUP.md, zeigt dir seinen Plan und wartet auf dein Go.</span></p>
+    <div class="cta-row"><a class="btn btn-primary" href="index.html#get-started"><span data-lang="en">Get the prompt</span><span data-lang="de">Zum Prompt</span> <span class="arrow">→</span></a><a class="btn btn-secondary" href="demo.html"><span data-lang="en">See it work</span><span data-lang="de">Sieh es arbeiten</span></a></div>
+  </div></section>
 
 </main>
 <!-- ========================== END PAGE CONTENT ============================== -->
@@ -688,5 +822,6 @@ skills/workload/                    <span class="cmt"># CORE  the engine and the
   }
 })();
 </script>
+<script defer src="assets/diagram-steps.js"></script>
 </body>
 </html>

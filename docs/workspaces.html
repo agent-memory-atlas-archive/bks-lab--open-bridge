@@ -187,6 +187,12 @@ html.dark .code{background:var(--code-bg)}
 }
 .pointers-sub a:hover{background:var(--accent-soft)}
 
+/* at-a-glance figure: a wide drawing, and a stacked one for phones */
+.ws-fig .ws-narrow{display:none}
+.ws-fig .ws-narrow .sf-lbl{font-size:15px}
+.ws-fig .ws-narrow .sf-sub,.ws-fig .ws-narrow .sf-mono{font-size:13px}
+@media (max-width:640px){ .ws-fig .ws-wide{display:none} .ws-fig .ws-narrow{display:block} }
+
 @media (max-width:560px){ .lead-def{padding:24px 22px} .split .card{padding:22px 20px} .use{padding:24px 22px} }
 </style>
 </head>
@@ -251,6 +257,174 @@ html.dark .code{background:var(--code-bg)}
           <a href="https://github.com/bks-lab/open-bridge/blob/main/docs/workspaces.md" target="_blank" rel="noopener"><span data-lang="en">Read the full workspaces guide →</span><span data-lang="de">Den vollständigen Workspaces-Guide lesen →</span></a>
         </p>
       </div>
+
+      <!-- At a glance: members bound under one name, the engine clones and pins
+           code members, delegates config members, and status reports drift.
+           Two drawings of the same five steps: a wide one, and a stacked one
+           that stays legible on a phone. -->
+      <figure class="steps-fig ws-fig" data-steps>
+        <svg class="ws-wide" viewBox="0 0 800 364" role="img"
+             aria-label="Code repos and config overlays are the members of a workspace. They are bound under one name in workflow/workspaces/&lt;id&gt;.yaml, and the identity is mirrored to the shared registry ~/.workspaces/workspaces.json. The engine workspace.py clones each code member into .bridge/workspaces/&lt;id&gt;/, kept out of git, and pins its resolved_sha in workspaces.lock.yaml. Config members are delegated to overlay.py, whose state is instance-wide. The status verb compares each clone's HEAD with its pin and reports clean, ahead, missing or unpinned.">
+
+          <!-- column captions -->
+          <text class="sf-sub" x="20" y="22"><tspan data-lang="en">MEMBERS</tspan><tspan data-lang="de">MEMBER</tspan></text>
+          <text class="sf-sub" x="260" y="22"><tspan data-lang="en">ONE NAME</tspan><tspan data-lang="de">EIN NAME</tspan></text>
+          <text class="sf-sub" x="590" y="22"><tspan data-lang="en">RESOLVED LOCALLY</tspan><tspan data-lang="de">LOKAL AUFGELÖST</tspan></text>
+
+          <!-- 1 · members -->
+          <g data-step="1">
+            <rect class="sf-box" x="20" y="36" width="180" height="56" rx="10"/>
+            <text class="sf-lbl" x="34" y="59"><tspan data-lang="en">Code repo</tspan><tspan data-lang="de">Code-Repo</tspan></text>
+            <text class="sf-sub" x="34" y="79">role: code</text>
+            <rect class="sf-box" x="20" y="104" width="180" height="56" rx="10"/>
+            <text class="sf-lbl" x="34" y="127"><tspan data-lang="en">Code repo</tspan><tspan data-lang="de">Code-Repo</tspan></text>
+            <text class="sf-sub" x="34" y="147">role: code</text>
+            <rect class="sf-box" x="20" y="196" width="180" height="56" rx="10"/>
+            <text class="sf-lbl" x="34" y="219"><tspan data-lang="en">Config overlay</tspan><tspan data-lang="de">Config-Overlay</tspan></text>
+            <text class="sf-sub" x="34" y="239">role: config</text>
+          </g>
+
+          <!-- 2 · bound under one name, identity mirrored -->
+          <path data-step="2" d="M252 120 L260 124 L252 128 z" fill="var(--accent-text)"/>
+          <path data-step="2" d="M252 144 L260 148 L252 152 z" fill="var(--accent-text)"/>
+          <path data-step="2" d="M252 168 L260 172 L252 176 z" fill="var(--accent-text)"/>
+          <path class="sf-line" data-step="2" data-draw d="M200 64 C232 64 228 124 256 124"/>
+          <path class="sf-line" data-step="2" data-draw d="M200 132 C228 132 228 148 256 148"/>
+          <path class="sf-line" data-step="2" data-draw d="M200 224 C232 224 228 172 256 172"/>
+          <g data-step="2">
+            <rect class="sf-box hi" x="260" y="100" width="220" height="96" rx="10"/>
+            <text class="sf-lbl" x="276" y="126"><tspan data-lang="en">One workspace</tspan><tspan data-lang="de">Ein Workspace</tspan></text>
+            <text class="sf-mono" x="276" y="148">workflow/workspaces/</text>
+            <text class="sf-mono" x="276" y="164">&lt;id&gt;.yaml</text>
+            <text class="sf-sub" x="276" y="184"><tspan data-lang="en">the file you author</tspan><tspan data-lang="de">die Datei, die du schreibst</tspan></text>
+          </g>
+          <path class="sf-line soft" data-step="2" data-draw d="M370 196 V254"/>
+          <g data-step="2">
+            <text class="sf-sub" x="380" y="230"><tspan data-lang="en">identity mirrored</tspan><tspan data-lang="de">Identität gespiegelt</tspan></text>
+            <rect class="sf-box" x="260" y="258" width="220" height="76" rx="10"/>
+            <text class="sf-lbl" x="276" y="281"><tspan data-lang="en">Shared registry</tspan><tspan data-lang="de">Geteilte Registry</tspan></text>
+            <text class="sf-mono" x="276" y="301">~/.workspaces/</text>
+            <text class="sf-mono" x="276" y="317">workspaces.json</text>
+          </g>
+
+          <!-- 3 · engine clones code members and pins them -->
+          <path data-step="3" d="M582 58 L590 62 L582 66 z" fill="var(--accent-text)"/>
+          <path data-step="3" d="M582 146 L590 150 L582 154 z" fill="var(--accent-text)"/>
+          <path class="sf-line" data-step="3" data-draw d="M480 124 C536 124 534 62 586 62"/>
+          <path class="sf-line" data-step="3" data-draw d="M480 150 H586"/>
+          <g data-step="3">
+            <text class="sf-mono" x="535" y="174" text-anchor="middle">workspace.py</text>
+            <text class="sf-sub" x="535" y="190" text-anchor="middle"><tspan data-lang="en">engine</tspan><tspan data-lang="de">Engine</tspan></text>
+            <rect class="sf-box" x="590" y="34" width="190" height="56" rx="10"/>
+            <text class="sf-mono" x="602" y="57">.bridge/workspaces/&lt;id&gt;/</text>
+            <text class="sf-sub" x="602" y="77"><tspan data-lang="en">clones, kept out of git</tspan><tspan data-lang="de">Klone, nie in Git</tspan></text>
+            <rect class="sf-box" x="590" y="122" width="190" height="56" rx="10"/>
+            <text class="sf-mono" x="602" y="145">workspaces.lock.yaml</text>
+            <text class="sf-sub" x="602" y="165"><tspan data-lang="en">pins resolved_sha</tspan><tspan data-lang="de">pinnt resolved_sha</tspan></text>
+          </g>
+
+          <!-- 4 · config members are delegated to the overlay engine -->
+          <path data-step="4" d="M582 314 L590 318 L582 322 z" fill="var(--muted)"/>
+          <path class="sf-line soft" data-step="4" data-draw d="M480 184 C540 184 532 318 586 318"/>
+          <g data-step="4">
+            <text class="sf-sub" x="548" y="340" text-anchor="end"><tspan data-lang="en">delegated</tspan><tspan data-lang="de">delegiert</tspan></text>
+            <rect class="sf-box" x="590" y="292" width="190" height="56" rx="10"/>
+            <text class="sf-mono" x="602" y="315">overlay.py</text>
+            <text class="sf-sub" x="602" y="335"><tspan data-lang="en">instance-wide state</tspan><tspan data-lang="de">instanzweiter Zustand</tspan></text>
+          </g>
+
+          <!-- 5 · status: clone HEAD against the pin -->
+          <path data-step="5" d="M788 224 L780 228 L788 232 z" fill="var(--accent-text)"/>
+          <path class="sf-line" data-step="5" data-draw d="M780 62 H792 V228 H784"/>
+          <path class="sf-line" data-step="5" data-draw d="M780 150 H792"/>
+          <g data-step="5">
+            <rect class="sf-box hi" x="590" y="190" width="190" height="84" rx="10"/>
+            <text class="sf-lbl" x="602" y="212"><tspan data-lang="en">status: drift</tspan><tspan data-lang="de">status: Drift</tspan></text>
+            <text class="sf-sub" x="602" y="230"><tspan data-lang="en">clone HEAD vs. pin</tspan><tspan data-lang="de">Klon-HEAD gegen Pin</tspan></text>
+            <text class="sf-mono" x="602" y="249">clean · ahead</text>
+            <text class="sf-mono" x="602" y="265">missing · unpinned</text>
+          </g>
+        </svg>
+
+        <svg class="ws-narrow" viewBox="0 0 400 500" role="img"
+             aria-label="Code repos and config overlays are the members of a workspace. They are bound under one name in workflow/workspaces/&lt;id&gt;.yaml, and the identity is mirrored to the shared registry in ~/.workspaces/. The engine workspace.py clones each code member into .bridge/workspaces/, kept out of git, and pins it in workspaces.lock.yaml. The status verb compares each clone's HEAD with its pin and reports clean, ahead, missing or unpinned. Config members are delegated to overlay.py, whose state is instance-wide.">
+
+          <!-- 1 · members -->
+          <g data-step="1">
+            <text class="sf-sub" x="10" y="18"><tspan data-lang="en">MEMBERS</tspan><tspan data-lang="de">MEMBER</tspan></text>
+            <rect class="sf-box" x="10" y="28" width="185" height="58" rx="10"/>
+            <text class="sf-lbl" x="24" y="52"><tspan data-lang="en">Code repos</tspan><tspan data-lang="de">Code-Repos</tspan></text>
+            <text class="sf-sub" x="24" y="73">role: code</text>
+            <rect class="sf-box" x="205" y="28" width="185" height="58" rx="10"/>
+            <text class="sf-lbl" x="219" y="52"><tspan data-lang="en">Config overlay</tspan><tspan data-lang="de">Config-Overlay</tspan></text>
+            <text class="sf-sub" x="219" y="73">role: config</text>
+          </g>
+
+          <!-- 2 · one name + shared registry -->
+          <path data-step="2" d="M96 108 L100 116 L104 108 z" fill="var(--accent-text)"/>
+          <path data-step="2" d="M156 108 L160 116 L164 108 z" fill="var(--accent-text)"/>
+          <path class="sf-line" data-step="2" data-draw d="M100 86 V112"/>
+          <path class="sf-line" data-step="2" data-draw d="M297 86 C297 104 160 98 160 112"/>
+          <g data-step="2">
+            <rect class="sf-box hi" x="10" y="116" width="200" height="88" rx="10"/>
+            <text class="sf-lbl" x="24" y="140"><tspan data-lang="en">One workspace</tspan><tspan data-lang="de">Ein Workspace</tspan></text>
+            <text class="sf-mono" x="24" y="162">workflow/workspaces/</text>
+            <text class="sf-mono" x="24" y="180">&lt;id&gt;.yaml</text>
+            <text class="sf-sub" x="24" y="196"><tspan data-lang="en">you author it</tspan><tspan data-lang="de">von dir geschrieben</tspan></text>
+          </g>
+          <path class="sf-line soft" data-step="2" data-draw d="M210 160 H236"/>
+          <g data-step="2">
+            <rect class="sf-box" x="240" y="116" width="150" height="88" rx="10"/>
+            <text class="sf-lbl" x="252" y="140">Registry</text>
+            <text class="sf-mono" x="252" y="162">~/.workspaces/</text>
+            <text class="sf-sub" x="252" y="182"><tspan data-lang="en">shared identity</tspan><tspan data-lang="de">geteilt</tspan></text>
+          </g>
+
+          <!-- 3 · engine clones and pins -->
+          <path data-step="3" d="M96 242 L100 250 L104 242 z" fill="var(--accent-text)"/>
+          <path data-step="3" d="M293 242 L297 250 L301 242 z" fill="var(--accent-text)"/>
+          <path class="sf-line" data-step="3" data-draw d="M100 204 V246"/>
+          <path class="sf-line" data-step="3" data-draw d="M150 204 C150 228 297 222 297 246"/>
+          <g data-step="3">
+            <text class="sf-mono" x="200" y="226" text-anchor="middle" stroke="var(--surface-subtle)" stroke-width="6" paint-order="stroke">workspace.py</text>
+            <rect class="sf-box" x="10" y="250" width="185" height="58" rx="10"/>
+            <text class="sf-mono" x="22" y="273">.bridge/workspaces/</text>
+            <text class="sf-sub" x="22" y="295"><tspan data-lang="en">clones, out of git</tspan><tspan data-lang="de">Klone, nie in Git</tspan></text>
+            <rect class="sf-box" x="205" y="250" width="185" height="58" rx="10"/>
+            <text class="sf-mono" x="217" y="273">workspaces.lock.yaml</text>
+            <text class="sf-sub" x="217" y="295"><tspan data-lang="en">pins resolved_sha</tspan><tspan data-lang="de">pinnt resolved_sha</tspan></text>
+          </g>
+
+          <!-- 4 · config delegated to the overlay engine (drawn along the margin) -->
+          <path data-step="4" d="M2 458 L10 462 L2 466 z" fill="var(--muted)"/>
+          <path class="sf-line soft" data-step="4" data-draw d="M10 186 H4 V462 H6"/>
+          <g data-step="4">
+            <rect class="sf-box" x="10" y="436" width="380" height="54" rx="10"/>
+            <text class="sf-mono" x="24" y="459">overlay.py</text>
+            <text class="sf-sub" x="24" y="479"><tspan data-lang="en">config delegated · instance-wide</tspan><tspan data-lang="de">Config delegiert · instanzweit</tspan></text>
+          </g>
+
+          <!-- 5 · drift check -->
+          <path data-step="5" d="M96 330 L100 338 L104 330 z" fill="var(--accent-text)"/>
+          <path data-step="5" d="M293 330 L297 338 L301 330 z" fill="var(--accent-text)"/>
+          <path class="sf-line" data-step="5" data-draw d="M100 308 V334"/>
+          <path class="sf-line" data-step="5" data-draw d="M297 308 V334"/>
+          <g data-step="5">
+            <rect class="sf-box hi" x="10" y="338" width="380" height="76" rx="10"/>
+            <text class="sf-lbl" x="24" y="361"><tspan data-lang="en">status: drift check</tspan><tspan data-lang="de">status: Drift-Check</tspan></text>
+            <text class="sf-sub" x="24" y="381"><tspan data-lang="en">clone HEAD vs. pin</tspan><tspan data-lang="de">Klon-HEAD gegen Pin</tspan></text>
+            <text class="sf-mono" x="24" y="402">clean · ahead · missing · unpinned</text>
+          </g>
+        </svg>
+
+        <ol class="steps-legend">
+          <li data-step="1"><b>1</b><span data-lang="en">Members: code repos, config overlays</span><span data-lang="de">Member: Code-Repos, Config-Overlays</span></li>
+          <li data-step="2"><b>2</b><span data-lang="en">Bound under one name</span><span data-lang="de">Unter einem Namen gebunden</span></li>
+          <li data-step="3"><b>3</b><span data-lang="en">Engine clones and pins</span><span data-lang="de">Engine klont und pinnt</span></li>
+          <li data-step="4"><b>4</b><span data-lang="en">Config goes to the overlay engine</span><span data-lang="de">Config geht an die Overlay-Engine</span></li>
+          <li data-step="5"><b>5</b><span data-lang="en">status reports drift</span><span data-lang="de">status meldet Drift</span></li>
+        </ol>
+      </figure>
     </div>
   </section>
 
@@ -523,6 +697,7 @@ html.dark .code{background:var(--code-bg)}
         <a href="https://github.com/bks-lab/open-bridge/blob/main/docs/workspace-acceptance-test.md" target="_blank" rel="noopener"><span data-lang="en">Acceptance-test playbook</span><span data-lang="de">Acceptance-Test-Playbook</span></a>
         <a href="https://github.com/bks-lab/open-bridge/blob/main/docs/org-overlays.md" target="_blank" rel="noopener"><span data-lang="en">Org overlays</span><span data-lang="de">Org-Overlays</span></a>
         <a href="https://github.com/bks-lab/open-bridge/blob/main/docs/multi-instance.md" target="_blank" rel="noopener"><span data-lang="en">Multi-instance isolation</span><span data-lang="de">Multi-Instanz-Isolation</span></a>
+        <a href="concepts.html"><span data-lang="en">Concept guide</span><span data-lang="de">Konzept-Guide</span></a>
       </div>
       <div class="pointers-sub reveal">
         <span class="lab" data-lang="en">Schemas</span><span class="lab" data-lang="de">Schemas</span>
@@ -530,12 +705,15 @@ html.dark .code{background:var(--code-bg)}
         <a href="https://github.com/bks-lab/open-bridge/blob/main/docs/schemas/workspaces-lock.schema.yaml" target="_blank" rel="noopener">Lock</a>
         <a href="https://github.com/bks-lab/open-bridge/blob/main/docs/schemas/workspaces-registry.schema.yaml" target="_blank" rel="noopener">Registry</a>
       </div>
-      <div class="prose" style="margin-top:44px;text-align:center">
-        <a class="btn btn-primary" href="concepts.html"><span data-lang="en">Read the concept guide</span><span data-lang="de">Den Konzept-Guide lesen</span> <span class="arrow">→</span></a>
-        <a class="btn btn-secondary" href="index.html#get-started" style="margin-left:10px"><span data-lang="en">Set up your own</span><span data-lang="de">Eigene Bridge einrichten</span> <span class="arrow">→</span></a>
-      </div>
     </div>
   </section>
+
+  <section class="cta-band"><div class="container">
+    <p class="eyebrow"><span data-lang="en">Get started</span><span data-lang="de">Loslegen</span></p>
+    <h2><span data-lang="en">One prompt. Your own private bridge.</span><span data-lang="de">Ein Prompt. Deine eigene, private Bridge.</span></h2>
+    <p><span data-lang="en">Paste it into Claude Code, Codex or Copilot CLI. Your agent follows SETUP.md, shows you its plan and waits for your go.</span><span data-lang="de">Kopier ihn in Claude Code, Codex oder Copilot CLI. Dein Agent folgt SETUP.md, zeigt dir seinen Plan und wartet auf dein Go.</span></p>
+    <div class="cta-row"><a class="btn btn-primary" href="index.html#get-started"><span data-lang="en">Get the prompt</span><span data-lang="de">Zum Prompt</span> <span class="arrow">→</span></a><a class="btn btn-secondary" href="demo.html"><span data-lang="en">See it work</span><span data-lang="de">Sieh es arbeiten</span></a></div>
+  </div></section>
 
 </main>
 <!-- ========================== END PAGE CONTENT ============================== -->
@@ -685,5 +863,6 @@ html.dark .code{background:var(--code-bg)}
   }
 })();
 </script>
+<script defer src="assets/diagram-steps.js"></script>
 </body>
 </html>

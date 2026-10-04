@@ -133,6 +133,33 @@ html.dark{
 h1,h2,.display,.h1,.h2{font-family:var(--font-display)!important;font-weight:500!important;letter-spacing:-.01em}
 .wordmark{font-family:var(--font-display)}
 
+/* ---- Shared page pieces (feat/site-command-bridge) ----
+   .steps-fig: a figure that builds itself on scroll (assets/diagram-steps.js).
+   .cta-band: the closing "one prompt, your own bridge" block on every page. */
+.steps-fig{margin:40px auto 0;max-width:56rem;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface-subtle);padding:24px 24px 18px}
+.steps-fig svg{display:block;width:100%;height:auto}
+.steps-fig svg text{font-family:var(--font-sans)}
+.steps-fig .sf-box{fill:var(--surface);stroke:var(--line);stroke-width:1}
+.steps-fig .sf-box.hi{stroke:var(--accent-text);stroke-width:1.4}
+.steps-fig .sf-lbl{fill:var(--ink);font:500 13px var(--font-sans)}
+.steps-fig .sf-sub{fill:var(--muted);font:400 11px var(--font-mono)}
+.steps-fig .sf-mono{fill:var(--accent-text);font:400 11.5px var(--font-mono)}
+.steps-fig .sf-line{stroke:var(--accent-text);stroke-width:1.6;fill:none;stroke-linecap:round}
+.steps-fig .sf-line.soft{stroke:var(--muted);stroke-dasharray:4 5}
+.steps-fig .sf-zone{fill:none;stroke:var(--line);stroke-dasharray:4 6}
+.steps-legend{list-style:none;padding:0;margin:16px 0 0;display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.steps-legend li{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);border:1px solid var(--line);border-radius:9999px;padding:5px 12px 5px 6px;transition:color .3s,border-color .3s,background .3s}
+.steps-legend li b{width:20px;height:20px;border-radius:9999px;display:grid;place-items:center;font:600 11px var(--font-sans);border:1px solid var(--line)}
+.steps-legend li.on{color:var(--ink);border-color:var(--accent-text);background:var(--accent-soft)}
+.steps-legend li.on b,.steps-legend li.done b{background:var(--accent-text);border-color:var(--accent-text);color:var(--surface)}
+.cta-band{border-top:1px solid var(--line);padding-block:88px;text-align:center;background:var(--surface-subtle)}
+.cta-band .eyebrow{margin-bottom:12px;color:var(--accent-text)}
+.cta-band h2{font-size:clamp(28px,3.4vw,42px);line-height:1.15;margin:0 auto;max-width:22em}
+.cta-band p{color:var(--muted);max-width:40rem;margin:14px auto 0}
+.cta-band .cta-row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:26px}
+@media (max-width:640px){.steps-fig{padding:14px 10px}.cta-band{padding-block:64px}
+  .steps-legend{flex-direction:column;align-items:stretch;gap:6px}.steps-legend li{border-radius:10px;font-size:12.5px;line-height:1.35;align-items:flex-start}.steps-legend li b{flex:none;margin-top:-1px}}
+
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{

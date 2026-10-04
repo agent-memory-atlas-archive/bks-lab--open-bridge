@@ -147,6 +147,18 @@
 .concept .backtop a{color:var(--secondary);text-decoration:none}
 .concept .backtop a:hover{color:var(--primary);text-decoration:underline}
 
+/* ---- stack figure (how the concepts stack) ---- */
+#stack-fig svg{max-width:620px;margin-inline:auto}
+#stack-fig .sf-cap{fill:var(--muted);font:600 10px var(--font-mono);letter-spacing:.08em}
+#stack-fig .sf-sub.sm{font-size:10px}
+#stack-fig .sf-head{fill:var(--accent-text);stroke:none}
+
+/* ---- static links under the index: the sections lifted from the landing page ---- */
+.toc-extra{max-width:var(--container);margin:14px auto 0;display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;font-size:14px}
+.toc-extra .lab{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+.toc-extra a{text-decoration:none;color:var(--accent-text);border:1px solid var(--line);border-radius:var(--r-full);padding:4px 12px;background:var(--surface);font-weight:500;font-size:13.5px}
+.toc-extra a:hover{background:var(--accent-soft)}
+
 @media (max-width:560px){
   .concept{padding:24px 22px}
   .lead-def{padding:24px 22px}
@@ -317,6 +329,78 @@ html.dark .tile .demo{background:var(--code-bg)}
           <a href="#bridge"><span data-lang="en">Read the bridge concept in full →</span><span data-lang="de">Das Bridge-Konzept im Detail →</span></a>
         </p>
       </div>
+
+      <!-- how the concepts stack: substrate, cluster wrappers + work/, always-on layer, agent -->
+      <figure class="steps-fig" id="stack-fig" data-steps aria-label="How the concepts stack">
+        <svg viewBox="0 0 480 432" role="img" aria-labelledby="stack-fig-t">
+          <title id="stack-fig-t">The substrate at the bottom, the cluster wrappers and work/ on it, the always-on layer above, and the agent on top, which reads that layer at session start and writes back to work/log.md.</title>
+
+          <!-- 1: the substrate, and the repo it makes up -->
+          <g data-step="1">
+            <rect class="sf-zone" x="8" y="100" width="440" height="322" rx="14"/>
+            <text class="sf-cap" x="22" y="316"><tspan data-lang="en">SUBSTRATE</tspan><tspan data-lang="de">SUBSTRAT</tspan></text>
+            <rect class="sf-box hi" x="22" y="324" width="416" height="60" rx="10"/>
+            <text class="sf-lbl" x="230" y="349" text-anchor="middle"><tspan data-lang="en">Plain markdown + YAML in git</tspan><tspan data-lang="de">Schlichtes Markdown + YAML in Git</tspan></text>
+            <text class="sf-sub" x="230" y="369" text-anchor="middle"><tspan data-lang="en">no database · no daemon · no hosted service</tspan><tspan data-lang="de">keine Datenbank · kein Daemon · kein gehosteter Dienst</tspan></text>
+            <text class="sf-mono" x="230" y="409" text-anchor="middle"><tspan data-lang="en">your bridge = one git repo</tspan><tspan data-lang="de">deine Bridge = ein Git-Repo</tspan></text>
+          </g>
+
+          <!-- 2: three cluster wrappers plus work/ -->
+          <g data-step="2">
+            <text class="sf-cap" x="22" y="222"><tspan data-lang="en">CLUSTER WRAPPERS + WORK/</tspan><tspan data-lang="de">CLUSTER-WRAPPER + WORK/</tspan></text>
+            <rect class="sf-box" x="22" y="230" width="96.5" height="56" rx="9"/>
+            <text class="sf-mono" x="70.25" y="254" text-anchor="middle">identity/</text>
+            <text class="sf-sub sm" x="70.25" y="272" text-anchor="middle"><tspan data-lang="en">who · to whom</tspan><tspan data-lang="de">wer · an wen</tspan></text>
+            <rect class="sf-box" x="128.5" y="230" width="96.5" height="56" rx="9"/>
+            <text class="sf-mono" x="176.75" y="254" text-anchor="middle">infra/</text>
+            <text class="sf-sub sm" x="176.75" y="272" text-anchor="middle"><tspan data-lang="en">where · reach</tspan><tspan data-lang="de">wo · Zugang</tspan></text>
+            <rect class="sf-box" x="235" y="230" width="96.5" height="56" rx="9"/>
+            <text class="sf-mono" x="283.25" y="254" text-anchor="middle">workflow/</text>
+            <text class="sf-sub sm" x="283.25" y="272" text-anchor="middle"><tspan data-lang="en">what · when</tspan><tspan data-lang="de">was · wann</tspan></text>
+            <rect class="sf-box hi" x="341.5" y="230" width="96.5" height="56" rx="9"/>
+            <text class="sf-mono" x="389.75" y="254" text-anchor="middle">work/</text>
+            <text class="sf-sub sm" x="389.75" y="272" text-anchor="middle"><tspan data-lang="en">board · log</tspan><tspan data-lang="de">Board · Log</tspan></text>
+          </g>
+
+          <!-- 3: the always-on layer every session reads -->
+          <g data-step="3">
+            <text class="sf-cap" x="22" y="128"><tspan data-lang="en">ALWAYS-ON · EVERY SESSION</tspan><tspan data-lang="de">ALWAYS-ON · JEDE SESSION</tspan></text>
+            <rect class="sf-box" x="22" y="136" width="132" height="56" rx="9"/>
+            <text class="sf-lbl" x="88" y="160" text-anchor="middle">AGENTS.md</text>
+            <text class="sf-sub sm" x="88" y="178" text-anchor="middle"><tspan data-lang="en">operating manual</tspan><tspan data-lang="de">Betriebshandbuch</tspan></text>
+            <rect class="sf-box" x="164" y="136" width="132" height="56" rx="9"/>
+            <text class="sf-lbl" x="230" y="160" text-anchor="middle"><tspan data-lang="en">standing orders</tspan><tspan data-lang="de">Standing Orders</tspan></text>
+            <text class="sf-sub sm" x="230" y="178" text-anchor="middle"><tspan data-lang="en">always-on rules</tspan><tspan data-lang="de">immer aktive Regeln</tspan></text>
+            <rect class="sf-box" x="306" y="136" width="132" height="56" rx="9"/>
+            <text class="sf-lbl" x="372" y="160" text-anchor="middle"><tspan data-lang="en">skills list</tspan><tspan data-lang="de">Skill-Liste</tspan></text>
+            <text class="sf-sub sm" x="372" y="178" text-anchor="middle"><tspan data-lang="en">name + description</tspan><tspan data-lang="de">Name + Beschreibung</tspan></text>
+          </g>
+
+          <!-- 4: the agent on top reads it at session start -->
+          <g data-step="4">
+            <rect class="sf-box hi" x="100" y="8" width="260" height="54" rx="10"/>
+            <text class="sf-lbl" x="230" y="31" text-anchor="middle"><tspan data-lang="en">AI coding agent</tspan><tspan data-lang="de">KI-Coding-Agent</tspan></text>
+            <text class="sf-sub" x="230" y="49" text-anchor="middle">Claude Code · Codex · Copilot CLI</text>
+            <text class="sf-mono" x="240" y="90"><tspan data-lang="en">reads at session start</tspan><tspan data-lang="de">liest beim Session-Start</tspan></text>
+            <path class="sf-head" d="M224.5 126 L230 134 L235.5 126 Z"/>
+          </g>
+          <line class="sf-line" data-step="4" data-draw x1="230" y1="62" x2="230" y2="128"/>
+
+          <!-- 5: and writes back to work/log.md -->
+          <path class="sf-line" data-step="5" data-draw d="M360 35 H466 V258 H446"/>
+          <g data-step="5">
+            <path class="sf-head" d="M446 252.5 L438 258 L446 263.5 Z"/>
+            <text class="sf-mono" x="436" y="210" text-anchor="end"><tspan data-lang="en">writes back to work/log.md</tspan><tspan data-lang="de">schreibt zurück in work/log.md</tspan></text>
+          </g>
+        </svg>
+        <ol class="steps-legend">
+          <li data-step="1"><b>1</b><span data-lang="en">The substrate: markdown and YAML in git</span><span data-lang="de">Das Substrat: Markdown und YAML in Git</span></li>
+          <li data-step="2"><b>2</b><span data-lang="en">Three cluster wrappers plus work/</span><span data-lang="de">Drei Cluster-Wrapper plus work/</span></li>
+          <li data-step="3"><b>3</b><span data-lang="en">The always-on layer every session reads</span><span data-lang="de">Die Always-on-Schicht, die jede Session liest</span></li>
+          <li data-step="4"><b>4</b><span data-lang="en">The agent reads it at session start</span><span data-lang="de">Der Agent liest sie beim Session-Start</span></li>
+          <li data-step="5"><b>5</b><span data-lang="en">and writes back to work/log.md</span><span data-lang="de">und schreibt zurück in work/log.md</span></li>
+        </ol>
+      </figure>
     </div>
   </section>
 
@@ -329,6 +413,13 @@ html.dark .tile .demo{background:var(--code-bg)}
         <div class="toc-grid" id="toc-grid">
           <!-- populated from data -->
         </div>
+      </nav>
+      <nav class="toc-extra" aria-label="Further sections">
+        <span class="lab"><span data-lang="en">Further down</span><span data-lang="de">Weiter unten</span></span>
+        <a href="#lp-problem"><span data-lang="en">The cold start</span><span data-lang="de">Der Kaltstart</span></a>
+        <a href="#lp-substrate"><span data-lang="en">The substrate, shown</span><span data-lang="de">Das Substrat, gezeigt</span></a>
+        <a href="#lp-properties"><span data-lang="en">What your agent gains</span><span data-lang="de">Was dein Agent gewinnt</span></a>
+        <a href="#lp-capabilities"><span data-lang="en">What else it does</span><span data-lang="de">Was es noch kann</span></a>
       </nav>
     </div>
   </section>
@@ -556,23 +647,13 @@ html.dark .tile .demo{background:var(--code-bg)}
 </section>
   </div>
 
-  <!-- ---- end-of-page funnel CTA ---- -->
-  <section style="padding-block:64px 88px">
-    <div class="container" style="text-align:center">
-      <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
-        <a class="btn btn-primary" href="demo.html">
-          <span data-lang="en">See it work: the live demo</span>
-          <span data-lang="de">Sieh es arbeiten: die Live-Demo</span>
-          <span class="arrow">→</span>
-        </a>
-        <a class="btn btn-secondary" href="index.html#get-started">
-          <span data-lang="en">Set up your own</span>
-          <span data-lang="de">Eigene Bridge einrichten</span>
-          <span class="arrow">→</span>
-        </a>
-      </div>
-    </div>
-  </section>
+  <!-- ---- closing call: install ---- -->
+  <section class="cta-band"><div class="container">
+    <p class="eyebrow"><span data-lang="en">Get started</span><span data-lang="de">Loslegen</span></p>
+    <h2><span data-lang="en">One prompt. Your own private bridge.</span><span data-lang="de">Ein Prompt. Deine eigene, private Bridge.</span></h2>
+    <p><span data-lang="en">Paste it into Claude Code, Codex or Copilot CLI. Your agent follows SETUP.md, shows you its plan and waits for your go.</span><span data-lang="de">Kopier ihn in Claude Code, Codex oder Copilot CLI. Dein Agent folgt SETUP.md, zeigt dir seinen Plan und wartet auf dein Go.</span></p>
+    <div class="cta-row"><a class="btn btn-primary" href="index.html#get-started"><span data-lang="en">Get the prompt</span><span data-lang="de">Zum Prompt</span> <span class="arrow">→</span></a><a class="btn btn-secondary" href="demo.html"><span data-lang="en">See it work</span><span data-lang="de">Sieh es arbeiten</span></a></div>
+  </div></section>
 
 </main>
 <!-- ========================== END PAGE CONTENT ============================== -->
@@ -857,5 +938,6 @@ html.dark .tile .demo{background:var(--code-bg)}
 
   <script defer src="assets/agent-config.js"></script>
   <script defer src="assets/agent-widget.js"></script>
+<script defer src="assets/diagram-steps.js"></script>
 </body>
 </html>

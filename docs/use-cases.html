@@ -134,6 +134,19 @@
 @media (max-width:560px){
   .uc{padding:24px 22px}
 }
+/* ---- "a day with it" figure in the intro ---- */
+.uc-day-fig{max-width:60rem}
+.uc-fig-cap{font-size:14px;color:var(--muted);text-align:center;margin-bottom:16px}
+.uc-fig-cap a{margin-left:6px;white-space:nowrap;text-decoration:none}
+.uc-fig-cap a:hover{text-decoration:underline}
+.uc-fig-tall{display:none!important}
+@media (max-width:640px){
+  .uc-fig-wide{display:none!important}
+  .uc-fig-tall{display:block!important}
+}
+.uc-more-line{text-align:center;margin-top:40px;font-size:15px}
+.uc-more-line a{text-decoration:none}
+.uc-more-line a:hover{text-decoration:underline}
 </style>
 </head>
 <body>
@@ -190,6 +203,136 @@
         <p class="lede" data-lang="en">BKS open-bridge is a framework, not a product with one fixed workflow. Below are eight concrete jobs teams run on it, then five moments from a day with a long-running instance. Each names a problem you'll recognise, what your bridge does about it, the primitives involved, and where to read more. Everything here works on plain files in git: nothing to host, and the agent never sends or merges anything without a human gate.</p>
         <p class="lede" data-lang="de">BKS open-bridge ist ein Framework, kein Produkt mit einem festen Ablauf. Unten stehen acht konkrete Aufgaben, die Teams damit erledigen, danach fünf Momente aus einem Tag mit einer lange laufenden Instanz. Jede nennt ein Problem, das du wiedererkennst, was deine Bridge dagegen tut, die beteiligten Primitive und einen Link zum Weiterlesen. Alles hier läuft auf schlichten Dateien in Git: nichts zu hosten, und der Agent sendet oder merged nie etwas ohne menschliches Gate.</p>
       </div>
+
+      <!-- "A day with it" at a glance: the five moments from #a-day-with-it on
+           one timeline, each reading or writing the same plain files in git.
+           Only the files each card names as its primitives are drawn. Two SVGs:
+           a wide one, and a stacked one for phones (CSS picks one). -->
+      <figure class="steps-fig uc-day-fig" data-steps>
+        <figcaption class="uc-fig-cap">
+          <span data-lang="en">A day with it, at a glance: five moments, one set of plain files.</span>
+          <span data-lang="de">Ein Tag damit, auf einen Blick: fünf Momente, ein Satz schlichter Dateien.</span>
+          <a href="#a-day-with-it"><span data-lang="en">The moments in detail</span><span data-lang="de">Die Momente im Detail</span> ↓</a>
+        </figcaption>
+
+        <svg class="uc-fig-wide" viewBox="0 0 880 322" role="img" aria-label="A day as one timeline of five moments: morning triage reads work/log.md and infra/backups; after a call a mail draft and proposed board items wait outside the bridge for you to send or approve; an incident finding is written to STATUS.md and work/log.md; wearing another hat switches identity/personas and workflow/contexts, and STATUS.md keeps a private task local; the quiet server reads workflow/workloads and checks the live service manager. All of it sits on plain markdown and YAML in git.">
+          <!-- step 3 lives partly up here: the outside zone -->
+          <g data-step="3">
+            <rect class="sf-zone" x="150" y="12" width="420" height="62" rx="10"/>
+            <text class="sf-lbl" x="360" y="37" text-anchor="middle"><tspan data-lang="en">outside the bridge: nothing leaves without you</tspan><tspan data-lang="de">außerhalb der Bridge: nichts geht ohne dich raus</tspan></text>
+            <text class="sf-sub" x="360" y="57" text-anchor="middle"><tspan data-lang="en">mail draft → you press send · items → you approve</tspan><tspan data-lang="de">Mail-Entwurf → du sendest · Einträge → du gibst frei</tspan></text>
+          </g>
+          <path class="sf-line soft" data-step="3" data-draw d="M266 112 V78"/>
+
+          <!-- step 1: the substrate and the day axis -->
+          <g data-step="1">
+            <path class="sf-line soft" d="M16 96 H864"/>
+            <text class="sf-sub" x="16" y="90"><tspan data-lang="en">morning</tspan><tspan data-lang="de">morgens</tspan></text>
+            <text class="sf-sub" x="864" y="90" text-anchor="end"><tspan data-lang="en">around the clock</tspan><tspan data-lang="de">rund um die Uhr</tspan></text>
+            <rect class="sf-box hi" x="8" y="226" width="864" height="88" rx="12"/>
+            <text class="sf-sub" x="440" y="300" text-anchor="middle"><tspan data-lang="en">your bridge · plain markdown and YAML in git</tspan><tspan data-lang="de">deine Bridge · schlichtes Markdown und YAML in Git</tspan></text>
+            <rect class="sf-box" x="19" y="238" width="132" height="30" rx="7"/><text class="sf-mono" x="85" y="257" text-anchor="middle">infra/backups</text>
+            <rect class="sf-box" x="161" y="238" width="132" height="30" rx="7"/><text class="sf-mono" x="227" y="257" text-anchor="middle">work/log.md</text>
+            <rect class="sf-box" x="303" y="238" width="132" height="30" rx="7"/><text class="sf-mono" x="369" y="257" text-anchor="middle">STATUS.md</text>
+            <rect class="sf-box" x="445" y="238" width="132" height="30" rx="7"/><text class="sf-mono" x="511" y="257" text-anchor="middle">identity/personas</text>
+            <rect class="sf-box" x="587" y="238" width="132" height="30" rx="7"/><text class="sf-mono" x="653" y="257" text-anchor="middle">workflow/contexts</text>
+            <rect class="sf-box" x="729" y="238" width="132" height="30" rx="7"/><text class="sf-mono" x="795" y="257" text-anchor="middle">workflow/workloads</text>
+          </g>
+
+          <!-- step 2: morning triage -->
+          <g data-step="2">
+            <rect class="sf-box" x="12" y="112" width="160" height="78" rx="10"/>
+            <text class="sf-lbl" x="26" y="146"><tspan data-lang="en">Morning triage</tspan><tspan data-lang="de">Morgen-Triage</tspan></text>
+            <text class="sf-sub" x="26" y="170"><tspan data-lang="en">just one list</tspan><tspan data-lang="de">nur eine Liste</tspan></text>
+          </g>
+          <path class="sf-line" data-step="2" data-draw d="M85 234 C85 214 88 214 88 194"/>
+          <path class="sf-line" data-step="2" data-draw d="M227 234 C227 214 104 214 104 194"/>
+
+          <!-- step 3: after a call -->
+          <g data-step="3">
+            <rect class="sf-box" x="186" y="112" width="160" height="78" rx="10"/>
+            <text class="sf-lbl" x="200" y="146"><tspan data-lang="en">After a call</tspan><tspan data-lang="de">Nach einem Gespräch</tspan></text>
+            <text class="sf-sub" x="200" y="170"><tspan data-lang="en">draft + proposals</tspan><tspan data-lang="de">Entwurf + Vorschläge</tspan></text>
+          </g>
+
+          <!-- step 4: an incident -->
+          <g data-step="4">
+            <rect class="sf-box" x="360" y="112" width="160" height="78" rx="10"/>
+            <text class="sf-lbl" x="374" y="146"><tspan data-lang="en">An incident</tspan><tspan data-lang="de">Ein Vorfall</tspan></text>
+            <text class="sf-sub" x="374" y="170"><tspan data-lang="en">finding persists</tspan><tspan data-lang="de">Befund bleibt</tspan></text>
+          </g>
+          <path class="sf-line" data-step="4" data-draw d="M424 194 C424 214 243 214 243 234"/>
+          <path class="sf-line" data-step="4" data-draw d="M440 194 C440 214 369 214 369 234"/>
+
+          <!-- step 5: another hat -->
+          <g data-step="5">
+            <rect class="sf-box" x="534" y="112" width="160" height="78" rx="10"/>
+            <text class="sf-lbl" x="548" y="146"><tspan data-lang="en">Another hat</tspan><tspan data-lang="de">Ein anderer Hut</tspan></text>
+            <text class="sf-sub" x="548" y="170"><tspan data-lang="en">persona + context</tspan><tspan data-lang="de">Persona + Kontext</tspan></text>
+          </g>
+          <path class="sf-line" data-step="5" data-draw d="M598 194 C598 214 385 214 385 234"/>
+          <path class="sf-line" data-step="5" data-draw d="M614 194 C614 214 511 214 511 234"/>
+          <path class="sf-line" data-step="5" data-draw d="M630 194 C630 214 653 214 653 234"/>
+
+          <!-- step 6: the quiet server -->
+          <g data-step="6">
+            <rect class="sf-box" x="708" y="112" width="160" height="78" rx="10"/>
+            <text class="sf-lbl" x="722" y="146"><tspan data-lang="en">The quiet server</tspan><tspan data-lang="de">Der ruhige Server</tspan></text>
+            <text class="sf-sub" x="722" y="170"><tspan data-lang="en">checked live</tspan><tspan data-lang="de">live geprüft</tspan></text>
+          </g>
+          <path class="sf-line" data-step="6" data-draw d="M795 234 C795 214 788 214 788 194"/>
+        </svg>
+
+        <svg class="uc-fig-tall" viewBox="0 0 340 486" role="img" aria-label="Five moments of a day, each with the plain files it reads or writes: morning triage, work/log.md and infra/backups; after a call, a draft you send yourself; an incident, STATUS.md and work/log.md; another hat, identity/personas, workflow/contexts and STATUS.md; the quiet server, workflow/workloads.">
+          <g data-step="1">
+            <rect class="sf-box hi" x="2" y="2" width="336" height="94" rx="12"/>
+            <text class="sf-sub" x="16" y="22"><tspan data-lang="en">your bridge · markdown + YAML in git</tspan><tspan data-lang="de">deine Bridge · Markdown + YAML in Git</tspan></text>
+            <text class="sf-mono" x="16" y="44">infra/backups</text><text class="sf-mono" x="176" y="44">work/log.md</text>
+            <text class="sf-mono" x="16" y="64">STATUS.md</text><text class="sf-mono" x="176" y="64">identity/personas</text>
+            <text class="sf-mono" x="16" y="84">workflow/contexts</text><text class="sf-mono" x="176" y="84">workflow/workloads</text>
+            <path class="sf-line soft" d="M14 106 V480"/>
+          </g>
+          <g data-step="2">
+            <circle cx="14" cy="141" r="4" fill="var(--accent-text)"/>
+            <rect class="sf-box" x="28" y="112" width="310" height="62" rx="10"/>
+            <text class="sf-lbl" x="42" y="136"><tspan data-lang="en">Morning triage</tspan><tspan data-lang="de">Morgen-Triage</tspan></text>
+            <text class="sf-mono" x="42" y="158">work/log.md · infra/backups</text>
+          </g>
+          <g data-step="3">
+            <circle cx="14" cy="215" r="4" fill="var(--accent-text)"/>
+            <rect class="sf-box" x="28" y="186" width="310" height="62" rx="10"/>
+            <text class="sf-lbl" x="42" y="210"><tspan data-lang="en">After a call</tspan><tspan data-lang="de">Nach einem Gespräch</tspan></text>
+            <text class="sf-sub" x="42" y="232"><tspan data-lang="en">draft → you press send</tspan><tspan data-lang="de">Entwurf → du sendest</tspan></text>
+          </g>
+          <g data-step="4">
+            <circle cx="14" cy="289" r="4" fill="var(--accent-text)"/>
+            <rect class="sf-box" x="28" y="260" width="310" height="62" rx="10"/>
+            <text class="sf-lbl" x="42" y="284"><tspan data-lang="en">An incident</tspan><tspan data-lang="de">Ein Vorfall</tspan></text>
+            <text class="sf-mono" x="42" y="306">STATUS.md · work/log.md</text>
+          </g>
+          <g data-step="5">
+            <circle cx="14" cy="363" r="4" fill="var(--accent-text)"/>
+            <rect class="sf-box" x="28" y="334" width="310" height="62" rx="10"/>
+            <text class="sf-lbl" x="42" y="358"><tspan data-lang="en">Another hat</tspan><tspan data-lang="de">Ein anderer Hut</tspan></text>
+            <text class="sf-mono" x="42" y="380">personas · contexts · STATUS.md</text>
+          </g>
+          <g data-step="6">
+            <circle cx="14" cy="437" r="4" fill="var(--accent-text)"/>
+            <rect class="sf-box" x="28" y="408" width="310" height="62" rx="10"/>
+            <text class="sf-lbl" x="42" y="432"><tspan data-lang="en">The quiet server</tspan><tspan data-lang="de">Der ruhige Server</tspan></text>
+            <text class="sf-mono" x="42" y="454">workflow/workloads</text>
+          </g>
+        </svg>
+
+        <ol class="steps-legend">
+          <li data-step="1"><b>1</b><span data-lang="en">One substrate: plain files in git</span><span data-lang="de">Ein Substrat: schlichte Dateien in Git</span></li>
+          <li data-step="2"><b>2</b><span data-lang="en">Morning triage reads the log and backup state</span><span data-lang="de">Morgen-Triage liest Log und Backup-Stand</span></li>
+          <li data-step="3"><b>3</b><span data-lang="en">After a call: drafts wait for your gate</span><span data-lang="de">Nach einem Gespräch: Entwürfe warten auf dein Gate</span></li>
+          <li data-step="4"><b>4</b><span data-lang="en">An incident: the finding is written down</span><span data-lang="de">Ein Vorfall: der Befund wird festgehalten</span></li>
+          <li data-step="5"><b>5</b><span data-lang="en">Another hat: persona and context switch</span><span data-lang="de">Ein anderer Hut: Persona und Kontext wechseln</span></li>
+          <li data-step="6"><b>6</b><span data-lang="en">The quiet server: declared jobs, checked live</span><span data-lang="de">Der ruhige Server: deklarierte Jobs, live geprüft</span></li>
+        </ol>
+      </figure>
     </div>
   </section>
 
@@ -613,36 +756,16 @@
         </article>
 
       </div>
+      <p class="uc-more-line"><a href="concepts.html"><span data-lang="en">How the concepts fit together</span><span data-lang="de">Wie die Konzepte zusammenspielen</span> <span class="arrow">→</span></a></p>
     </div>
   </section>
 
-  <!-- ---- funnel CTA ---- -->
-  <section aria-label="Next steps / Nächste Schritte">
-    <div class="container">
-      <div class="sec-head" style="margin-bottom:0">
-        <h2 class="h2">
-          <span data-lang="en">Recognise your own workday?</span>
-          <span data-lang="de">Deinen eigenen Arbeitstag wiedererkannt?</span>
-        </h2>
-        <p>
-          <span data-lang="en">Everything above runs on plain files in git. One prompt to your agent sets up your own.</span>
-          <span data-lang="de">Alles oben läuft auf schlichten Dateien in Git. Ein Prompt an deinen Agenten richtet deine eigene ein.</span>
-        </p>
-        <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:30px">
-          <a class="btn btn-primary" href="index.html#get-started">
-            <span data-lang="en">Set up your own</span>
-            <span data-lang="de">Eigene Bridge einrichten</span>
-            <span class="arrow">→</span>
-          </a>
-          <a class="btn btn-secondary" href="concepts.html">
-            <span data-lang="en">How the concepts fit together</span>
-            <span data-lang="de">Wie die Konzepte zusammenspielen</span>
-            <span class="arrow">→</span>
-          </a>
-        </div>
-      </div>
-    </div>
-  </section>
+  <section class="cta-band"><div class="container">
+    <p class="eyebrow"><span data-lang="en">Get started</span><span data-lang="de">Loslegen</span></p>
+    <h2><span data-lang="en">One prompt. Your own private bridge.</span><span data-lang="de">Ein Prompt. Deine eigene, private Bridge.</span></h2>
+    <p><span data-lang="en">Paste it into Claude Code, Codex or Copilot CLI. Your agent follows SETUP.md, shows you its plan and waits for your go.</span><span data-lang="de">Kopier ihn in Claude Code, Codex oder Copilot CLI. Dein Agent folgt SETUP.md, zeigt dir seinen Plan und wartet auf dein Go.</span></p>
+    <div class="cta-row"><a class="btn btn-primary" href="index.html#get-started"><span data-lang="en">Get the prompt</span><span data-lang="de">Zum Prompt</span> <span class="arrow">→</span></a><a class="btn btn-secondary" href="demo.html"><span data-lang="en">See it work</span><span data-lang="de">Sieh es arbeiten</span></a></div>
+  </div></section>
 
 </main>
 <!-- ========================== END PAGE CONTENT ============================== -->
@@ -802,6 +925,7 @@
 })();
 </script>
 
+  <script defer src="assets/diagram-steps.js"></script>
   <script defer src="assets/agent-config.js"></script>
   <script defer src="assets/agent-widget.js"></script>
 </body>
