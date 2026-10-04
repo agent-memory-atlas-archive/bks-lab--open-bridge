@@ -589,6 +589,10 @@ html.story-live .story-stage{position:sticky;top:var(--story-top,0px)}
 .story-steps{position:absolute;right:24px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:12px}
 .story-steps b{width:28px;height:28px;border-radius:9999px;border:1px solid var(--line);color:var(--muted);font:600 11px/26px var(--font-sans);text-align:center;transition:all .3s}
 .story-steps b.on{border-color:var(--accent);color:var(--ink);background:var(--accent-soft)}
+.story-steps b{position:relative}
+.story-steps .sl{position:absolute;right:38px;top:50%;transform:translate(6px,-50%);font:500 12px/1 var(--font-sans);font-style:normal;color:var(--muted);white-space:nowrap;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none}
+.story-steps b.on .sl{opacity:1;transform:translate(0,-50%);color:var(--ink)}
+.story .tag.warn{color:var(--muted);border-style:dashed;border-color:var(--line)}
 .story-list{display:none}
 html.story-static .story-stage{height:auto;overflow:visible}
 html.story-static #story-gl,html.story-static #story-labels,html.story-static .story-steps{display:none}
@@ -687,7 +691,7 @@ html.story-static .story-list{display:flex;flex-wrap:wrap;gap:10px;justify-conte
   <div class="story-stage" id="story-stage">
     <canvas id="story-gl" aria-hidden="true"></canvas>
     <div id="story-labels" aria-hidden="true"></div>
-    <div class="story-steps" aria-hidden="true"><b class="on">01</b><b>02</b><b>03</b><b>04</b><b>05</b><b>06</b></div>
+    <div class="story-steps" aria-hidden="true"><b class="on">01<i class="sl"><span data-lang="en">The bridge</span><span data-lang="de">Die Brücke</span></i></b><b>02<i class="sl"><span data-lang="en">Cold start</span><span data-lang="de">Kaltstart</span></i></b><b>03<i class="sl"><span data-lang="en">Substrate</span><span data-lang="de">Substrat</span></i></b><b>04<i class="sl"><span data-lang="en">Links</span><span data-lang="de">Verbindungen</span></i></b><b>05<i class="sl"><span data-lang="en">Session start</span><span data-lang="de">Session-Start</span></i></b><b>06<i class="sl"><span data-lang="en">Many bridges</span><span data-lang="de">Viele Bridges</span></i></b></div>
     <div class="story-caps">
       <div class="cap">
         <p class="eyebrow"><span data-lang="en">Markdown and YAML in git, read by Claude Code, Codex and Copilot CLI</span><span data-lang="de">Markdown und YAML in Git, gelesen von Claude Code, Codex und Copilot CLI</span></p>

@@ -62,8 +62,8 @@
       [9.9, 1.5, { fleet: 1, cam: .78, tilt: .2 }, "inOut3"]
     ],
     captions: { els: [].slice.call(section.querySelectorAll(".cap")),
-      times: [[-1, .3], [1.3, 2.5], [3.4, 4.6], [5.6, 7.0], [7.4, 9.8], [10.9, 1e9]] },
-    steps: { els: [].slice.call(section.querySelectorAll(".story-steps b")), at: [0, 1.3, 3.4, 5.6, 7.4, 10.4] },
+      times: [[-1, .3], [1.0, 2.5], [3.0, 4.6], [5.1, 7.0], [7.3, 9.8], [10.3, 1e9]] },
+    steps: { els: [].slice.call(section.querySelectorAll(".story-steps b")), at: [0, 1.0, 3.0, 5.1, 7.3, 10.0] },
     onFrame: function (S, t, info) { if (paint) paint(S, t, info); }
   });
   var paint = null;
@@ -190,7 +190,7 @@
       var m = new THREE.LineBasicMaterial({ color: col.link, transparent: true }); mats.strong.push(m);
       return new THREE.Line(new THREE.BufferGeometry().setFromPoints(s.getPoints(16)), m);
     }
-    var FX = mobile ? 2.05 : 4.4, FY = 1.5, CY = -2.0, UX = mobile ? 3.2 : 7.6;
+    var FX = mobile ? 2.05 : 4.4, FY = 1.5, CY = -2.0, UX = mobile ? 3.2 : 6.9;
     var coreBox = rrect(mobile ? 6.4 : 11, 1.0, .18); coreBox.position.set(0, CY, 0); deck.add(coreBox);
     var fleetLinks = [-FX, 0, FX].map(function (x, i) {
       var l = makeLink(new THREE.Vector3(x, CY + .5, 0), new THREE.Vector3(x, FY - (i === 1 ? 1.0 : .7), 0), 0, false); deck.add(l.line); return l; });
@@ -204,7 +204,7 @@
     pGeo.setAttribute("aA", new THREE.BufferAttribute(new Float32Array(PN), 1));
     pulses = new THREE.Points(pGeo, new THREE.ShaderMaterial({ transparent: true, depthWrite: false,
       uniforms: { uPx: { value: renderer.getPixelRatio() }, uCol: { value: col.hi.clone() } },
-      vertexShader: "attribute float aA; varying float vA; uniform float uPx; void main(){ vA=aA; gl_PointSize=uPx*(5.+4.*aA); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }",
+      vertexShader: "attribute float aA; varying float vA; uniform float uPx; void main(){ vA=aA; gl_PointSize=uPx*(6.+6.*aA); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }",
       fragmentShader: "uniform vec3 uCol; varying float vA; void main(){ float d=length(gl_PointCoord-.5); if(d>.5) discard; gl_FragColor=vec4(uCol, vA*smoothstep(.5,.15,d)); }" }));
     deck.add(pulses);
 
@@ -228,7 +228,7 @@
     var hubLb = addLabel("<span>open-bridge</span><small>" + EN("plain text in git", "Plain Text in Git") + "</small>", "hubl", new THREE.Vector3());
     var layerLbs = LAYERS.map(function (txt) { return addLabel(txt, "dir", new THREE.Vector3()); });
     var chaos = CHAOS.map(function (txt, i) { var a = (i / CHAOS.length) * Math.PI * 2 + .4, r = 2.4 + (i % 3) * .7;
-      return { from: new THREE.Vector3(Math.cos(a) * r * (mobile ? .75 : 1.25), Math.sin(a) * r * .8, .4), lb: addLabel(txt, "fl", new THREE.Vector3()), seed: i * 1.7 }; });
+      return { from: new THREE.Vector3(Math.cos(a) * r * (mobile ? .5 : 1.25) + (mobile ? 1.1 : 0), Math.sin(a) * r * .8, .4), lb: addLabel(txt, "fl", new THREE.Vector3()), seed: i * 1.7 }; });
     var readLbs = READ.map(function (txt) { return addLabel(txt, "fl rd", new THREE.Vector3()); });
     var writeLb = addLabel("+ 14:22 · Decision · bigcorp", "fl wr", new THREE.Vector3());
     var logLb = addLabel('<div class="log"><div class="h">work/log.md · ' + EN("written back", "zurückgeschrieben") + "</div>" +
@@ -242,6 +242,16 @@
       addLabel("<b></b><span>upstream<small>bks-lab/open-bridge · /bridge-promote</small></span>", "st", new THREE.Vector3(UX, CY - 1.4, 0))
     ];
     if (mobile) fleetLbs[4].el.style.display = "none";
+    /* cold start: each agent starts empty */
+    var emptyLbs = stations.filter(function (s) { return s.agent; }).map(function (s) {
+      return addLabel("↺ " + EN("context: empty", "Kontext: leer"), "tag warn", s.p.clone().add(new THREE.Vector3(mobile ? .2 : -.15, -.62, 0))); });
+    /* fleet: what may leave, what stays */
+    var scopeLbs = [
+      addLabel("scope:core · /bridge-promote", "tag", upLink.curve.getPoint(.5).add(new THREE.Vector3(mobile ? 0 : .9, .25, 0))),
+      addLabel(EN("scope:user stays local", "scope:user bleibt lokal"), "tag", new THREE.Vector3(mobile ? 0 : 1.35, mobile ? CY - .95 : (FY - 1.3 + CY + .5) / 2, 0)),
+      addLabel(EN("templates, conflict-free merge", "Templates, konfliktfreier Merge"), "tag", new THREE.Vector3(mobile ? -1.0 : -1.55, (FY - 1.3 + CY + .5) / 2, 0))
+    ];
+    if (mobile) { scopeLbs[0].el.style.display = "none"; scopeLbs[2].el.style.display = "none"; }
 
     var baseCam = 20, camW = 10;
     function fit() {
@@ -285,7 +295,7 @@
         s.lb.a = fade * on;
         if (s.tagLb) s.tagLb.a = S.tags * clamp(0, 1, d * 1.5 - .5) * fade;
       });
-      fleetLinks.forEach(function (k) { k.draw = S.fleet; k.flow = S.fleet * .8; k.dir = -1; k.a = S.fleet; });
+      fleetLinks.forEach(function (k) { k.draw = S.fleet; k.flow = S.fleet * .8; k.dir = 1; k.a = S.fleet; });
       upLink.draw = clamp(0, 1, S.fleet * 2 - 1); upLink.flow = S.fleet; upLink.dir = 1; upLink.a = S.fleet;
 
       var pi = 0, P = pGeo.attributes.position.array, A = pGeo.attributes.aA.array;
@@ -325,6 +335,8 @@
       logLb.a = clamp(0, 1, S.log * 3) * fade;
       logRows.forEach(function (r, i) { r.style.opacity = clamp(0, 1, S.log - i); });
       fleetLbs.forEach(function (l) { l.a = S.fleet; });
+      emptyLbs.forEach(function (l) { l.a = S.chaos * (1 - S.gather); });
+      scopeLbs.forEach(function (l, i) { l.a = clamp(0, 1, S.fleet * 2 - (i === 0 ? 1.2 : .8)); });
 
       rig.updateMatrixWorld(true); camera.updateMatrixWorld(true);
       var w = canvas.clientWidth, h = canvas.clientHeight;
