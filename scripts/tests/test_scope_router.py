@@ -134,6 +134,11 @@ def synth_repo(tmp_path, monkeypatch):
     write("infra/a2a-peers/colleague.yaml", "name: colleague\nscope: org\n")
     write("infra/a2a-peers/my-test.yaml", "name: my-test\nscope: user\n")
 
+    # workflow/briefings/ — an org overlay ships a team briefing profile, while a
+    # person's own morning profile stays theirs.
+    write("workflow/briefings/team.yaml", "schema_version: 1\nscope: org\nid: team\n")
+    write("workflow/briefings/morning.yaml", "schema_version: 1\nscope: user\nid: morning\n")
+
     cc._LOGO_BY_THEME_CACHE = None
     monkeypatch.chdir(tmp_path)
     yield tmp_path
@@ -765,3 +770,15 @@ def test_a2a_peers_route_by_their_declaration(synth_repo):
     assert tier("infra/a2a-peers/my-test.yaml") == "user"
     assert tier("infra/a2a-peers/undeclared.yaml") == "user"
     assert tier("infra/a2a-peers/_template.yaml") == "core"
+
+
+def test_briefing_profiles_route_by_their_declaration(synth_repo):
+    """docs/briefings.md promises a `scope: org` profile ships in an org overlay."""
+    assert tier("workflow/briefings/team.yaml") == "org", (
+        "a profile declaring `scope: org` must export to the org overlay, or the team "
+        "briefing never reaches a colleague"
+    )
+    assert tier("workflow/briefings/morning.yaml") == "user"
+    assert tier("workflow/briefings/undeclared.yaml") == "user"
+    assert tier("workflow/briefings/_template.yaml") == "core"
+    assert tier("workflow/briefings/_schema.yaml") == "core"

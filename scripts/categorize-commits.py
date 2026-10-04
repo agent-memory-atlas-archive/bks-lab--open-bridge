@@ -167,7 +167,7 @@ PERSONAL_PATTERNS = [
 _CLUSTER_WRAPPER_RE = re.compile(
     r"^(?:identity/(?:personas|mandants|accounts|contracts)"
     r"|infra/(?:channels|remotes|secret-stores|a2a-peers)"
-    r"|workflow/(?:contexts|projects))/"
+    r"|workflow/(?:briefings|contexts|projects))/"
     r"(?!_(?:schema|template))"
     r"[^/]+\.(?:yaml|md)$"
 )
@@ -514,7 +514,7 @@ VERIFIED_CORE = frozenset({
     "workflow/projects/README.md",
 })
 
-# The root repair. _CLUSTER_WRAPPER_RE enumerates seven types; AGENTS.md § Layout
+# The root repair. _CLUSTER_WRAPPER_RE enumerates the types that declare a scope; AGENTS.md § Layout
 # documents a GENERIC <wrapper>/<types>/ rule. Every type added since — checks,
 # workspaces, utilities, transcriptions — got neither a dispatch nor a pattern and
 # landed on the fail-open `return "core"`. Four silent leaks, one mechanism.
