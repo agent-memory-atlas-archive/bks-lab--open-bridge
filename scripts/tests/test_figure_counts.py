@@ -154,3 +154,43 @@ def test_census_excludes_all_instance_files():
     assert not only_here, (
         "instance files leaked into the CORE census: " + ", ".join(sorted(only_here)[:10])
     )
+
+
+# ---------------------------------------------------------------------------
+# A configured instance (2026-10-04). The page describes what open-bridge ships.
+# An instance that carries core files of its own differs from that by design,
+# so there the check reports the difference instead of failing, and --write
+# refuses: rewriting the page would make a CORE file diverge from upstream.
+# ---------------------------------------------------------------------------
+
+def _drifting(monkeypatch, tmp_path, instance: bool):
+    page = tmp_path / "explore.html"
+    page.write_text(cfc.PAGE.read_text(encoding="utf-8"), encoding="utf-8")
+    monkeypatch.setattr(cfc, "PAGE", page)
+    # one core file more than the page draws: what an instance's own docs/ file does
+    monkeypatch.setattr(cfc, "tracked", lambda: _real_tracked() + ["docs/an-extra-core-doc.md"])
+    monkeypatch.setattr(cfc, "is_instance", lambda: instance)
+    monkeypatch.setattr("sys.argv", ["check-figure-counts.py"])
+    return page
+
+
+_real_tracked = cfc.tracked
+
+
+def test_drift_in_a_configured_instance_is_reported_not_failed(monkeypatch, tmp_path, capsys):
+    _drifting(monkeypatch, tmp_path, instance=True)
+    assert cfc.main() == 0
+    assert "instance" in capsys.readouterr().out.lower()
+
+
+def test_write_is_refused_in_a_configured_instance(monkeypatch, tmp_path):
+    page = _drifting(monkeypatch, tmp_path, instance=True)
+    before = page.read_bytes()
+    monkeypatch.setattr("sys.argv", ["check-figure-counts.py", "--write"])
+    assert cfc.main() == 2
+    assert page.read_bytes() == before
+
+
+def test_drift_upstream_still_fails(monkeypatch, tmp_path):
+    _drifting(monkeypatch, tmp_path, instance=False)
+    assert cfc.main() == 1

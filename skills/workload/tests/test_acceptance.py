@@ -745,9 +745,22 @@ class CoreHygiene(MachineGuard):
         # The counter-control, and it is the whole worth of the case above: a
         # scan that fires on nothing reports a clean tree for the same reason a
         # scan over an empty file list does. (No docstring -- see above.)
+        #
+        # The poison is built from the instance's OWN listed words, not from
+        # `forbidden_literals()`: those are fictional stand-ins that no real
+        # blocklist contains, so a poison made of them passed every configured
+        # instance's gate and this case failed wherever it could run at all
+        # (upstream it is skipped, there is no configuration there). A string
+        # rule matches its own word; a pattern rule cannot be turned back into a
+        # matching line, so an instance listing only patterns is skipped by name.
         _, rules = self.gate_of_the_instance()
+        words = [label for label, expression in rules if expression.search(str(label))]
+        if not words:
+            self.skipTest("this instance's blocklist has only patterns, and a pattern "
+                          "cannot be turned into a line that is known to match it")
+        poisoned = "# " + " ".join(str(w) for w in words) + "\n"
         self.assertTrue(
-            blocklist_hits(self.poisoned_body(), rules),
+            blocklist_hits(poisoned, rules),
             "a line carrying this instance's own names passed the promote gate's "
             "lists, so the clean answer next door says nothing")
 
