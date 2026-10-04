@@ -18,10 +18,15 @@ Wire it in bridge-config.yaml:
     workplace:
       driver: {command: ["python3", "${root}/skills/cmux/scripts/cmux_driver.py"]}
 
-Rules: it never closes a tab or a workspace. A tab already open is reused, never
-opened twice. When cmux is missing or gives no readable answer, the driver exits
-non-zero with {"error": "..."} on stdout and the reason on stderr, so CORE reads
-the tab view as UNKNOWN, never as "no tab is open".
+Rules: it never closes a tab or a workspace, and never moves the last tab out of
+a workspace (cmux would drop the emptied workspace). A tab already open is reused,
+never opened twice. It reads every window (`tree --all`), not only the current
+one. When cmux is missing, refuses a call, or gives no readable answer, the
+driver exits non-zero with {"error": "..."} on stdout and the reason on stderr, so
+CORE reads the tab view as UNKNOWN, never as "no tab is open".
+
+The control workspace starts `workplace.control.command` (with a shell behind it)
+when the config sets one and the plan is not opened `--here`.
 """
 from __future__ import annotations
 
@@ -99,6 +104,48 @@ def live_tabs(session: dict, hooks: dict) -> list[dict]:
     return tabs
 
 
+def read_tree() -> dict:
+    """`cmux tree --all --json`: every window, live. Raises when unreadable."""
+    out = cl.cmux_checked("tree", "--all", "--json")
+    try:
+        tree = json.loads(out)
+    except ValueError as exc:
+        raise DriverError(f"cmux tree gave no JSON: {out.strip()[:120]}") from exc
+    if not isinstance(tree, dict) or not isinstance(tree.get("windows"), list):
+        raise DriverError("cmux tree gave no window list")
+    return tree
+
+
+def _tree_workspaces(tree: dict):
+    for window in tree.get("windows") or []:
+        yield from window.get("workspaces") or []
+
+
+def workspace_index(tree: dict) -> dict[str, str]:
+    """Workspace title -> ref across ALL windows (the first title wins)."""
+    index: dict[str, str] = {}
+    for ws in _tree_workspaces(tree):
+        title = cl.strip_status_glyph(ws.get("title") or "").strip()
+        if title and ws.get("ref"):
+            index.setdefault(title, ws["ref"])
+    return index
+
+
+def surface_counts(tree: dict) -> dict[str, int]:
+    """Workspace ref -> number of surfaces of any kind in it."""
+    counts = {}
+    for ws in _tree_workspaces(tree):
+        counts[ws.get("ref")] = sum(len(p.get("surfaces") or []) or int(p.get("surface_count") or 0)
+                                    for p in ws.get("panes") or [])
+    return counts
+
+
+def surface_homes(tree: dict) -> dict[str, str]:
+    """Surface ref -> the ref of the workspace it lives in."""
+    return {sf.get("ref"): ws.get("ref") for ws in _tree_workspaces(tree)
+            for pane in ws.get("panes") or [] for sf in pane.get("surfaces") or []}
+
+
 def socket_tabs(tree: dict) -> list[dict]:
     """Terminal tabs from `cmux tree --json`: live, unlike the session file,
     which cmux writes with a delay."""
@@ -116,19 +163,20 @@ def socket_tabs(tree: dict) -> list[dict]:
 
 
 def current_tabs() -> list[dict]:
-    """Live tab refs from the socket; the session file only when the socket gives no JSON.
+    """Live tab refs from the socket, every window.
 
-    Neither readable raises DriverError: an empty list would claim no tab is open.
+    Only when cmux answers `ping` but the tree fails does the session file stand
+    in. When the socket is down the session file is a leftover that names tabs
+    which no longer exist, so that is a DriverError, never a tab list.
     """
     try:
-        tree = json.loads(cl._cmux("tree", "--json"))
-    except ValueError:
-        tree = None
-    if isinstance(tree, dict) and "windows" in tree:
-        return socket_tabs(tree)
+        return socket_tabs(read_tree())
+    except (DriverError, cl.CmuxError) as exc:
+        if isinstance(exc, cl.CmuxUnavailable) or not cl.cmux_reachable():
+            raise DriverError(f"cmux does not answer, tab view unknown ({exc})") from exc
     session = _load_json(cl.DEFAULT_SOURCE)
     if "windows" not in session:
-        raise DriverError("cmux socket gave no tab tree and the session file is not readable")
+        raise DriverError("cmux gave no tab tree and the session file is not readable")
     return live_tabs(session, {})
 
 
@@ -195,19 +243,43 @@ def resolve_workspace(ws: dict, existing: dict[str, str]) -> str | None:
     return None
 
 
+def _with_shell(command: str) -> str:
+    return command if command.endswith(KEEP_SHELL) else command + KEEP_SHELL
+
+
 def apply_calls(plan: dict, existing: dict[str, str], root: str, only: set[str] | None = None,
-                here: str | None = None, resume: bool = False) -> list[dict]:
+                here: str | None = None, resume: bool = False,
+                counts: dict[str, int] | None = None, homes: dict[str, str] | None = None) -> list[dict]:
     """The cmux calls, in order. There is no close operation, on purpose.
 
-    `ws` names a workspace created earlier in the list. `here` is the calling
-    tab: it moves into the control workspace last, after every other workspace
-    has its tabs, so no workspace is ever left empty. Tabs that would resume an
-    earlier session open only when `resume` is set.
+    `existing` maps workspace titles to refs across every window, `counts` the
+    surfaces per workspace ref, `homes` each surface to its workspace ref. `ws`
+    names a workspace created earlier in the list. `here` is the calling tab: it
+    moves into the control workspace last, after every other workspace has its
+    tabs. A tab that is the last one of its workspace is never moved (cmux would
+    drop the emptied workspace); it is renamed where it is and reported. Tabs that
+    would resume an earlier session open only when `resume` is set.
     """
+    counts = dict(counts or {})
+    homes = homes or {}
     calls = []
+
+    def keep(tab_ref: str, label: str, src_ref: str | None, src_name, ws_name: str) -> None:
+        calls.append({"op": "note", "ws": ws_name,
+                      "text": f"  kept {label} in {src_name or src_ref or 'its workspace'}: it is the last "
+                              f"tab there, moving it would close that workspace"})
+        calls.append({"op": "rename", "ws": ws_name, "surface": tab_ref, "tab": label, "ws_ref": src_ref})
+
+    def can_move(src_ref: str | None) -> bool:
+        if not src_ref or counts.get(src_ref, 0) <= 1:
+            return False
+        counts[src_ref] -= 1
+        return True
+
     ctl = plan.get("control") or {"name": "Control"}
     if not resolve_workspace(ctl, existing):
-        calls.append({"op": "create", "ws": ctl["name"], "cwd": root, "command": None})
+        command = _with_shell(ctl["command"]) if ctl.get("command") and not here else None
+        calls.append({"op": "create", "ws": ctl["name"], "cwd": root, "command": command})
     calls.append({"op": "decorate", "ws": ctl["name"], "color": ctl.get("color"),
                   "description": ctl.get("description")})
     calls.append({"op": "order", "ws": ctl["name"], "index": 0})
@@ -220,32 +292,50 @@ def apply_calls(plan: dict, existing: dict[str, str], root: str, only: set[str] 
         wanted = [t for t in ws["tabs"] if resume or t["action"] != "resume"]
         new = [t for t in wanted if t["action"] != "open" and t.get("command")]
         ref = resolve_workspace(ws, existing)
-        if not ref and new:
-            first, new = new[0], new[1:]
-            calls.append({"op": "create", "ws": ws["name"], "cwd": cwd, "slug": first["slug"],
-                          "command": first["command"], "tab": first["label"]})
-        calls.append({"op": "decorate", "ws": ws["name"], "ref": ref, "color": ws.get("color"),
-                      "description": ws.get("description")})
-        calls.append({"op": "order", "ws": ws["name"], "ref": ref, "index": pos})
+        placed = []          # (tab, "stay" | "move" | "keep", source ref)
         for t in opened:
-            moved = t.get("workspace") not in names
-            if moved:
+            src = t.get("ws_ref") or homes.get(t.get("surface"))
+            if t.get("workspace") in names:
+                placed.append((t, "stay", src))
+            else:
+                placed.append((t, "move" if can_move(src) else "keep", src))
+        exists = bool(ref)
+        if not ref and (new or any(kind == "move" for _, kind, _ in placed)):
+            exists = True
+            first = new.pop(0) if new else None
+            calls.append({"op": "create", "ws": ws["name"], "cwd": cwd,
+                          "slug": first and first["slug"], "command": first and first["command"],
+                          "tab": first and first["label"]})
+        if exists:
+            calls.append({"op": "decorate", "ws": ws["name"], "ref": ref, "color": ws.get("color"),
+                          "description": ws.get("description")})
+            calls.append({"op": "order", "ws": ws["name"], "ref": ref, "index": pos})
+        here_now = {}
+        for t, kind, src in placed:
+            if kind == "keep":
+                keep(t["surface"], t["label"], src, t.get("workspace"), ws["name"])
+                continue
+            if kind == "move":
                 calls.append({"op": "move", "ws": ws["name"], "ref": ref, "surface": t["surface"],
                               "tab": t["label"], "from": t.get("workspace")})
-            rename = {"op": "rename", "ws": ws["name"], "surface": t["surface"], "tab": t["label"]}
-            if not moved and t.get("ws_ref"):
-                rename["ws_ref"] = t["ws_ref"]
-            calls.append(rename)
+            calls.append({"op": "rename", "ws": ws["name"], "surface": t["surface"], "tab": t["label"],
+                          "ws_ref": src if kind == "stay" else None})
+            here_now[t["slug"]] = t["surface"]
         for t in new:
             calls.append({"op": "tab", "ws": ws["name"], "ref": ref, "slug": t["slug"],
                           "command": t["command"], "tab": t["label"]})
-        calls.append({"op": "tab_order", "ws": ws["name"], "ref": ref,
-                      "slugs": [t["slug"] for t in wanted],
-                      "known": {t["slug"]: t["surface"] for t in opened}})
+        if exists:
+            calls.append({"op": "tab_order", "ws": ws["name"], "ref": ref,
+                          "slugs": [t["slug"] for t in wanted], "known": here_now})
     if here:
-        calls.append({"op": "move", "ws": ctl["name"], "surface": here, "tab": ctl["name"],
-                      "from": "this tab"})
-        calls.append({"op": "rename", "ws": ctl["name"], "surface": here, "tab": ctl["name"]})
+        src = homes.get(here)
+        if can_move(src):
+            calls.append({"op": "move", "ws": ctl["name"], "surface": here, "tab": ctl["name"],
+                          "from": "this tab"})
+            calls.append({"op": "rename", "ws": ctl["name"], "surface": here, "tab": ctl["name"],
+                          "ws_ref": None})
+        else:
+            keep(here, ctl["name"], src, None, ctl["name"])
     return calls
 
 
@@ -255,80 +345,101 @@ def rename_tab(surface: str, ws_ref: str | None, title: str) -> str:
     args = ["tab-action", "--action", "rename", "--tab", surface, "--title", title]
     if ws_ref:
         args += ["--workspace", ws_ref]
-    return cl._cmux(*args)
+    return cl.cmux_checked(*args)
 
 
 def run_calls(calls: list[dict], existing: dict[str, str]) -> list[str]:
+    """Run the calls. A call cmux refuses becomes an ERROR line, never a success line."""
     refs = dict(existing)
     surfaces: dict[str, str] = {}  # slug -> surface ref of tabs created here
     report = []
     for c in calls:
         ws_ref = c.get("ref") or refs.get(c["ws"])
-        if c["op"] == "create":
-            args = ["workspace", "create", "--name", c["ws"], "--cwd", c["cwd"], "--focus", "false"]
-            if c.get("command"):
-                args += ["--command", cl.ascii_command(c["command"])]
-            out = cl._cmux(*args)
-            ws_ref = cl.parse_ref(out, "workspace")
-            if not ws_ref:
-                report.append(f"ERROR workspace {c['ws']} not created: {out.strip()[:120]}")
-                continue
-            refs[c["ws"]] = ws_ref
-            if c.get("tab"):
-                sref = cl._first_surface(ws_ref)
+        try:
+            if c["op"] == "note":
+                report.append(c["text"])
+            elif c["op"] == "create":
+                args = ["workspace", "create", "--name", c["ws"], "--cwd", c["cwd"], "--focus", "false"]
+                if c.get("command"):
+                    args += ["--command", cl.ascii_command(c["command"])]
+                out = cl.cmux_checked(*args)
+                ws_ref = cl.parse_ref(out, "workspace")
+                if not ws_ref:
+                    report.append(f"ERROR workspace {c['ws']} not created: {out.strip()[:120]}")
+                    continue
+                refs[c["ws"]] = ws_ref
+                if c.get("tab"):
+                    sref = cl._first_surface(ws_ref)
+                    if sref:
+                        rename_tab(sref, ws_ref, c["tab"])
+                        surfaces[c["slug"]] = sref
+                report.append(f"created {c['ws']} ({ws_ref})" + (f" with {c['tab']}" if c.get("tab") else ""))
+            elif c["op"] == "rename":
+                rename_tab(c["surface"], c.get("ws_ref") or refs.get(c["ws"]), c["tab"])
+            elif not ws_ref:
+                report.append(f"skipped {c['op']} {c['ws']}: workspace missing")
+            elif c["op"] == "decorate":
+                cl.cmux_checked("workspace", "rename", ws_ref, "--title", c["ws"])
+                for cmd in cl.decoration_commands(ws_ref, c):
+                    cl.cmux_checked(*cmd)
+            elif c["op"] == "move":
+                cl.cmux_checked("move-surface", "--surface", c["surface"], "--workspace", ws_ref,
+                                "--focus", "false")
+                report.append(f"  moved {c['tab']}: {c.get('from')} -> {c['ws']}")
+            elif c["op"] == "tab_order":
+                known = {**c.get("known", {}), **surfaces}
+                for i, slug in enumerate(s for s in c["slugs"] if s in known):
+                    cl.cmux_checked("reorder-surface", "--workspace", ws_ref, "--surface", known[slug],
+                                    "--index", str(i))
+            elif c["op"] == "order":
+                cl.cmux_checked("reorder-workspace", "--workspace", ws_ref, "--index", str(c["index"]))
+            elif c["op"] == "tab":
+                sref = cl.parse_ref(cl.cmux_checked("new-surface", "--workspace", ws_ref, "--command",
+                                                    cl.ascii_command(c["command"]), "--focus", "false"),
+                                    "surface")
                 if sref:
                     rename_tab(sref, ws_ref, c["tab"])
                     surfaces[c["slug"]] = sref
-            report.append(f"created {c['ws']} ({ws_ref})" + (f" with {c['tab']}" if c.get("tab") else ""))
-        elif c["op"] == "rename":
-            rename_tab(c["surface"], c.get("ws_ref") or refs.get(c["ws"]), c["tab"])
-        elif not ws_ref:
-            report.append(f"skipped {c['op']} {c['ws']}: workspace missing")
-        elif c["op"] == "decorate":
-            cl._cmux("workspace", "rename", ws_ref, "--title", c["ws"])
-            for cmd in cl.decoration_commands(ws_ref, c):
-                cl._cmux(*cmd)
-        elif c["op"] == "move":
-            cl._cmux("move-surface", "--surface", c["surface"], "--workspace", ws_ref, "--focus", "false")
-            report.append(f"  moved {c['tab']}: {c.get('from')} -> {c['ws']}")
-        elif c["op"] == "tab_order":
-            known = {**c.get("known", {}), **surfaces}
-            for i, slug in enumerate(s for s in c["slugs"] if s in known):
-                cl._cmux("reorder-surface", "--surface", known[slug], "--index", str(i))
-        elif c["op"] == "order":
-            cl._cmux("reorder-workspace", "--workspace", ws_ref, "--index", str(c["index"]))
-        elif c["op"] == "tab":
-            sref = cl.parse_ref(cl._cmux("new-surface", "--workspace", ws_ref, "--command",
-                                         cl.ascii_command(c["command"]), "--focus", "false"), "surface")
-            if sref:
-                rename_tab(sref, ws_ref, c["tab"])
-                surfaces[c["slug"]] = sref
-                report.append(f"  tab {c['tab']} in {c['ws']} ({sref})")
-            else:
-                report.append(f"  ERROR tab {c['tab']} in {c['ws']}")
+                    report.append(f"  tab {c['tab']} in {c['ws']} ({sref})")
+                else:
+                    report.append(f"  ERROR tab {c['tab']} in {c['ws']}: no surface ref")
+        except cl.CmuxError as exc:
+            what = c.get("tab") or c["ws"]
+            report.append(f"  ERROR {c['op']} {what} in {c['ws']}: {exc}")
     return report
 
 
 # ---------------------------------------------------------------- verbs
 
 def open_plan(req: dict) -> list[str]:
+    """Refuses (DriverError) when the workspaces cannot be read: planning on an
+    empty view would create the control workspace and every workspace again."""
     plan = to_cmux_plan(req.get("plan") or {})
-    existing = cl.existing_workspace_titles()
+    try:
+        tree = read_tree()
+    except (DriverError, cl.CmuxError) as exc:
+        raise DriverError(f"cannot read cmux workspaces, nothing opened ({exc})") from exc
+    existing = workspace_index(tree)
     only = set(req["only"]) if req.get("only") else None
-    calls = apply_calls(plan, existing, str(ROOT), only, req.get("here"), bool(req.get("resume")))
+    calls = apply_calls(plan, existing, str(ROOT), only, req.get("here"), bool(req.get("resume")),
+                        counts=surface_counts(tree), homes=surface_homes(tree))
     return run_calls(calls, existing)
 
 
 def _ws_ref_of(surface: str) -> str | None:
-    return next((t.get("ws_ref") for t in current_tabs() if t["surface"] == surface), None)
+    """The workspace of an open tab. A ref that is not open is an error, not a guess."""
+    for t in current_tabs():
+        if t["surface"] == surface:
+            return t.get("ws_ref")
+    raise DriverError(f"no open tab {surface}")
 
 
 def send(req: dict) -> list[str]:
     surface, text = req["tab"], req["text"]
     ws_ref = _ws_ref_of(surface)
     where = ["--workspace", ws_ref] if ws_ref else []
-    cl._cmux("send", *where, "--surface", surface, text)
-    cl._cmux("send-key", *where, "--surface", surface, "Enter")
+    cl.cmux_checked("send", *where, "--surface", surface, text)
+    cl.cmux_checked("send-key", *where, "--surface", surface, "Enter")
     return [f"sent to {surface}"]
 
 
@@ -360,7 +471,7 @@ def main() -> int:
         if not isinstance(req, dict):
             raise ValueError("request is not a JSON object")
         answer = handle(req)
-    except (DriverError, cl.CmuxUnavailable, ValueError, KeyError) as exc:
+    except (DriverError, cl.CmuxError, ValueError, KeyError) as exc:
         message = f"cmux_driver: {exc}"
         print(json.dumps({"error": message}))
         print(message, file=sys.stderr)

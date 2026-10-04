@@ -43,11 +43,21 @@ FAKE_CMUX = textwrap.dedent("""\
     def answer(name):
         path = os.environ.get(name)
         return open(path).read() if path and os.path.exists(path) else ""
-    if args[:2] == ["tree", "--json"]:
-        print(answer("FAKE_CMUX_TREE"))
+    joined = " ".join(args)
+    fails = [f for f in os.environ.get("FAKE_CMUX_FAIL", "").split(",") if f]
+    if any(joined.startswith(f) for f in fails):
+        print("Error: not_found: simulated failure for " + joined, file=sys.stderr)
+        sys.exit(1)
+    if args[:1] == ["ping"]:
+        print("PONG")
+    elif args[:1] == ["tree"] and "--json" in args:
+        tree = json.loads(answer("FAKE_CMUX_TREE"))
+        if "--all" not in args:              # like cmux: current window only
+            tree["windows"] = tree["windows"][:1]
+        print(json.dumps(tree))
     elif args[:1] == ["tree"]:
         print("surface:61")
-    elif args[:2] == ["workspace", "list"]:
+    elif args[:2] == ["workspace", "list"]:  # like cmux: current window only
         print(answer("FAKE_CMUX_WS"))
     elif args[:2] == ["workspace", "create"]:
         print("OK workspace:50")
@@ -57,14 +67,24 @@ FAKE_CMUX = textwrap.dedent("""\
         print("OK")
     """)
 
-TREE = {"windows": [{"workspaces": [
-    {"title": "Platform", "ref": "workspace:3", "panes": [{"surfaces": [
-        {"ref": "surface:91", "type": "terminal", "title": "✳ Fix login"},
-        {"ref": "surface:92", "type": "terminal", "title": "user@host:~"},
-        {"ref": "surface:7", "type": "browser", "title": "Docs"}]}]},
-    {"title": "Customer A", "ref": "workspace:4", "panes": [{"surfaces": [
-        {"ref": "surface:95", "type": "terminal", "title": "Invoice export"}]}]},
-]}]}
+
+def _pane(*surfaces):
+    return {"surface_count": len(surfaces), "surfaces": list(surfaces)}
+
+
+TREE = {"windows": [
+    {"ref": "window:1", "workspaces": [
+        {"title": "Platform", "ref": "workspace:3", "panes": [_pane(
+            {"ref": "surface:91", "type": "terminal", "title": "\u2733 Fix login"},
+            {"ref": "surface:92", "type": "terminal", "title": "user@host:~"},
+            {"ref": "surface:7", "type": "browser", "title": "Docs"})]},
+        {"title": "Customer A", "ref": "workspace:4", "panes": [_pane(
+            {"ref": "surface:95", "type": "terminal", "title": "Invoice export"},
+            {"ref": "surface:96", "type": "terminal", "title": "user@host:~"})]}]},
+    {"ref": "window:2", "workspaces": [
+        {"title": "Customer B", "ref": "workspace:5", "panes": [_pane(
+            {"ref": "surface:97", "type": "terminal", "title": "Report draft"})]}]},
+]}
 
 SESSION = {"windows": [{"tabManager": {"workspaces": [
     {"customTitle": "Platform", "workspaceId": "WS-UUID-1",
@@ -101,9 +121,12 @@ def fake(tmp_path, monkeypatch):
            **{k: str(v) for k, v in files.items()}}
 
     class World:
+        fail = ""
+
         def call(self, request: dict) -> subprocess.CompletedProcess:
+            run_env = {**env, "FAKE_CMUX_FAIL": self.fail}
             return subprocess.run([sys.executable, str(DRIVER)], input=json.dumps(request),
-                                  capture_output=True, text=True, env=env, timeout=60)
+                                  capture_output=True, text=True, env=run_env, timeout=60)
 
         def answer(self, request: dict) -> dict:
             done = self.call(request)
@@ -210,16 +233,23 @@ def test_core_reads_a_failed_driver_as_unknown(monkeypatch, tmp_path):
 
 
 def test_no_tree_and_no_session_file_is_an_error_not_an_empty_list(fake):
-    fake.files["FAKE_CMUX_TREE"].write_text("Failed to write to socket (Broken pipe, errno 32)")
+    fake.fail = "tree"
     fake.files["CMUX_SESSION_FILE"].unlink()
     done = fake.call({"verb": "tabs"})
     assert done.returncode == 1 and "error" in json.loads(done.stdout)
 
 
-def test_socket_down_falls_back_to_the_session_file(fake):
-    fake.files["FAKE_CMUX_TREE"].write_text("not json")
+def test_tree_failing_with_ping_alive_falls_back_to_the_session_file(fake):
+    fake.fail = "tree"
     tabs = fake.answer({"verb": "tabs"})["tabs"]
     assert {t["name"] for t in tabs} == {"Fix login", "user@host:~"}
+
+
+def test_socket_down_is_an_error_not_the_stale_session_file(fake):
+    # Finding 6: the session file persists after cmux quits; showing it as live tabs is a lie.
+    fake.fail = "tree,ping"
+    done = fake.call({"verb": "tabs"})
+    assert done.returncode == 1 and "error" in json.loads(done.stdout)
 
 
 def test_unknown_verb_is_an_error(fake):
@@ -248,7 +278,7 @@ def test_apply_calls_has_no_close_operation_for_any_plan():
             {"slug": "b", "label": "B", "action": "new", "command": "my-agent"},
             {"slug": "c", "label": "C", "action": "resume", "command": "my-agent --resume c"}]}]})
     ops = {c["op"] for c in drv.apply_calls(plan, {}, "/repo", here="surface:9", resume=True)}
-    assert ops <= {"create", "decorate", "order", "move", "rename", "tab", "tab_order"}
+    assert ops <= {"create", "decorate", "order", "move", "rename", "tab", "tab_order", "note"}
 
 
 def test_to_cmux_plan_keeps_the_shell_once():
@@ -262,3 +292,155 @@ def test_workspace_resolves_through_aliases():
     existing = {"example-org": "workspace:28"}
     assert drv.resolve_workspace({"name": "Platform", "aliases": ["example-org"]}, existing) == "workspace:28"
     assert drv.resolve_workspace({"name": "Misc"}, existing) is None
+
+
+# ---------------------------------------------------------------- review findings
+
+def _plan(*workspaces, control=None):
+    return {"control": control or {"name": "Control"}, "workspaces": list(workspaces)}
+
+
+def _open(plan, here=None, resume=False):
+    return {"verb": "open", "plan": plan, "only": None, "resume": resume, "here": here}
+
+
+def test_send_that_cmux_rejects_is_a_driver_error(fake):
+    # Finding 1: cmux answers `Error: ...` with exit 1; that is not "sent".
+    fake.fail = "send"
+    done = fake.call({"verb": "send", "tab": "surface:91", "text": "go on"})
+    assert done.returncode == 1 and "not_found" in json.loads(done.stdout)["error"]
+
+
+def test_send_to_a_ref_that_is_not_open_is_a_driver_error(fake):
+    done = fake.call({"verb": "send", "tab": "surface:999", "text": "go on"})
+    assert done.returncode == 1
+    assert not any(a[0] == "send" for a in fake.argv())
+
+
+def test_rename_that_cmux_rejects_is_a_driver_error(fake):
+    fake.fail = "tab-action"
+    done = fake.call({"verb": "rename", "tab": "surface:95", "title": "Invoices"})
+    assert done.returncode == 1 and "error" in json.loads(done.stdout)
+
+
+def test_failed_move_is_reported_as_error_not_as_moved(fake):
+    fake.fail = "move-surface"
+    plan = _plan({"name": "Platform", "cwd": "/repo", "tabs": [
+        {"slug": "inv", "label": "Invoices", "action": "open", "ref": "surface:95",
+         "workspace": "Customer A", "ws_ref": "workspace:4"}]})
+    report = fake.answer(_open(plan))["report"]
+    assert any(line.lstrip().startswith("ERROR") and "Invoices" in line for line in report)
+    assert not any(line.strip().startswith("moved") for line in report)
+
+
+def test_open_refuses_when_the_workspaces_cannot_be_read(fake):
+    # Finding 1: an unreadable workspace list is not "no workspace exists".
+    fake.fail = "tree,workspace list"
+    plan = _plan({"name": "Platform", "cwd": "/repo", "tabs": [
+        {"slug": "a", "label": "A", "action": "new", "command": "my-agent"}]})
+    done = fake.call(_open(plan))
+    assert done.returncode == 1 and "error" in json.loads(done.stdout)
+    assert not any(a[:2] == ["workspace", "create"] for a in fake.argv())
+
+
+def test_workspaces_in_another_window_are_found_not_duplicated(fake):
+    # Finding 2: tree and workspace list without --all see the current window only.
+    plan = _plan({"name": "Customer B", "cwd": "/repo", "tabs": [
+        {"slug": "b", "label": "B", "action": "new", "command": "my-agent"}]})
+    fake.answer(_open(plan))
+    argv = fake.argv()
+    assert not any(a[:2] == ["workspace", "create"] and "Customer B" in a for a in argv)
+    tab = next(a for a in argv if a[0] == "new-surface")
+    assert tab[tab.index("--workspace") + 1] == "workspace:5"
+
+
+def test_tabs_cover_every_window(fake):
+    names = {t["name"] for t in fake.answer({"verb": "tabs"})["tabs"]}
+    assert "Report draft" in names
+
+
+def test_the_last_tab_of_a_workspace_is_not_moved_away(fake):
+    # Finding 3: moving the last surface out closes its workspace.
+    plan = _plan({"name": "Platform", "cwd": "/repo", "tabs": [
+        {"slug": "rep", "label": "Report", "action": "open", "ref": "surface:97",
+         "workspace": "Customer B", "ws_ref": "workspace:5"}]})
+    report = fake.answer(_open(plan))["report"]
+    argv = fake.argv()
+    assert not any(a[0] == "move-surface" and "surface:97" in a for a in argv)
+    assert ["tab-action", "--action", "rename", "--tab", "surface:97", "--title", "Report",
+            "--workspace", "workspace:5"] in argv
+    assert any("last tab" in line for line in report)
+
+
+def test_the_calling_tab_stays_when_it_is_the_last_of_its_workspace(fake):
+    plan = _plan({"name": "Platform", "cwd": "/repo", "tabs": []})
+    report = fake.answer(_open(plan, here="surface:97"))["report"]
+    assert not any(a[0] == "move-surface" and "surface:97" in a for a in fake.argv())
+    assert any("last tab" in line for line in report)
+
+
+def test_two_tabs_leave_a_workspace_but_the_last_one_stays(fake):
+    plan = _plan({"name": "Platform", "cwd": "/repo", "tabs": [
+        {"slug": "x", "label": "X", "action": "open", "ref": "surface:95",
+         "workspace": "Customer A", "ws_ref": "workspace:4"},
+        {"slug": "y", "label": "Y", "action": "open", "ref": "surface:96",
+         "workspace": "Customer A", "ws_ref": "workspace:4"}]})
+    fake.answer(_open(plan))
+    moved = [a[a.index("--surface") + 1] for a in fake.argv() if a[0] == "move-surface"]
+    assert moved == ["surface:95"]
+
+
+def test_a_workspace_holding_only_open_tabs_is_created_for_the_move(fake):
+    # Finding 4: `create` only ran for new tabs, so the move went nowhere.
+    plan = _plan({"name": "Research", "cwd": "/repo", "tabs": [
+        {"slug": "inv", "label": "Invoices", "action": "open", "ref": "surface:95",
+         "workspace": "Customer A", "ws_ref": "workspace:4"}]})
+    fake.answer(_open(plan))
+    argv = fake.argv()
+    assert any(a[:2] == ["workspace", "create"] and "Research" in a for a in argv)
+    assert ["move-surface", "--surface", "surface:95", "--workspace", "workspace:50",
+            "--focus", "false"] in argv
+
+
+def test_no_workspace_is_created_when_nothing_can_move_into_it(fake):
+    plan = _plan({"name": "Research", "cwd": "/repo", "tabs": [
+        {"slug": "rep", "label": "Report", "action": "open", "ref": "surface:97",
+         "workspace": "Customer B", "ws_ref": "workspace:5"}]})
+    fake.answer(_open(plan))
+    argv = fake.argv()
+    assert not any(a[:2] == ["workspace", "create"] and "Research" in a for a in argv)
+    assert ["tab-action", "--action", "rename", "--tab", "surface:97", "--title", "Report",
+            "--workspace", "workspace:5"] in argv
+
+
+def test_reorder_surface_names_its_workspace(fake):
+    # Finding 5
+    plan = _plan({"name": "Platform", "cwd": "/repo", "tabs": [
+        {"slug": "fix", "label": "Fix login", "action": "open", "ref": "surface:91",
+         "workspace": "Platform", "ws_ref": "workspace:3"}]})
+    fake.answer(_open(plan))
+    reorders = [a for a in fake.argv() if a[0] == "reorder-surface"]
+    assert reorders and all(a[a.index("--workspace") + 1] == "workspace:3" for a in reorders)
+
+
+def test_control_command_from_config_reaches_the_new_control_workspace(fake, tmp_path):
+    # Finding 7: workplace.control.command passes through the CORE plan untouched.
+    core = load_core()
+    cfg = {"control": {"name": "Hub", "command": "my-agent -n control"}}
+    plan = core.propose([], cfg, {}, {}, {}, core.dt.date(2026, 1, 1), tmp_path)
+    fake.answer(_open(json.loads(json.dumps(plan, default=str))))
+    create = next(a for a in fake.argv() if a[:2] == ["workspace", "create"] and "Hub" in a)
+    assert create[create.index("--command") + 1] == "my-agent -n control" + drv.KEEP_SHELL
+
+
+def test_control_without_command_or_with_here_starts_no_agent(fake):
+    fake.answer(_open(_plan()))
+    create = next(a for a in fake.argv() if a[:2] == ["workspace", "create"])
+    assert "--command" not in create
+
+
+def test_spawn_workspace_has_no_loop_flag_nothing_reads():
+    # Loop note: --loop wrote a file no part of the Bridge reads.
+    script = (SKILL / "scripts" / "spawn-workspace.sh").read_text()
+    docs = (SKILL / "references" / "local.md").read_text()
+    assert "--loop" not in script and "--loop" not in docs

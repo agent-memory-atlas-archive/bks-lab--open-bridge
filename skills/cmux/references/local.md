@@ -59,9 +59,6 @@ skills/cmux/scripts/spawn-workspace.sh my-agent
 skills/cmux/scripts/spawn-workspace.sh my-agent \
   --cwd /path/to/repo \
   --prompt "$(cat "$TMPDIR/my-prompt.txt")"
-
-# Context loop (handoff at 60% context)
-skills/cmux/scripts/spawn-workspace.sh my-agent --loop
 ```
 
 The script prints `VERIFIED: Claude running in workspace workspace:N` on success;
@@ -82,7 +79,6 @@ express what you need (non-agent commands, exotic wrappers).
 | `--cwd <path>` | Working directory (default: the Bridge root) |
 | `--status-file <path>` | `STATUS.md` path: prepends a work-tracking instruction |
 | `--model <model>` | Optional override; no flag = inherit the default |
-| `--loop [pct]` | Register a context-loop handoff threshold (default 60) |
 
 Prompt and launcher files go to `$CMUX_TMPDIR` (default `~/.claude/cmux-tmp`), a
 stable user-owned directory, so one permission rule covers every spawn; files

@@ -398,3 +398,31 @@ def test_cmux_missing_raises_a_distinct_error(monkeypatch, tmp_path):
     monkeypatch.setenv("PATH", str(tmp_path))
     with pytest.raises(cl.CmuxUnavailable):
         cl._cmux("ping")
+
+
+def _failing_cmux(tmp_path, monkeypatch, code=1, text="Error: not_found: Workspace not found"):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake = bin_dir / "cmux"
+    fake.write_text(f"#!/bin/sh\necho '{text}' >&2\nexit {code}\n")
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", str(bin_dir))
+
+
+def test_checked_call_fails_on_error_exit(tmp_path, monkeypatch):
+    # cmux signals errors with exit 1 and an `Error: ...` line, never by silence.
+    _failing_cmux(tmp_path, monkeypatch)
+    with pytest.raises(cl.CmuxError, match="not_found"):
+        cl.cmux_checked("send", "--surface", "surface:1", "x")
+
+
+def test_checked_call_fails_on_error_text_even_with_exit_zero(tmp_path, monkeypatch):
+    _failing_cmux(tmp_path, monkeypatch, code=0)
+    with pytest.raises(cl.CmuxError):
+        cl.cmux_checked("workspace", "list")
+
+
+def test_unreadable_workspace_list_is_an_error_not_empty(tmp_path, monkeypatch):
+    _failing_cmux(tmp_path, monkeypatch)
+    with pytest.raises(cl.CmuxError):
+        cl.existing_workspace_titles()

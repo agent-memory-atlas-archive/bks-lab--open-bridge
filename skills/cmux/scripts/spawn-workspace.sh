@@ -2,25 +2,23 @@
 # SPDX-License-Identifier: MIT
 # Spawn a named cmux workspace with Claude Code, without stealing focus.
 # Usage: spawn-workspace.sh <name> [--prompt "..."] [--cwd <path>] [--status-file <path>]
-#                                  [--model <model>] [--loop [pct]]
+#                                  [--model <model>]
 #
 # --cwd <path>         Working directory for Claude (default: the Bridge root, the only
 #                      place where Claude loads the Bridge's AGENTS.md and registries)
 # --prompt "..."       Initial prompt for Claude (written to a file, survives quoting)
 # --status-file <path> STATUS.md path: prepends a work-tracking instruction to the prompt
 # --model <model>      Optional override. Without it the agent inherits the default model.
-# --loop [pct]         Register a context-loop handoff threshold (default 60)
 #
 # Prompt and launcher files go to $CMUX_TMPDIR (default ~/.claude/cmux-tmp); files
 # older than one day are cleaned there on each run.
 
 set -euo pipefail
 
-NAME="${1:?Usage: spawn-workspace.sh <name> [--prompt \"...\"] [--cwd <path>] [--loop [pct]]}"
+NAME="${1:?Usage: spawn-workspace.sh <name> [--prompt \"...\"] [--cwd <path>] [--model <model>]}"
 shift
 
 PROMPT=""
-LOOP_PCT=""
 CWD="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 STATUS_FILE=""
 MODEL=""
@@ -31,13 +29,6 @@ while [[ $# -gt 0 ]]; do
     --cwd) CWD="$2"; shift 2 ;;
     --status-file) STATUS_FILE="$2"; shift 2 ;;
     --model) MODEL="$2"; shift 2 ;;
-    --loop)
-      if [[ $# -gt 1 && "$2" =~ ^[0-9]+$ ]]; then
-        LOOP_PCT="$2"; shift 2
-      else
-        LOOP_PCT="60"; shift
-      fi
-      ;;
     *) echo "Unknown arg: $1" >&2; exit 1 ;;
   esac
 done
@@ -104,13 +95,6 @@ else
 fi
 
 cmux rename-workspace --workspace "$WS_REF" "$NAME" >/dev/null 2>&1 || true
-
-if [[ -n "$LOOP_PCT" ]]; then
-  LOOPS_DIR="$HOME/.claude/loops"
-  mkdir -p "$LOOPS_DIR"
-  echo "{\"threshold\": $LOOP_PCT}" > "$LOOPS_DIR/ws-${WS_REF//:/-}.json"
-  echo "Loop registered at ${LOOP_PCT}% for workspace $NAME"
-fi
 
 [[ -n "$CURRENT" ]] && cmux select-workspace --workspace "$CURRENT" >/dev/null 2>&1 || true
 echo "Workspace '$NAME' ready"

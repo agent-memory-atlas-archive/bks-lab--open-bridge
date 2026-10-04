@@ -54,7 +54,11 @@ UUID_RE = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 KEEP_SHELL = '; exec "${SHELL:-/bin/sh}" -l'
 
 
-class CmuxUnavailable(RuntimeError):
+class CmuxError(RuntimeError):
+    """cmux refused a call (exit code not zero, or an `Error: ...` answer)."""
+
+
+class CmuxUnavailable(CmuxError):
     """The cmux CLI is not installed or could not be started."""
 
 
@@ -426,19 +430,37 @@ def parse_ref(output: str, kind: str) -> str | None:
     return m.group(0) if m else None
 
 
-def _cmux(*args: str) -> str:
-    """Run the cmux CLI and return stdout + stderr. Raises CmuxUnavailable when
-    the binary is missing, so a caller can tell "no cmux" from "nothing there"."""
+def _run(args: tuple) -> tuple[int, str]:
     try:
         res = subprocess.run(["cmux", *args], capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.SubprocessError) as exc:
         raise CmuxUnavailable(f"cmux CLI not available: {exc}") from exc
-    return (res.stdout or "") + (res.stderr or "")
+    return res.returncode, (res.stdout or "") + (res.stderr or "")
+
+
+def _cmux(*args: str) -> str:
+    """Run the cmux CLI and return stdout + stderr, whatever the exit code. Only
+    for calls whose output is parsed and checked by the caller (parse_ref, ping).
+    Raises CmuxUnavailable when the binary is missing."""
+    return _run(args)[1]
+
+
+def cmux_checked(*args: str) -> str:
+    """Run the cmux CLI; raise CmuxError when it refuses. cmux signals an error
+    with exit 1 and an `Error: ...` line, so both count."""
+    code, out = _run(args)
+    if code != 0 or out.lstrip().startswith("Error:"):
+        detail = out.strip().splitlines()[0][:200] if out.strip() else f"exit {code}"
+        raise CmuxError(f"cmux {' '.join(args[:2])} failed: {detail}")
+    return out
 
 
 def existing_workspace_titles() -> dict[str, str]:
+    """Title -> ref of the workspaces in the CURRENT window (cmux limits `workspace
+    list` to it). Raises CmuxError when the list cannot be read: an unreadable
+    list is not an empty one."""
     titles = {}
-    for line in _cmux("workspace", "list").splitlines():
+    for line in cmux_checked("workspace", "list").splitlines():
         m = re.match(r"\s*\*?\s*(workspace:\d+)\s+(.*?)(\s+\[selected\])?\s*$", line)
         if m:
             titles[strip_status_glyph(m.group(2)).strip()] = m.group(1)
@@ -515,10 +537,11 @@ def _fmt_time(ts) -> str:
     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts)) if ts else "?"
 
 
-def _cmux_reachable() -> bool:
+def cmux_reachable() -> bool:
+    """True only when the socket answers; the session file can outlive cmux."""
     try:
         return _cmux("ping").strip() == "PONG"
-    except CmuxUnavailable:
+    except CmuxError:
         return False
 
 
@@ -588,8 +611,8 @@ def main(argv=None, notifier=None) -> int:
         if a.apply:
             existing = existing_workspace_titles()
         else:
-            existing = existing_workspace_titles() if _cmux_reachable() else {}
-    except CmuxUnavailable as exc:
+            existing = existing_workspace_titles() if cmux_reachable() else {}
+    except CmuxError as exc:
         print(exc, file=sys.stderr)
         return 1
     current = _load(DEFAULT_SOURCE) or {}

@@ -45,10 +45,22 @@ workplace:
 ```
 
 Then `python3 scripts/workplace.py open --yes [--here "$CMUX_SURFACE_ID"]` opens
-the plan in cmux, and `status`, `send`, `adopt` steer the tabs. The driver never
-closes a tab or a workspace, reuses a tab that is already open, and joins live
-socket refs (`surface:91`) with the session file (UUIDs) by workspace and tab
-title without its status glyph, because the two ids never match.
+the plan in cmux, and `status`, `send`, `adopt` steer the tabs. What the driver
+guarantees:
+
+- It never closes a tab or a workspace, and never moves the last tab out of a
+  workspace (cmux drops an emptied workspace); such a tab is renamed where it is
+  and the report says so.
+- It sees every window (`tree --all`), so a workspace in a second window is
+  reused, not created twice.
+- A call cmux refuses (exit 1, `Error: ...`) is an ERROR line or a driver error,
+  never a success line. When the workspaces cannot be read, `open` does nothing.
+- When cmux does not answer, `tabs` is an error, not the stale session file.
+- Live socket refs (`surface:91`) and session-file ids (UUIDs) never match, so
+  tabs are joined by workspace and title without its status glyph.
+- A newly created control workspace starts `workplace.control.command` when set
+  (for example `{name: Control, command: "claude -n control"}`) and not opened
+  with `--here`; otherwise it is a plain shell.
 
 ## First move after a loss
 
