@@ -544,7 +544,8 @@ html.dark .path-prompts code{background:var(--code-bg)}
 <style>
 /* ---- #story: the command-bridge stage (assets/story.js) ---- */
 .story{position:relative}
-.story-stage{--hdr:0px;position:relative;height:calc(100vh - var(--hdr));height:calc(100svh - var(--hdr));overflow:hidden;background:var(--stage-surface,var(--surface))}
+.story-stage{position:relative;height:calc(100vh - var(--story-top,0px));height:calc(100svh - var(--story-top,0px));overflow:hidden;background:var(--stage-surface,var(--surface))}
+html.story-live .story-stage{position:sticky;top:var(--story-top,0px)}
 #story-gl{position:absolute;inset:0;width:100%;height:100%;display:block}
 #story-labels{position:absolute;inset:0;pointer-events:none}
 #story-labels .lb{position:absolute;left:0;top:0;white-space:nowrap;will-change:transform,opacity;opacity:0}
@@ -565,8 +566,8 @@ html.dark .path-prompts code{background:var(--code-bg)}
 .story .log .h{letter-spacing:.06em;margin-bottom:4px}
 .story .log .r{opacity:0}.story .log em{color:var(--accent-text);font-style:normal}
 .story-caps{position:absolute;left:0;right:0;bottom:2%;height:54%;text-align:center;padding:0 24px;pointer-events:none}
-.story .cap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;visibility:hidden}
-.story .cap:first-child{visibility:visible}
+.story .cap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:2%;visibility:hidden}
+.story .cap:first-child{visibility:visible;justify-content:flex-start;padding-bottom:0}
 .story .cap .eyebrow{margin:0 0 12px;color:var(--accent-text);font-size:12px;max-width:none}
 .story .cap h1,.story .cap h2{color:var(--ink);line-height:1.1;max-width:22em;margin:0}
 .story .cap h1{font-size:clamp(26px,2.9vw,42px)}
@@ -580,7 +581,11 @@ html.dark .path-prompts code{background:var(--code-bg)}
 .story .story-tags i{font:500 12px/1 var(--font-mono);font-style:normal;color:var(--muted);border:1px solid var(--line);border-radius:9999px;padding:7px 12px}
 .story .story-tags i{display:inline-block;margin:0 4px}
 .story .cap code{font-family:var(--font-mono);font-size:.9em}
-.story .sw-mask{padding-bottom:.22em;margin-bottom:-.22em}
+.story .sw-mask{display:inline-block;overflow:clip;vertical-align:top;padding-bottom:.22em;margin-bottom:-.22em}
+.story .sw{display:inline-block;will-change:transform}
+.story .tag{font:500 11.5px/1 var(--font-sans);color:var(--accent-text);background:var(--stage-surface,var(--surface));padding:4px 8px;border-radius:9999px;border:1px solid color-mix(in srgb,var(--accent-text) 35%,transparent)}
+.story .fl.rd{border-style:solid;border-color:var(--stage-link);color:var(--ink);background:var(--surface-subtle)}
+.story .fl.wr{border-style:solid;border-color:var(--stage-hi);color:var(--accent-text);background:var(--surface-subtle)}
 .story-steps{position:absolute;right:24px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:12px}
 .story-steps b{width:28px;height:28px;border-radius:9999px;border:1px solid var(--line);color:var(--muted);font:600 11px/26px var(--font-sans);text-align:center;transition:all .3s}
 .story-steps b.on{border-color:var(--accent);color:var(--ink);background:var(--accent-soft)}
@@ -2760,9 +2765,7 @@ claude        <span class="cmt"># or: codex, copilot</span></div>
 })();
 </script>
 
-<script defer src="assets/vendor/gsap.min.js"></script>
-<script defer src="assets/vendor/ScrollTrigger.min.js"></script>
-<script defer src="assets/vendor/SplitText.min.js"></script>
+<script defer src="assets/scroll-engine.js"></script>
 <script defer src="assets/story.js"></script>
 <script defer src="assets/agent-config.js"></script>
   <script defer src="assets/agent-widget.js"></script>

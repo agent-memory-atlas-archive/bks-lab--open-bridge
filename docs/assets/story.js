@@ -1,71 +1,94 @@
 /* ============================================================================
    story.js: the command-bridge stage at the top of the landing page.
 
-   One pinned stage, six scenes, driven by scroll (GSAP ScrollTrigger, scrub):
+   Six scenes, driven by scroll through assets/scroll-engine.js:
      0  the finished bridge: agents left, the rest of your world around it
      1  cold start: the links drop, loose files drift
      2  the substrate: the files gather into the bridge (identity, workflow, infra, work)
-     3  the links come back one by one, data flows
-     4  session start: pulses run to the agents (read), then back (write), the log grows
+     3  the links come back one by one, and each says what travels on it
+     4  session start: the files travel to the agent (read), a log line travels back (write)
      5  many bridges on one shared CORE, upstream only for scope:core
 
-   three.js is loaded only when the stage actually runs. Colours come from the
-   --stage-* tokens in brand.css, so light and dark both work and a palette
-   change needs no edit here. Reduced motion or no WebGL: the captions stand
-   stacked and a static list of the stations replaces the scene.
+   three.js (MIT, vendored) is loaded only when the stage runs. Colours come
+   from the --stage-* tokens in brand.css, so light and dark both work and a
+   palette change needs no edit here. Reduced motion or no WebGL: the captions
+   stand stacked and a static list of the stations replaces the scene.
    Self-contained: everything is served from assets/, no network request.
    ============================================================================ */
 (function () {
   "use strict";
   var root = document.documentElement;
+  var section = document.getElementById("story");
   var stage = document.getElementById("story-stage");
-  if (!stage || !window.gsap || !window.ScrollTrigger) return;
+  if (!section || !stage || !window.ScrollEngine) return;
 
   var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var glOK = (function () { try { var c = document.createElement("canvas"); return !!(c.getContext("webgl2") || c.getContext("webgl")); } catch (e) { return false; } })();
   if (reduce || !glOK) { root.classList.add("story-static"); return; }
+  root.classList.add("story-live");
 
-  gsap.registerPlugin(ScrollTrigger, SplitText);
-  ScrollTrigger.config({ ignoreMobileResize: true });
-
-  /* header offset: the sticky top bar sits over the page, the stage starts below it */
-  var topbar = document.querySelector(".topbar");
-  var hdr = function () { return topbar ? Math.round(topbar.getBoundingClientRect().height) : 0; };
-  var setHdr = function () { stage.style.setProperty("--hdr", hdr() + "px"); };
-  setHdr();
-
-  var caps = gsap.utils.toArray("#story .cap");
-  var capParts = caps.map(function (c) {
-    var words = [];
-    c.querySelectorAll("h1,h2").forEach(function (h) {
-      words = words.concat(SplitText.create(h, { type: "words", mask: "words", wordsClass: "sw", aria: "auto" }).words);
-    });
-    return { eyebrow: c.querySelector(".eyebrow"), words: words, rest: c.querySelectorAll(".cap-rest") };
-  });
-
+  var E = ScrollEngine, clamp = E.clamp, EASE = E.ease;
   var EN = function (en, de) { return '<span data-lang="en">' + en + '</span><span data-lang="de">' + de + "</span>"; };
+  var topbar = document.querySelector(".topbar");
+
+  /* ---------- the script ---------- */
+  var TOTAL = 11.8;
+  var story = E.create({
+    section: section, stage: stage, screens: 8.5, total: TOTAL,
+    offset: function () { return topbar ? Math.round(topbar.getBoundingClientRect().height) : 0; },
+    initial: { tilt: .55, cam: 1, lift: .52, hub: 1, draw: 1, flow: .35, stOther: 1, chaos: 0, gather: 0, sub: 0, tags: 0, rwAmp: 0, rw: 0, log: 0, fleet: 0 },
+    tweens: [
+      // 1 cold start
+      [.3, 1.1, { draw: 0, flow: 0, stOther: 0, hub: 0 }, "inOut3"],
+      [.3, 1.3, { cam: .7, lift: .26 }, "inOut3"],
+      [.7, 1.0, { chaos: 1, tilt: .3 }, "inOut3"],
+      // 2 substrate
+      [2.5, 1.2, { gather: 1, hub: 1 }, "inOut3"],
+      [3.2, .8, { sub: 1 }, "out3"],
+      // 3 the links, each with what travels on it
+      [4.6, .5, { sub: 0 }],
+      [4.7, .8, { stOther: 1, tilt: .55 }, "inOut3"],
+      [4.8, 1.6, { draw: 1 }, "inOut2"],
+      [5.8, .8, { flow: .9 }],
+      [6.0, .6, { tags: 1 }, "out3"],
+      // 4 read, then write back
+      [6.9, .4, { tags: 0 }],
+      [7.0, .5, { rwAmp: 1, flow: .3, stOther: .12 }],
+      [7.2, 1.0, { rw: 1 }],
+      [8.2, 0, { rw: 1.01 }],
+      [8.2, 1.4, { log: 3 }],
+      // 5 many bridges
+      [9.8, .4, { rwAmp: 0, stOther: 1 }],
+      [9.9, 1.5, { fleet: 1, cam: .78, tilt: .2 }, "inOut3"]
+    ],
+    captions: { els: [].slice.call(section.querySelectorAll(".cap")),
+      times: [[-1, .3], [1.3, 2.5], [3.4, 4.6], [5.6, 7.0], [7.4, 9.8], [10.9, 1e9]] },
+    steps: { els: [].slice.call(section.querySelectorAll(".story-steps b")), at: [0, 1.3, 3.4, 5.6, 7.4, 10.4] },
+    onFrame: function (S, t, info) { if (paint) paint(S, t, info); }
+  });
+  var paint = null;
+
+  /* ---------- the scene ---------- */
   var STATIONS = [
     { t: "Claude Code", s: EN("reads at session start", "liest beim Start"), a: 162, agent: true },
     { t: "Codex", s: EN("reads AGENTS.md", "liest AGENTS.md"), a: 182, agent: true },
     { t: "Copilot CLI", s: EN("reads AGENTS.md", "liest AGENTS.md"), a: 202, agent: true },
     { t: EN("Calendar", "Kalender"), s: EN("scheduled sends", "geplanter Versand"), a: 124 },
-    { t: EN("Channels", "Kanäle"), s: "Mail · Telegram · iMessage", a: 90 },
+    { t: EN("Channels", "Kanäle"), s: "Mail · Telegram · iMessage", a: 90, tag: EN("drafts, you send", "Entwurf, du sendest") },
     { t: "Wiki", s: EN("docs · minutes", "Doku · Protokolle"), a: 54 },
-    { t: "Repos", s: "ecosystem.yaml", a: 18 },
-    { t: "Boards", s: "GitHub Projects · ADO", a: 342 },
-    { t: "Secret stores", s: EN("by URI only", "nur per URI"), a: 306 },
-    { t: EN("Machines", "Maschinen"), s: "infra/remotes", a: 270 },
+    { t: "Repos", s: "ecosystem.yaml", a: 18, tag: EN("code and conventions", "Code und Konventionen") },
+    { t: "Boards", s: "GitHub Projects · ADO", a: 342, tag: EN("task status", "Aufgabenstatus") },
+    { t: "Secret stores", s: EN("by URI only", "nur per URI"), a: 306, tag: EN("a reference, never the secret", "Verweis, nie das Geheimnis") },
+    { t: EN("Machines", "Maschinen"), s: "infra/remotes", a: 270, tag: EN("what runs where", "was wo läuft") },
     { t: "Backups", s: "infra/backups", a: 236 }
   ];
   var CHAOS = ["chat-export-final.txt", "notes (3).md", "prompt that worked.txt", "todo-maybe.md", "client stuff.docx", "chat-export-final-v2.txt", "untitled.md"];
   var LAYERS = ["identity/", "workflow/", "infra/", "work/"];
+  var READ = ["AGENTS.md", "ecosystem.yaml", "work/board.md", "work/log.md"];
   var LOG = [["09:14", "Decision", "bigcorp", "scoped the inbound pipeline"], ["11:02", "Fix", "startupxyz", "retry on 429, backoff added"], ["14:22", "Decision", "bigcorp", "Pinned the schema to v2"]];
 
-  var S = { p: 0, tilt: .55, cam: 1, hub: 1, draw: 1, flow: .35, stOther: 1, chaos: 0, gather: 0, sub: 0, rwAmp: 0, rw: 0, log: 0, fleet: 0 };
-  var vel = 0;
-
-  import("./vendor/three.module.min.js").then(function (THREE) { build(THREE); }).catch(function (e) {
-    console.error(e); root.classList.add("story-static");
+  import("./vendor/three.module.min.js").then(build).catch(function (e) {
+    console.error(e); story.destroy(); root.classList.remove("story-live"); root.classList.add("story-static");
   });
 
   function build(THREE) {
@@ -82,9 +105,9 @@
     var deck = new THREE.Group(); rig.add(deck);
 
     /* colours from CSS tokens, re-read on theme change */
-    var col = {};
-    var tok = function (n, f) { var v = getComputedStyle(root).getPropertyValue(n).trim(); return new THREE.Color(v || f); };
+    var col = {}, pulses = null, dust = null;
     var mats = { link: [], linkAgent: [], line: [], strong: [], core: [], sweep: [] };
+    var tok = function (n, f) { var v = getComputedStyle(root).getPropertyValue(n).trim(); return new THREE.Color(v || f); };
     function readColors() {
       col.surface = tok("--stage-surface", "#101419"); col.line = tok("--stage-line", "#345373");
       col.link = tok("--stage-link", "#5690D2"); col.hi = tok("--stage-hi", "#5FA0D9");
@@ -99,7 +122,6 @@
       if (pulses) pulses.material.uniforms.uCol.value.copy(col.hi);
       if (dust) dust.material.color.copy(col.dust);
     }
-    var pulses = null, dust = null;
     readColors();
 
     var RX = mobile ? 3.6 : 5.6, RY = mobile ? 4.2 : 3.3;
@@ -133,7 +155,7 @@
       var p = posOf(st.a);
       var link = makeLink(new THREE.Vector3(Math.cos(rad(st.a)) * 1.45, Math.sin(rad(st.a)) * 1.45, 0), p.clone().multiplyScalar(.9), i % 2 ? .35 : -.35, st.agent);
       deck.add(link.line);
-      return { t: st.t, s: st.s, agent: st.agent, p: p, link: link };
+      return { t: st.t, s: st.s, tag: st.tag, agent: st.agent, p: p, link: link };
     });
 
     function circle(r, strong) {
@@ -168,12 +190,11 @@
       var m = new THREE.LineBasicMaterial({ color: col.link, transparent: true }); mats.strong.push(m);
       return new THREE.Line(new THREE.BufferGeometry().setFromPoints(s.getPoints(16)), m);
     }
-    var FX = mobile ? 2.6 : 4.4, FY = 1.5, CY = -2.0, UX = mobile ? 3.2 : 7.6;
+    var FX = mobile ? 2.05 : 4.4, FY = 1.5, CY = -2.0, UX = mobile ? 3.2 : 7.6;
     var coreBox = rrect(mobile ? 6.4 : 11, 1.0, .18); coreBox.position.set(0, CY, 0); deck.add(coreBox);
     var fleetLinks = [-FX, 0, FX].map(function (x, i) {
       var l = makeLink(new THREE.Vector3(x, CY + .5, 0), new THREE.Vector3(x, FY - (i === 1 ? 1.0 : .7), 0), 0, false); deck.add(l.line); return l; });
     var upLink = makeLink(new THREE.Vector3(mobile ? 3.2 : 5.5, CY, 0), new THREE.Vector3(UX, CY - 1.4, 0), .3, true);
-    if (mobile) upLink.line.visible = false;
     deck.add(upLink.line);
 
     var allLinks = stations.map(function (s) { return s.link; }).concat(fleetLinks, [upLink]);
@@ -198,43 +219,58 @@
     var L = [];
     function addLabel(html, cls, pos, anchor) {
       var el = document.createElement("div"); el.className = "lb"; el.innerHTML = '<div class="' + cls + '">' + html + "</div>";
-      labelsEl.appendChild(el); var o = { el: el, pos: pos, a: 0, anchor: anchor || "c", scale: 1 }; L.push(o); return o;
+      labelsEl.appendChild(el); var o = { el: el, pos: pos, a: 0, anchor: anchor || "c", scale: 1, last: "" }; L.push(o); return o;
     }
-    stations.forEach(function (s) { s.lb = addLabel("<b></b><span>" + s.t + "<small>" + s.s + "</small></span>", "st" + (s.agent ? " agent" : ""), s.p); });
+    stations.forEach(function (s) {
+      if (s.tag && !mobile) s.tagLb = addLabel(s.tag, "tag", s.link.curve.getPoint(.46));
+      s.lb = addLabel("<b></b><span>" + s.t + "<small>" + s.s + "</small></span>", "st" + (s.agent ? " agent" : ""), s.p);
+    });
     var hubLb = addLabel("<span>open-bridge</span><small>" + EN("plain text in git", "Plain Text in Git") + "</small>", "hubl", new THREE.Vector3());
-    var layerLbs = LAYERS.map(function (t) { return addLabel(t, "dir", new THREE.Vector3()); });
-    var chaos = CHAOS.map(function (t, i) { var a = (i / CHAOS.length) * Math.PI * 2 + .4, r = 2.4 + (i % 3) * .7;
-      return { from: new THREE.Vector3(Math.cos(a) * r * (mobile ? .75 : 1.25), Math.sin(a) * r * .8, .4), lb: addLabel(t, "fl", new THREE.Vector3()), seed: i * 1.7 }; });
+    var layerLbs = LAYERS.map(function (txt) { return addLabel(txt, "dir", new THREE.Vector3()); });
+    var chaos = CHAOS.map(function (txt, i) { var a = (i / CHAOS.length) * Math.PI * 2 + .4, r = 2.4 + (i % 3) * .7;
+      return { from: new THREE.Vector3(Math.cos(a) * r * (mobile ? .75 : 1.25), Math.sin(a) * r * .8, .4), lb: addLabel(txt, "fl", new THREE.Vector3()), seed: i * 1.7 }; });
+    var readLbs = READ.map(function (txt) { return addLabel(txt, "fl rd", new THREE.Vector3()); });
+    var writeLb = addLabel("+ 14:22 · Decision · bigcorp", "fl wr", new THREE.Vector3());
     var logLb = addLabel('<div class="log"><div class="h">work/log.md · ' + EN("written back", "zurückgeschrieben") + "</div>" +
       LOG.map(function (r) { return '<div class="r">| ' + r[0] + " | <em>" + r[1] + "</em> " + r[2] + " | " + r[3] + "</div>"; }).join("") + "</div>", "", new THREE.Vector3(), mobile ? "c" : "l");
     var logRows = [].slice.call(logLb.el.querySelectorAll(".r"));
     var fleetLbs = [
-      addLabel("<b></b><span>user/client-a<small>" + EN("one bridge per client", "eine Bridge pro Kunde") + "</small></span>", "st", new THREE.Vector3(-FX, FY - 1.0, 0)),
+      addLabel("<b></b><span>user/client-a<small>" + EN("one bridge per client", "eine Bridge pro Kunde") + "</small></span>", "st", new THREE.Vector3(-FX, mobile ? FY + .95 : FY - 1.0, 0)),
       addLabel("<b></b><span>user/you<small>" + EN("your context (USER)", "dein Kontext (USER)") + "</small></span>", "st agent", new THREE.Vector3(0, FY - 1.3, 0)),
-      addLabel("<b></b><span>user/client-b<small>" + EN("separate data", "getrennte Daten") + "</small></span>", "st", new THREE.Vector3(FX, FY - 1.0, 0)),
+      addLabel("<b></b><span>user/client-b<small>" + EN("separate data", "getrennte Daten") + "</small></span>", "st", new THREE.Vector3(FX, mobile ? FY + .95 : FY - 1.0, 0)),
       addLabel("<b></b><span>main (CORE)<small>skills · docs · schemas · standing orders</small></span>", "st core", new THREE.Vector3(0, CY, 0)),
       addLabel("<b></b><span>upstream<small>bks-lab/open-bridge · /bridge-promote</small></span>", "st", new THREE.Vector3(UX, CY - 1.4, 0))
     ];
     if (mobile) fleetLbs[4].el.style.display = "none";
 
-    var baseCam = 20;
+    var baseCam = 20, camW = 10;
     function fit() {
-      var asp = canvas.clientWidth / Math.max(1, canvas.clientHeight);
-      var needW = RX + (mobile ? 1.4 : 2.2), needH = RY * Math.cos(.5) + 1.2;
-      var share = mobile ? .36 : .40;                       // share of the height above the captions
-      baseCam = Math.max(needW / (TAN * asp), needH / (TAN * share));
+      var w = canvas.clientWidth, h = canvas.clientHeight;
+      renderer.setSize(w, h, false); camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix();
+      var needW = RX + (mobile ? 1.4 : 2.0), needH = RY * Math.cos(.5) + .9;
+      var share = mobile ? .36 : .46;                       // share of the height above the captions
+      camW = needW / (TAN * camera.aspect);
+      baseCam = Math.max(camW, needH / (TAN * share));
     }
+    addEventListener("resize", fit); fit();
+    new MutationObserver(readColors).observe(root, { attributes: true, attributeFilter: ["class"] });
+    var par = { x: 0, y: 0, tx: 0, ty: 0 }, v = 0, v3 = new THREE.Vector3();
+    if (!mobile) stage.addEventListener("pointermove", function (e) { par.tx = (e.clientX / innerWidth - .5) * .08; par.ty = (e.clientY / innerHeight - .5) * .05; });
 
-    var v = 0, v3 = new THREE.Vector3();
-    function layout(time) {
-      var cam = baseCam * S.cam, halfH = TAN * cam;
+    paint = function (S, t, info) {
+      var time = info.now;
+      v += (clamp(-1, 1, info.vel * .6) - v) * .08;
+      par.x += (par.tx - par.x) * .05; par.y += (par.ty - par.y) * .05;
+      var fleetW = mobile ? 1.25 : (UX + 2.2) / (RX + 2.0);   // the fleet is wider than the bridge
+      var cam = Math.max(baseCam * S.cam, camW * (1 + (fleetW - 1) * S.fleet)), halfH = TAN * cam;
       camera.position.z = cam;
-      rig.position.y = halfH * (mobile ? .56 : .52);
+      rig.position.y = halfH * (mobile ? S.lift + .04 : S.lift);
+      rig.rotation.y = par.x; rig.rotation.x = par.y;
       deck.rotation.x = -S.tilt * .9;
 
       hub.g.position.set(0, S.fleet * FY, 0); hub.g.scale.setScalar(1 - .38 * S.fleet);
       hub.set(.25 + .75 * S.hub);
-      hub.ticks.rotation.z = S.p * 2.4 + time * .015; hub.sweep.rotation.z = -time * .35 - S.p * 6;
+      hub.ticks.rotation.z = info.progress * 2.4 + time * .015; hub.sweep.rotation.z = -time * .35 - info.progress * 6;
       peers.forEach(function (h, i) { h.g.position.set(i ? FX : -FX, FY * .95, 0); h.g.scale.setScalar(.48); h.set(S.fleet);
         h.ticks.rotation.z = -time * .02 * (i ? 1 : -1); h.sweep.rotation.z = -time * .35 + i * 2; h.g.visible = S.fleet > .01; });
       coreBox.material.opacity = S.fleet; coreBox.visible = S.fleet > .01;
@@ -242,14 +278,15 @@
       var N = stations.length, st = .32, fade = 1 - S.fleet;
       stations.forEach(function (s, i) {
         var on = s.agent ? 1 : S.stOther, k = s.link;
-        var d = gsap.utils.clamp(0, 1, S.draw * (1 + st * (N - 1)) - i * st);
+        var d = clamp(0, 1, S.draw * (1 + st * (N - 1)) - i * st);
         k.draw = d * on; k.a = fade * on;
         if (s.agent && S.rwAmp > 0) { k.flow = Math.max(S.flow, S.rwAmp); k.dir = S.rw < 1 ? 1 : -1; }
         else { k.flow = S.flow * (1 - .6 * S.rwAmp); k.dir = 1; }
         s.lb.a = fade * on;
+        if (s.tagLb) s.tagLb.a = S.tags * clamp(0, 1, d * 1.5 - .5) * fade;
       });
       fleetLinks.forEach(function (k) { k.draw = S.fleet; k.flow = S.fleet * .8; k.dir = -1; k.a = S.fleet; });
-      upLink.draw = gsap.utils.clamp(0, 1, S.fleet * 2 - 1); upLink.flow = S.fleet; upLink.dir = 1; upLink.a = S.fleet;
+      upLink.draw = clamp(0, 1, S.fleet * 2 - 1); upLink.flow = S.fleet; upLink.dir = 1; upLink.a = S.fleet;
 
       var pi = 0, P = pGeo.attributes.position.array, A = pGeo.attributes.aA.array;
       allLinks.forEach(function (k, li) {
@@ -257,9 +294,9 @@
         m.uDraw.value = k.draw; m.uFlow.value = k.flow; m.uDir.value = k.dir; m.uTime.value = time; m.uA.value = k.a;
         k.line.visible = k.a > .01 && k.draw > .001 && !(mobile && k === upLink);
         for (var j = 0; j < 2; j++) {
-          var t = (time * (.22 + .5 * Math.abs(v)) + j * .5 + li * .137) % 1; if (k.dir < 0) t = 1 - t;
-          var pt = k.curve.getPoint(t); P[pi * 3] = pt.x; P[pi * 3 + 1] = pt.y; P[pi * 3 + 2] = pt.z;
-          A[pi] = t < k.draw && k.line.visible ? k.flow * k.a * Math.sin(Math.PI * Math.min(1, t / Math.max(k.draw, .001))) : 0; pi++;
+          var tt = (time * (.22 + .5 * Math.abs(v)) + j * .5 + li * .137) % 1; if (k.dir < 0) tt = 1 - tt;
+          var pt = k.curve.getPoint(tt); P[pi * 3] = pt.x; P[pi * 3 + 1] = pt.y; P[pi * 3 + 2] = pt.z;
+          A[pi] = tt < k.draw && k.line.visible ? k.flow * k.a * Math.sin(Math.PI * Math.min(1, tt / Math.max(k.draw, .001))) : 0; pi++;
         }
       });
       pGeo.attributes.position.needsUpdate = true; pGeo.attributes.aA.needsUpdate = true;
@@ -272,86 +309,34 @@
         c.lb.pos = c.from.clone().multiplyScalar(1 - g).add(new THREE.Vector3(Math.sin(time * .4 + c.seed) * .12, Math.cos(time * .3 + c.seed) * .1, 0));
         c.lb.a = S.chaos * (1 - g) * (1 - g); c.lb.scale = 1 - .6 * g;
       });
-      logLb.pos = new THREE.Vector3(mobile ? 1.1 : 2.0, mobile ? -2.4 : -.55, .2);
-      logLb.a = gsap.utils.clamp(0, 1, S.log * 3) * fade;
-      logRows.forEach(function (r, i) { r.style.opacity = gsap.utils.clamp(0, 1, S.log - i); });
+      /* read: the files travel from the bridge to Claude Code, one after another */
+      var claude = stations[0].link.curve;
+      readLbs.forEach(function (o, i) {
+        var k = clamp(0, 1, Math.min(S.rw, 1) * 1.9 - i * .3);
+        o.pos = claude.getPoint(.06 + .86 * EASE.inOut2(k));
+        o.a = S.rw > 1 ? 0 : S.rwAmp * clamp(0, 1, Math.sin(Math.PI * k) * 1.6);
+      });
+      /* write: one log line travels back into the bridge, then lands in the log */
+      var kw = clamp(0, 1, S.log / 1.2);
+      writeLb.pos = stations[1].link.curve.getPoint(.92 - .86 * EASE.inOut2(kw));
+      writeLb.a = S.rw > 1 ? S.rwAmp * clamp(0, 1, Math.sin(Math.PI * kw) * 1.6) : 0;
+
+      logLb.pos = new THREE.Vector3(mobile ? 0 : 2.0, mobile ? -3.7 : -.55, .2);
+      logLb.a = clamp(0, 1, S.log * 3) * fade;
+      logRows.forEach(function (r, i) { r.style.opacity = clamp(0, 1, S.log - i); });
       fleetLbs.forEach(function (l) { l.a = S.fleet; });
 
       rig.updateMatrixWorld(true); camera.updateMatrixWorld(true);
       var w = canvas.clientWidth, h = canvas.clientHeight;
       L.forEach(function (o) {
-        if (o.a < .01) { if (o.el.style.opacity !== "0") o.el.style.opacity = 0; return; }
+        if (o.a < .01) { if (o.last !== "0") { o.el.style.opacity = 0; o.last = "0"; } return; }
         v3.copy(o.pos).applyMatrix4(deck.matrixWorld).project(camera);
         var x = (v3.x * .5 + .5) * w, y = (-v3.y * .5 + .5) * h;
         o.el.style.transform = "translate(" + x.toFixed(1) + "px," + y.toFixed(1) + "px) translate(" + (o.anchor === "l" ? "0%" : "-50%") + ",-50%) scale(" + o.scale.toFixed(3) + ")";
-        o.el.style.opacity = o.a.toFixed(3);
+        var a = o.a.toFixed(3); if (a !== o.last) { o.el.style.opacity = a; o.last = a; }
       });
-    }
-
-    /* ---------- dramaturgy ---------- */
-    var active = true;
-    var steps = [].slice.call(document.querySelectorAll("#story .story-steps b"));
-    var ease = "power3.inOut";
-    var tl = gsap.timeline({ defaults: { ease: "none" }, scrollTrigger: {
-      trigger: "#story-stage", pin: true, start: function () { return "top " + hdr(); },
-      end: function () { return "+=" + innerHeight * 8.5; }, scrub: 1,
-      onToggle: function (self) { active = self.isActive; },
-      onUpdate: function (self) {
-        S.p = self.progress; vel = self.getVelocity();
-        var marks = [0, .12, .3, .48, .64, .82], s = 0;
-        marks.forEach(function (m, i) { if (self.progress >= m) s = i; });
-        steps.forEach(function (b, i) { b.classList.toggle("on", i === s); });
-      } } });
-
-    function show(i, at) { var c = capParts[i];
-      tl.set(caps[i], { visibility: "visible" }, at)
-        .fromTo(c.eyebrow, { autoAlpha: 0, y: 14 }, { autoAlpha: 1, y: 0, duration: .35 }, at)
-        .fromTo(c.words, { yPercent: 118 }, { yPercent: 0, duration: .6, stagger: .03, ease: "power3.out" }, at + .05)
-        .fromTo(c.rest, { autoAlpha: 0, y: 18 }, { autoAlpha: 1, y: 0, duration: .5 }, at + .35); }
-    function hide(i, at) { var c = capParts[i];
-      tl.to(c.words, { yPercent: -118, duration: .4, stagger: .012, ease: "power2.in" }, at)
-        .to([c.eyebrow].concat([].slice.call(c.rest)), { autoAlpha: 0, y: -14, duration: .3 }, at)
-        .set(caps[i], { visibility: "hidden" }, at + .6); }
-    capParts.slice(1).forEach(function (c) { gsap.set([c.eyebrow].concat([].slice.call(c.rest)), { autoAlpha: 0 }); gsap.set(c.words, { yPercent: 118 }); });
-
-    hide(0, .3);                                                             // 0 the finished bridge
-    tl.to(S, { draw: 0, flow: 0, stOther: 0, hub: 0, duration: 1.1, ease: ease }, .3)  // 1 cold start
-      .to(S, { chaos: 1, tilt: .3, duration: 1.0, ease: ease }, .7);
-    show(1, 1.3); hide(1, 2.5);
-    tl.to(S, { gather: 1, hub: 1, duration: 1.2, ease: ease }, 2.5)          // 2 substrate
-      .to(S, { sub: 1, duration: .8, ease: "power3.out" }, 3.2);
-    show(2, 3.4); hide(2, 4.6);
-    tl.to(S, { sub: 0, duration: .5 }, 4.6)                                  // 3 the links
-      .to(S, { stOther: 1, tilt: .55, duration: .8, ease: ease }, 4.7)
-      .to(S, { draw: 1, duration: 1.6, ease: "power2.inOut" }, 4.8)
-      .to(S, { flow: .9, duration: .8 }, 5.8);
-    show(3, 5.6); hide(3, 7.0);
-    tl.to(S, { rwAmp: 1, flow: .3, stOther: .12, duration: .5 }, 7.0)       // 4 read, then write back
-      .to(S, { rw: 1, duration: 1.0 }, 7.2)
-      .set(S, { rw: 1.01 }, 8.2)
-      .to(S, { log: 3, duration: 1.4 }, 8.2);
-    show(4, 7.4); hide(4, 9.8);
-    tl.to(S, { rwAmp: 0, stOther: 1, duration: .4 }, 9.8)                   // 5 many bridges
-      .to(S, { fleet: 1, cam: 1.08, tilt: .2, duration: 1.5, ease: ease }, 9.9);
-    show(5, 10.9);
-    tl.to({}, { duration: .9 });
-
-    function resize() { setHdr(); var w = canvas.clientWidth, h = canvas.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); fit(); }
-    addEventListener("resize", resize); resize();
-    new MutationObserver(readColors).observe(root, { attributes: true, attributeFilter: ["class"] });
-
-    var qx = gsap.quickTo(rig.rotation, "y", { duration: 1.4, ease: "power3.out" });
-    var qy = gsap.quickTo(rig.rotation, "x", { duration: 1.4, ease: "power3.out" });
-    if (!mobile) stage.addEventListener("pointermove", function (e) { qx((e.clientX / innerWidth - .5) * .08); qy((e.clientY / innerHeight - .5) * .05); });
-
-    gsap.ticker.add(function () {
-      if (!active && S.p > 0) return;
-      var now = performance.now() / 1000;
-      v += (gsap.utils.clamp(-1, 1, vel / 4000) - v) * .08;
-      layout(now); renderer.render(scene, camera);
-    });
-    layout(performance.now() / 1000); renderer.render(scene, camera);
+      renderer.render(scene, camera);
+    };
     root.classList.add("story-ready");
-    ScrollTrigger.refresh();
   }
 })();
