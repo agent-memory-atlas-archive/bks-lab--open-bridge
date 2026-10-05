@@ -269,25 +269,10 @@ If `zombie` or `orphan` count > 0 → emit Phase 4 warning
    when N≥threshold). This is how a scope that owes documentation reliably reaches the
    wiki even when the debrief was capture-only.
 
-5. **Git Activity (7 days)** for all repos in ecosystem.yaml:
-
-```bash
-# Per repo: commit count per day for sparkline.
-# Same-day --since/--until pattern avoids the BSD-date "negative offset" bug
-# that bit on i=0 (date -v--1d errors out).
-for repo in $(repos_from_ecosystem); do
-  if [ -d "$repo/.git" ]; then
-    for i in 6 5 4 3 2 1 0; do
-      day="$(date -v-${i}d +%Y-%m-%d)"
-      git -C "$repo" log --oneline \
-        --since="${day} 00:00" --until="${day} 23:59" 2>/dev/null | wc -l
-    done
-  fi
-done
-```
-
-**Sparkline:** Commit counts → Unicode blocks `▁▂▃▄▅▆▇█`
-- 0 commits = `▁`, maximum = `█`, linearly scaled
+5. **Git Activity**: a `kind: commits` section in the profile (commits per
+   repository per day as a sparkline, `author: me` for your own). The script
+   counts; the agent does not loop over `git log` itself. Keys and defaults:
+   `docs/briefings.md` § Section kinds.
 
 ### Stream B: Trackers, from the profile (skip with --quick)
 

@@ -16,6 +16,7 @@ query keys (all optional):
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
 from pathlib import Path
 
@@ -52,12 +53,34 @@ def collect(section: dict, ctx) -> list:
             raise source_error("assigned_to_me needs integrations.github.assignee_me or a gh login") from None
     states = set(query.get("states") or [])
     keep_done = query.get("include_done") or bool(states & {"done", "removed"})
-    out = []
+    out, summary = [], []
+    order = ("new", "ready", "in_progress", "review", "blocked")
+    section_map = section.get("state_map") or {}
+    default_keys = {re.sub(r"^[^0-9A-Za-z]+", "", k).strip().lower(): v for k, v in ts.DEFAULT_GH_STATE_MAP.items()}
+
+    def known_state(raw_state: str, board: dict):
+        """The state a board's count uses: the section's state_map first (as the rows get
+        it), then the registry's, then the default. A status none of them knows (Parked,
+        Canceled) is not counted as open work."""
+        if not raw_state:
+            return "new"
+        if raw_state in section_map:
+            return section_map[raw_state]
+        reg_map = (board.get("registry") or {}).get("state_map") or {}
+        if raw_state in reg_map:
+            return reg_map[raw_state]
+        return default_keys.get(re.sub(r"^[^0-9A-Za-z]+", "", raw_state).strip().lower())
+
     for board in boards:
         argv = ["gh", "project", "item-list", str(board["number"]), "--owner", str(board["org"]),
                 "--format", "json", "--limit", str(query.get("limit", 200))]
         payload = load_json(ctx.run(argv, timeout=ctx.timeout), f"board {board['slug']}")
-        for raw in payload.get("items", []) if isinstance(payload, dict) else []:
+        counts = dict.fromkeys(order, 0)
+        raws = payload.get("items", []) if isinstance(payload, dict) else []
+        for raw in raws:
+            state = known_state(str(raw.get("status") or ""), board)
+            if state in counts:              # every open card, drafts too, before the person's filters
+                counts[state] += 1
             item = ts.normalize_gh_item(raw, board, me)
             if not item:
                 continue
@@ -72,4 +95,12 @@ def collect(section: dict, ctx) -> list:
                         "type": str(item.get("type") or "issue").lower(),
                         "project": board["name"], "tracker": "github-board", "priority": None,
                         "_category_from_state": True})
+        limit = int(query.get("limit", 200))
+        summary.append({"name": board["name"], "number": board["number"], "org": board["org"],
+                        "slug": board["slug"], "counts": counts, "open": sum(counts.values()),
+                        # gh returned as many cards as asked for: there may be more it did not.
+                        "capped": limit if len(raws) >= limit else None})
+    if section.get("summary"):
+        # `summary: true`: the whole board as counts per state, beside the person's own rows.
+        section["_summary"] = summary
     return out

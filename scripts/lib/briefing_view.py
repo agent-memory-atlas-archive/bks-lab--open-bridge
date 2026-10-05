@@ -67,7 +67,18 @@ LABELS = {
     "meanwhile": "Meanwhile I do",
     "later": "Later",
     "shutdown": "Day ends {time}",
+    "activity_title": "Activity ({days} days)",
+    "commits": "{n} commits",
+    "boards_title": "Boards",
+    "st_new": "new",
+    "st_ready": "ready",
+    "st_in_progress": "in progress",
+    "st_review": "review",
+    "st_blocked": "blocked",
+    "capped": "(first {n} cards)",
+    "repos_skipped": "{n} repositories not readable: {names}",
 }
+BOARD_STATES = ("new", "ready", "in_progress", "review", "blocked")
 HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 # An id that names its repository is the same thing wherever it comes from; any
 # other id (a command's "1", an ADO "1234") is only unique inside its section.
@@ -353,7 +364,8 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
         if isinstance(b, dict) and b.get("id") == "waiting":
             nudge_days = _int(b.get("nudge_after_days"), nudge_days, 1)
 
-    out = {"rows": {}, "order": [], "hygiene": [], "no_next": [], "muted": 0, "events": [], "workplace": None}
+    out = {"rows": {}, "order": [], "hygiene": [], "no_next": [], "muted": 0, "events": [], "workplace": None,
+           "activity": [], "boards": []}
 
     def items_of(s):
         # The section's own `max:` still caps what it contributes.
@@ -424,6 +436,23 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
             continue
         if kind == "activity":
             continue
+        if kind == "commits":
+            # What moved, not what to do: one block of sparklines, never a bucket.
+            # One block per section, titled by its own window.
+            rows = items_of(s)
+            days = len(rows[0].get("counts") or []) if rows else _int(s.get("days") or cfg.get("days"), 7, 1)
+            if rows:
+                out["activity"].append({"days": days or 7, "rows": rows})
+            if s.get("skipped"):
+                out["hygiene"].append(labels["repos_skipped"].format(n=len(s["skipped"]),
+                                                                     names=", ".join(s["skipped"])))
+            continue
+        if s.get("summary"):
+            have = {(b.get("org"), b.get("number")) for b in out["boards"]}
+            for b in s["summary"]:
+                if isinstance(b, dict) and b.get("open") and (b.get("org"), b.get("number")) not in have:
+                    out["boards"].append(b)
+                    have.add((b.get("org"), b.get("number")))
         if kind == "workplace":
             tabs = [i for i in items_of(s) if i.get("state") != "warning"]
             for i in items_of(s):
@@ -580,7 +609,9 @@ def build(result: dict, profile: dict, style: str | None = None) -> dict:
            "answer_keys": view.get("answer_keys", True) is not False,
            "show_hygiene": view.get("hygiene", "bottom") != "hide",
            "color": view.get("color", "auto"), "width": width if _pos_int(width) and width >= 40 else 100,
-           "labels": labels}
+           "labels": labels,
+           "activity": data["activity"],
+           "boards": data["boards"]}
 
     if view.get("headline", True) is not False:
         out["headline"] = _headline(visible, events, now, labels, day_end)
@@ -770,6 +801,31 @@ def draw(view: dict, color: bool = False, width: int | None = None) -> str:
                     lines = [line.replace(ref, link, 1) if ref in line else line for line in lines]
                 out += lines
 
+    if view["style"] != "brevity" and view.get("boards"):
+        out.append("")
+        out += wrap(f"── {labels['boards_title']} ──", style="1")
+        for b in view["boards"]:
+            counts = b.get("counts") or {}
+            parts = [f"{counts[st]} {labels['st_' + st]}" for st in BOARD_STATES if counts.get(st)]
+            capped = f" {labels['capped'].format(n=b['capped'])}" if b.get("capped") else ""
+            out += wrap(f"#{b.get('number')} {b.get('name')}: " + (" · ".join(parts) or "0") + capped,
+                        indent="  ", hang="    ")
+    for act in (view.get("activity") or []) if view["style"] != "brevity" else []:
+        out.append("")
+        out += wrap(f"── {labels['activity_title'].format(days=act['days'])} ──", style="1")
+        rows = act["rows"]
+        spark_w = max(len(str(r.get("spark", ""))) for r in rows)
+        tail_w = max(len(labels["commits"].format(n=r.get("total", 0))) for r in rows)
+        name_w = min(24, max(len(str(r.get("id"))) for r in rows))
+        branch_w = min(14, max(len(str(r.get("branch") or "")) for r in rows))
+        room = width - (2 + 2 + spark_w + 2 + tail_w)
+        if name_w + 2 + branch_w > room:          # narrow: the branch goes first, then the name shortens
+            branch_w = 0
+            name_w = max(8, min(name_w, room))
+        for r in rows:
+            branch = f"{str(r.get('branch') or '')[:branch_w]:<{branch_w}}  " if branch_w else ""
+            out.append(f"  {str(r.get('id'))[:name_w]:<{name_w}}  {branch}"
+                       f"{r.get('spark', '')}  {labels['commits'].format(n=r.get('total', 0))}")
     if view.get("workplace") and view["style"] != "brevity":
         out.append("")
         out += wrap(view["workplace"])

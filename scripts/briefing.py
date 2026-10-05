@@ -54,14 +54,15 @@ SNAPSHOTS = Path(".bridge") / "briefings"
 KEY_PREFIX = "briefing:"
 DEFAULT_TIMEOUT = 30
 
-SECTION_KINDS = ("inbox", "advise", "workplace", "tasks", "activity", "calendar", "tracker", "command")
+SECTION_KINDS = ("inbox", "advise", "workplace", "tasks", "activity", "commits", "calendar", "tracker", "command")
 TRACKERS = ("github", "github-board", "gitlab", "ado", "jira", "linear")
 CALENDARS = ("auto", "icalbuddy", "ics", "command")
 STATES = ("new", "ready", "in_progress", "review", "done", "blocked", "removed")
 PROFILE_KEYS = {"schema_version", "scope", "id", "title", "for", "default", "offer_on", "timeout_sec", "sections",
                 "view", "mutes"}
 SECTION_KEYS = {"kind", "id", "title", "max", "to_inbox", "provider", "query", "account_ref", "state_map",
-                "status", "contexts", "days", "path", "argv", "exclude_calendars", "bucket"}
+                "status", "contexts", "days", "path", "argv", "exclude_calendars", "bucket",
+                "repos", "author", "all_branches", "summary"}
 # A profile is committed and often shared: a value under one of these names is
 # a credential, and credentials only ever travel as references (account_ref).
 SECRET_NAME = re.compile(r"(token|secret|password|passwd|api[_-]?key|private[_-]?key)", re.I)
@@ -365,6 +366,15 @@ def _section_types(s: dict) -> list:
     for key in ("title", "provider", "account_ref", "path"):
         if key in s and not isinstance(s[key], str):
             out.append(f"{key} must be text")
+    if s.get("kind") == "commits" and "days" in s and not _is_positive_int(s["days"]):
+        out.append("commits: days must be 1 or more")
+    if "repos" in s and not _is_str_list(s["repos"]):
+        out.append("repos must be a list of names or paths")
+    if "author" in s and not (isinstance(s["author"], str) or _is_str_list(s["author"])):
+        out.append("author must be text or a list of text (`me` = this repository's git user.email)")
+    for key in ("all_branches", "summary"):
+        if key in s and not isinstance(s[key], bool):
+            out.append(f"{key} must be true or false")
     if "bucket" in s and s["bucket"] not in (*_view().BUCKETS, "none"):
         out.append(f"bucket must be one of {', '.join(_view().BUCKETS)} or none")
     return out
@@ -579,6 +589,136 @@ def sec_activity(section: dict, ctx: Context) -> list:
     return items
 
 
+SPARK = "▁▂▃▄▅▆▇█"
+
+
+VAR = re.compile(r"\$\{([a-z_]+)\}")
+
+
+def _expand(raw: str, root: Path, variables: dict) -> Path | None:
+    """A registry path: `${var}` from bridge-config `identity:` (plus home), `~`, and a
+    relative path taken from the Bridge root. None when a variable is unknown."""
+    text = VAR.sub(lambda m: str(variables.get(m.group(1), m.group(0))), raw)
+    if "${" in text:
+        return None
+    here = Path(text).expanduser()
+    return here if here.is_absolute() else root / here
+
+
+def _ecosystem_repos(root: Path, cfg: dict | None = None) -> list:
+    """(name, path) of every repository the ecosystem files register with a local clone,
+    plus this Bridge. A clone is `local_path`, else `<local_root>/<repo name from github:>`,
+    else `<local_root>/<key>`; a file without `local_root` uses the one of ecosystem.yaml."""
+    cfg = cfg if cfg is not None else read_config(root)
+    variables = {"home": str(Path.home()), **{k: v for k, v in (cfg.get("identity") or {}).items()
+                                              if isinstance(v, (str, int))}}
+    out, seen = [(root.name, root)], {root.resolve()}
+    files = ([root / "ecosystem.yaml"] if (root / "ecosystem.yaml").is_file() else []) + \
+        [p for p in sorted(root.glob("ecosystem.*.yaml")) if p.name != "ecosystem.example.yaml"]
+    base_root = ""
+    for path in files:
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        if path.name == "ecosystem.yaml":
+            base_root = str(data.get("local_root") or "")
+        local_root = str(data.get("local_root") or base_root)
+
+        def walk(node):
+            if not isinstance(node, dict):
+                return
+            for name, entry in node.items():
+                if not isinstance(entry, dict):
+                    continue
+                if entry.get("github") or entry.get("local_path"):
+                    candidates = []
+                    if entry.get("local_path"):
+                        candidates.append(str(entry["local_path"]))
+                    elif local_root:
+                        if isinstance(entry.get("github"), str) and "/" in entry["github"]:
+                            candidates.append(f"{local_root}/{entry['github'].rsplit('/', 1)[1]}")
+                        candidates.append(f"{local_root}/{name}")
+                    for raw in candidates:
+                        here = _expand(raw, root, variables)
+                        if here is not None and (here / ".git").exists():
+                            if here.resolve() not in seen:
+                                seen.add(here.resolve())
+                                out.append((str(name), here))
+                            break
+                walk(entry)
+
+        walk(data)
+    return out
+
+
+def sec_commits(section: dict, ctx: Context) -> list:
+    """Commits per repository per day over `days`, oldest first, with a sparkline.
+
+    Days are the local committer date, the same date `--since` filters on (an author
+    date in another zone, or a rebase, would land on the wrong day). A repository that
+    cannot be read is named under `skipped`; reaching the section's time limit fails the
+    section rather than hiding the repositories it did not get to."""
+    days = max(1, int(section.get("days", 7)))
+    first = ctx.now.date() - dt.timedelta(days=days - 1)
+    if section.get("repos"):
+        known = {name: path for name, path in _ecosystem_repos(ctx.root, ctx.cfg)}
+        repos = []
+        for entry in section["repos"]:
+            if entry in known:
+                repos.append((entry, known[entry]))
+                continue
+            here = _expand(str(entry), ctx.root, {"home": str(Path.home()), **(ctx.cfg.get("identity") or {})})
+            if here is not None:
+                repos.append((here.name, here))
+    else:
+        repos = _ecosystem_repos(ctx.root, ctx.cfg)
+    names = [n for n, _ in repos]
+    repos = [(f"{p.parent.name}/{n}" if names.count(n) > 1 else n, p) for n, p in repos]
+    authors = section.get("author") or []
+    authors = [authors] if isinstance(authors, str) else list(authors)
+    items, skipped = [], []
+    for name, path in repos:
+        if not (path / ".git").exists():
+            continue
+        try:
+            wanted = []
+            for a in authors:
+                wanted.append(ctx.run(["git", "-C", str(path), "config", "user.email"]).strip() if a == "me" else a)
+            argv = ["git", "-C", str(path), "log", "--since", f"{first.isoformat()} 00:00", "--format=%cd",
+                    "--date=short-local"] + (["--branches"] if section.get("all_branches") else []) + \
+                [f"--author={a}" for a in wanted if a]
+            dates = [line.strip() for line in ctx.run(argv).splitlines() if line.strip()]
+            counts = [0] * days
+            for d in dates:
+                try:
+                    n = (dt.date.fromisoformat(d) - first).days
+                except ValueError:
+                    continue
+                if 0 <= n < days:
+                    counts[n] += 1
+            if not sum(counts):
+                continue
+            branch = ctx.run(["git", "-C", str(path), "rev-parse", "--abbrev-ref", "HEAD"]).strip()
+        except SourceError:
+            if ctx.deadline is not None and time.monotonic() >= ctx.deadline:
+                raise
+            skipped.append(name)
+            continue
+        last = first + dt.timedelta(days=max(i for i, c in enumerate(counts) if c))
+        items.append({"id": name, "title": name, "branch": branch, "counts": counts, "total": sum(counts),
+                      "state": "active", "changed_at": last.isoformat(), "path": str(path)})
+    top = max((max(i["counts"]) for i in items), default=0)
+    for i in items:   # one scale for all rows, so the busiest repository reads busiest
+        i["spark"] = "".join(SPARK[0] if c == 0 else SPARK[max(1, round(c / top * (len(SPARK) - 1)))]
+                             for c in i["counts"])
+    items.sort(key=lambda i: (-i["total"], i["id"]))
+    section["_skipped"] = skipped
+    return items
+
+
 # 2026-10-04 at 09:00 - 09:30 | 2026-10-04 at 23:00 - 2026-10-05 at 01:00 | 2026-10-04 - 2026-10-06 | 2026-10-04
 ICAL_LINE = re.compile(r"^(\d{4}-\d{2}-\d{2})(?: at (\d{1,2}:\d{2}))?"
                        r"(?: - (?:(\d{4}-\d{2}-\d{2})(?: at )?)?(\d{1,2}:\d{2})?)?\s*\t(.+)$")
@@ -717,7 +857,7 @@ def sec_tracker(section: dict, ctx: Context) -> list:
 
 
 KINDS = {"inbox": sec_inbox, "advise": sec_advise, "workplace": sec_workplace, "tasks": sec_tasks,
-         "activity": sec_activity, "calendar": sec_calendar, "tracker": sec_tracker, "command": sec_command}
+         "activity": sec_activity, "commits": sec_commits, "calendar": sec_calendar, "tracker": sec_tracker, "command": sec_command}
 
 
 # ---------------------------------------------------------------- collect
@@ -782,6 +922,11 @@ def collect(root: Path, profile: dict, ctx: Context, previous: dict | None = Non
             ctx.deadline = None
         if "_plan" in s:
             entry["plan"] = s["_plan"]
+        if "_summary" in s:
+            entry["summary"] = s["_summary"]
+        if s.get("kind") == "commits":
+            entry["days"] = max(1, _positive(s.get("days"), 7))
+            entry["skipped"] = s.get("_skipped") or []
         old = {i.get("id"): i.get("_fp") for i in (before.get(sid) or {}).get("items", [])}
         old_known = sid in before and before[sid].get("status") == "ok"
         for item in items:
@@ -912,6 +1057,9 @@ def _line(kind: str, i: dict) -> str:
         at = str(i.get("changed_at") or "")
         return f"  {at[8:10]}.{at[5:7]} {at[11:16]:<6} {str(i.get('project') or '')[:18]:<18} " \
                f"{title[:70]}"
+    if kind == "commits":
+        return f"  {str(i['id'])[:24]:<24} {str(i.get('branch') or '')[:12]:<12} {i.get('spark', '')}  " \
+               f"{i.get('total', 0)} commits"
     if kind in ("tasks", "workplace"):
         extra = f"  blocked: {str(i['blocked_by'])[:40]}" if i.get("blocked_by") else ""
         return f"  {str(i.get('state') or ''):<7} {str(i['id'])[:34]:<34} {title[:50]}{extra}{mark}"
@@ -928,6 +1076,9 @@ def render(result: dict) -> str:
             out.append(f"  {s['status']}: {s.get('reason', '')}")
             continue
         out += [_line(str(s.get("kind")), i) for i in s["items"]]
+        for b in [b for b in s.get("summary") or [] if b.get("open")]:
+            counts = " · ".join(f"{n} {st.replace('_', ' ')}" for st, n in b["counts"].items() if n)
+            out.append(f"  #{b.get('number')} {b['name']}: {counts or 'empty'}")
     return "\n".join(out)
 
 
