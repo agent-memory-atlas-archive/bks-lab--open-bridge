@@ -27,6 +27,10 @@ origin: "<one-line reason this task exists>"
 # Optional — blocked is a FLAG, not a status: a blocked task stays doing/review
 # and carries the reason here (presence = blocked).
 # blocked_by: "<reason — presence means blocked; status stays doing/review>"
+# blocked_since: YYYY-MM-DD        # the briefing counts "waiting N days" from here
+# Optional: the next step and who takes it (bridge | me | a person). The briefing's
+# triage view sorts the task by it; without one it lands under housekeeping.
+# next: {what: "<next step>", who: me, due: YYYY-MM-DD, estimate_min: 30}
 
 # Optional — set ONLY together with status: done. 'declined' = closed without
 # completion (replaces a 'cancelled' status).

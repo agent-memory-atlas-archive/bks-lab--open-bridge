@@ -1,13 +1,15 @@
 ---
-summary: "Briefing profiles: each person describes the briefing they want in workflow/briefings/<id>.yaml (sections, trackers, queries, inbox rules); scripts/briefing.py executes it and the agent advises on the result. Section kinds, provider query keys, selection, change marks, inbox rules, org profiles."
+summary: "Briefing profiles: each person describes the briefing they want in workflow/briefings/<id>.yaml (sections, trackers, queries, inbox rules, and a view: how it is shown); scripts/briefing.py executes it and the agent advises on the result. Section kinds, provider query keys, selection, views (sources, triage, brevity, plan), change marks, inbox rules, org profiles."
 type: guide
-last_updated: 2026-10-04
+last_updated: 2026-10-05
 related:
   - ../workflow/briefings/_schema.yaml
   - ../workflow/briefings/_template.yaml
   - ../scripts/briefing.py
   - ../scripts/tests/test_briefing.py
   - ../scripts/tests/test_briefing_providers.py
+  - ../scripts/lib/briefing_view.py
+  - ../scripts/tests/test_briefing_view.py
   - ../trackers/README.md
   - ../skills/briefing/references/workflow.md
   - ../skills/briefing/references/control.md
@@ -40,7 +42,8 @@ python3 scripts/briefing.py list                  # the profiles, the default, t
 python3 scripts/briefing.py show [<id>]           # the resolved profile (also the built-in one)
 python3 scripts/briefing.py offer "<text>"        # profiles whose offer_on matches the text
 python3 scripts/briefing.py collect [<id>] --json --file
-python3 scripts/briefing.py render [<id>]         # collect + plain terminal text
+python3 scripts/briefing.py render [<id>]         # collect + terminal text in the profile's view
+python3 scripts/briefing.py render --style plan   # another view for this one run
 python3 scripts/briefing.py collect --skip tracker --skip calendar   # the quick mode
 python3 scripts/briefing.py validate              # every profile; exit 1 on a problem
 ```
@@ -120,6 +123,82 @@ token_ref: keychain://example/jira-token     # the value lives in the keychain
 
 `validate` refuses a profile with a credential-named key holding a plain
 value, and any value read through the engine is scrubbed from error lines.
+
+## Views
+
+The sections say where the data comes from. The `view:` block says how the
+reader sees it, and every person picks their own:
+
+| `style` | What the reader gets |
+|---|---|
+| `sources` | One block per section, in profile order. The default: a profile without `view:` looks as it always did. |
+| `triage` | Every row sorted by what to do with it: **do** (you, now), **plan** (you, no date), **delegate** (the Bridge does it), **waiting** (on someone else, with how long), **drop** (park it?). A thing two sources carry (the same issue on GitHub and on a board) is one row naming both. Housekeeping comes last. |
+| `brevity` | The bottom line, then the top three with why each matters, then how many more. For a phone or a busy day. |
+| `plan` | Your rows laid into today's free calendar gaps, what the Bridge does meanwhile, and when the day ends. |
+
+```yaml
+view:
+  style: triage            # sources | triage | brevity | plan
+  headline: true           # one bottom line on top: yours today, free until, next hard date
+  since_last: true         # "since 07:18: 2 new, 1 changed"
+  lookahead_days: 1        # due within today + 1 day counts as now; deferred items coming back show
+  max_items: 12            # the whole briefing, then "+N more" and an explicit end
+  answer_keys: true        # numbered rows, letters per bucket: answer "1a 3b"
+  hygiene: bottom          # bottom | hide
+  color: auto              # colour only where it means something; none = never
+  width: 100               # rows wrap at a word, never cut inside one
+  labels: {end: "That's all for today."}
+  buckets:                 # order, titles, answer letters; a bucket left out is hidden and counted
+    - {id: do, title: "Do (you, today)", options: [yes, later, drop]}
+    - {id: delegate, title: "I'll do"}
+    - {id: plan}
+    - {id: waiting, nudge_after_days: 7}
+    - {id: drop}
+  plan:                    # style plan only
+    workday: {start: "08:00", end: "17:00"}
+    default_minutes: 30
+
+mutes:                     # rows the person never wants again; the briefing says how many it hid
+  - {section: advise, when: {check: quiet}}
+```
+
+`render --style <style>` shows one run another way without touching the file;
+`collect --json` carries the computed view under `view` for the agent.
+
+**Which bucket a row lands in** is a fixed rule, so the shape never depends on
+which agent renders it:
+
+| Source | Bucket |
+|---|---|
+| inbox item, urgency `now`/`today`, or due within the lookahead | do |
+| inbox item otherwise | plan |
+| inbox item deferred and back within the lookahead | do if only you can, else plan |
+| task with `next: {who: bridge}` | delegate |
+| task with `next: {who: me}` (or the profile's `for`) | do if `next.due` is within the lookahead, else plan |
+| task with `next.who` naming anyone else | waiting, with days since `last_updated` |
+| task with `blocked_by` | waiting, with days since `blocked_since` (else `last_updated`); a nudge once `nudge_after_days` passed |
+| task without a next step | housekeeping: "N tasks without a next step" |
+| advice `quiet` | drop (the task shows once, there) |
+| advice `collision` | do · `wip`: housekeeping · `blocked`, `waiting`, `due`: carried by their row |
+| tracker row in review or `category: qa` | do · `blocked`: waiting · done/removed: left out · else plan |
+| a section that failed | housekeeping, with its reason |
+| calendar | the headline and the plan; activity: the since line; workplace: one line |
+
+A section can force its rows into one bucket (`bucket: delegate`) or keep them
+out of the view (`bucket: none`). The next step of a task is a frontmatter field
+in its STATUS.md: `next: {what: "Draft the request", who: bridge, due: 2026-10-07,
+estimate_min: 20}` (`who`: `bridge`, `me`, or a person).
+
+**Labels.** Every word the reader sees has a label name, so a profile can speak
+the person's language: `yours_today`, `free_until`, `free_rest`, `busy_until`,
+`next_date`, `since`, `today`, `tomorrow`, `due`, `back_on`, `only_you`,
+`collides`, `waiting_days`, `with`, `task`, `nudge`, `new`, `housekeeping`,
+`no_next`, `muted`, `hidden`, `error`, `workplace`, `more`, `end`, `why`,
+`meanwhile`, `later`, `shutdown`. Placeholders in braces stay as they are.
+
+**Feedback.** "Not this again" on a row becomes a `mutes:` entry matching it
+(same matching as `to_inbox`). The briefing still says how many rows it hid,
+so a mute never makes something disappear without a trace.
 
 ## Change marks
 
