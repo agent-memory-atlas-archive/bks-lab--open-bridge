@@ -372,3 +372,142 @@ def test_the_headline_shortens_a_long_title_at_a_word():
     h = bv.build(r, profile(view={"style": "triage"}))["headline"]
     assert "…" in h and "drafts cleaned" not in h
 
+
+
+# ---------------------------------------------------------------- findings of the independent review
+
+def test_rows_with_local_ids_from_different_sections_never_merge():
+    r = result(sec("backups", "command", [{"id": "1", "title": "A"}, {"id": "2", "title": "B"}]),
+               sec("deploys", "command", [{"id": "1", "title": "C"}, {"id": "2", "title": "D"}]))
+    titles = sorted(i["title"] for b in bv.build(r, profile(view={"style": "triage"}))["buckets"] for i in b["items"])
+    assert titles == ["A", "B", "C", "D"]
+
+
+def test_a_tracker_row_filed_to_the_inbox_is_one_row():
+    r = result(
+        sec("inbox", "inbox", [inbox_item("i9", "Board: o/r#5 Fix login (blocked)", urgency="now",
+                                          key="briefing:morning:board:o/r#5")]),
+        sec("board", "tracker", [{"id": "o/r#5", "title": "Fix login", "state": "blocked", "category": "open"}]))
+    rows = [i for b in bv.build(r, profile(view={"style": "triage"}))["buckets"] for i in b["items"]]
+    assert len(rows) == 1 and rows[0]["bucket"] == "do"
+
+
+def test_a_merged_row_takes_the_more_urgent_bucket():
+    r = result(sec("board", "tracker", [{"id": "o/r#5", "title": "X", "state": "in_progress", "category": "open"}]),
+               sec("gh", "tracker", [{"id": "o/r#5", "title": "X", "state": "review", "category": "qa"}]))
+    assert buckets(bv.build(r, profile(view={"style": "triage"}))) == {"do": ["X"]}
+
+
+def test_a_label_with_an_unknown_placeholder_is_refused_and_never_crashes():
+    assert any("anzahl" in p for p in bv.problems({"labels": {"yours_today": "{anzahl} für dich"}}, None))
+    assert any("end" in p for p in bv.problems({"labels": {"end": "Fertig :-}"}}, None))
+    view = bv.build(sample(), profile(view={"style": "triage", "labels": {"yours_today": "{anzahl} für dich"}}))
+    assert "for you today" in view["headline"]           # falls back to the default wording
+
+
+def test_brevity_still_says_what_failed_and_what_was_muted():
+    r = sample()
+    r["sections"][3] = sec("gh", "tracker", [], status="error", reason="API rate limit")
+    view = bv.build(r, profile(view={"style": "brevity"}, mutes=[{"section": "advise", "when": {"check": "quiet"}}]))
+    out = ANSI.sub("", bv.draw(view))
+    assert "API rate limit" in out and "1 muted" in out
+
+
+def test_plan_shows_drop_rows_and_no_false_more():
+    view = bv.build(sample(), profile(view={"style": "plan", "max_items": 2}))
+    out = ANSI.sub("", bv.draw(view))
+    assert "keys untouched" in out
+    assert view["more"] == 0 and "+" not in out
+
+
+def test_plan_fills_an_earlier_gap_with_a_row_that_fits():
+    r = result(sec("inbox", "inbox", [inbox_item("a", "A"), inbox_item("b", "B"), inbox_item("c", "C")]),
+               sec("calendar", "calendar", [{"id": "e", "title": "Meeting", "start": "2026-10-05T09:00",
+                                             "end": "2026-10-05T10:00"}]))
+    p = profile(view={"style": "plan", "plan": {"workday": {"start": "08:00", "end": "11:00"}, "default_minutes": 60}})
+    r["sections"][0]["items"][0]["estimate_min"] = 90
+    view = bv.build(r, p)
+    work = {s["title"]: s["start"] for s in view["plan"]["slots"] if s["kind"] == "work"}
+    assert work.get("B") == "08:00" or work.get("C") == "08:00"
+
+
+def test_an_event_running_since_yesterday_makes_you_busy_now():
+    r = result(sec("calendar", "calendar", [{"id": "e", "title": "Night shift", "start": "2026-10-04T22:00",
+                                             "end": "2026-10-05T10:00"}]),
+               sec("inbox", "inbox", [inbox_item("a", "A")]))
+    view = bv.build(r, profile(view={"style": "plan", "plan": {"workday": {"start": "08:00", "end": "18:00"}}}))
+    assert "Night shift" in view["headline"] and "10:00" in view["headline"]
+    first = next(s for s in view["plan"]["slots"] if s["kind"] == "work")
+    assert first["start"] >= "10:00"
+
+
+def test_advice_without_a_row_to_carry_it_is_shown():
+    r = result(sec("advise", "advise", [{"id": "advise:due:z", "title": "due 06.10: Z", "check": "due",
+                                         "urgency": "today", "task": None}]))
+    rows = [i["title"] for b in bv.build(r, profile(view={"style": "triage"}))["buckets"] for i in b["items"]]
+    assert rows == ["due 06.10: Z"]
+
+
+def test_an_advise_section_left_out_does_not_hide_the_quiet_task():
+    p = profile(view={"style": "triage"})
+    p["sections"][1]["bucket"] = "none"
+    assert "Restore test" in buckets(bv.build(sample(), p))["plan"]
+
+
+def test_plan_uses_the_profiles_waiting_title():
+    view = bv.build(sample(), profile(view={"style": "plan", "buckets": [
+        {"id": "do"}, {"id": "plan"}, {"id": "delegate"}, {"id": "waiting", "title": "Wartet"}, {"id": "drop"}]}))
+    out = ANSI.sub("", bv.draw(view))
+    assert "Wartet:" in out and "Waiting on others" not in out
+
+
+def test_build_survives_values_validation_would_refuse():
+    view = bv.build(sample(), profile(view={"style": "triage", "lookahead_days": "2", "width": -5,
+                                            "buckets": [{"id": "waiting", "nudge_after_days": "7"}]}))
+    assert bv.draw(view)
+
+
+def test_events_sort_by_time_not_by_spelling():
+    r = result(sec("calendar", "calendar", [{"id": "x", "title": "Late", "start": "2026-10-05 14:00"},
+                                            {"id": "y", "title": "Early", "start": "2026-10-05T09:00"}]))
+    assert "09:00" in bv.build(r, profile(view={"style": "triage"}))["headline"]
+
+
+def test_validation_matches_the_schema_on_nulls_order_and_notes(tmp_path):
+    data = profile(view=None)
+    data["view"] = None
+    assert any("view" in p for p in bf.profile_problems(data, "morning"))
+    assert any("workday" in p for p in bv.problems({"plan": {"workday": {"start": "18:00", "end": "08:00"}}}, None))
+    assert any("note" in p for p in bv.problems(None, [{"section": "advise", "when": {"check": "x"}, "note": 3}]))
+
+
+def test_a_sections_max_still_caps_its_rows_in_a_view():
+    rows = [{"id": f"o/r#{n}", "title": f"T{n}", "state": "new", "category": "open"} for n in range(10)]
+    s = sec("gh", "tracker", rows[:3], all_rows=None)
+    s["all"] = rows
+    view = bv.build(result(s), profile(view={"style": "triage"}))
+    assert sum(len(b["items"]) for b in view["buckets"]) == 3 and view["more"] == 0
+
+
+def test_a_full_view_profile_passes_the_json_schema_too():
+    import pytest
+    jsonschema = pytest.importorskip("jsonschema")
+    schema = yaml.safe_load((ROOT / "workflow" / "briefings" / "_schema.yaml").read_text(encoding="utf-8"))
+    data = profile(view={"style": "triage", "headline": True, "since_last": True, "lookahead_days": 1,
+                         "max_items": 12, "answer_keys": True, "hygiene": "bottom", "color": "auto", "width": 100,
+                         "labels": {"end": "Das war's für heute.", "yours_today": "{n} für dich heute"},
+                         "buckets": [{"id": "do", "title": "Tun", "options": ["ja"]},
+                                     {"id": "waiting", "nudge_after_days": 7}],
+                         "plan": {"workday": {"start": "08:00", "end": "17:00"}, "default_minutes": 30}},
+                   mutes=[{"section": "advise", "when": {"check": "quiet"}, "note": "never"}])
+    data["sections"][1]["bucket"] = "none"
+    jsonschema.validate(data, schema)
+    assert bf.profile_problems(data, "morning") == []
+    bad = dict(data, view={"labels": {"nonsense": "x"}})
+    try:
+        jsonschema.validate(bad, schema)
+        raise AssertionError("schema accepted an unknown label")
+    except jsonschema.ValidationError:
+        pass
+    assert bf.profile_problems(bad, "morning")
+

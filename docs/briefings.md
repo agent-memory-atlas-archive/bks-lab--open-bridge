@@ -172,7 +172,8 @@ which agent renders it:
 |---|---|
 | inbox item, urgency `now`/`today`, or due within the lookahead | do |
 | inbox item otherwise | plan |
-| inbox item deferred and back within the lookahead | do if only you can, else plan |
+| inbox item deferred and back within the lookahead | do if only you can or it is due within the lookahead, else plan |
+| inbox item the briefing filed from a tracker row (`to_inbox`) | the same row as that tracker row, not a second one |
 | task with `next: {who: bridge}` | delegate |
 | task with `next: {who: me}` (or the profile's `for`) | do if `next.due` is within the lookahead, else plan |
 | task with `next.who` naming anyone else | waiting, with days since `last_updated` |
@@ -184,8 +185,16 @@ which agent renders it:
 | a section that failed | housekeeping, with its reason |
 | calendar | the headline and the plan; activity: the since line; workplace: one line |
 
-A section can force its rows into one bucket (`bucket: delegate`) or keep them
-out of the view (`bucket: none`). The next step of a task is a frontmatter field
+When two sources carry the same thing, the row takes the more urgent bucket of
+the two, unless a section forces its own. Only ids that name their repository
+(`owner/repo#12`) are merged across sections; any other id (a command's `1`, an
+ADO number) stays apart per section. A section's `max:` still caps how many rows
+it contributes. A section can force its rows into one bucket (`bucket: delegate`),
+which wins over the derived bucket, or keep them out of the view (`bucket: none`).
+Advice that repeats a row (`blocked`, `waiting`, `due`) is folded into that row
+and stands alone only when no such row is shown. Housekeeping (failed sources,
+muted rows) shows in every style, `brevity` included; `plan` shows every row
+somewhere (laid out, meanwhile, waiting, drop, later), so it has no "+N more". The next step of a task is a frontmatter field
 in its STATUS.md: `next: {what: "Draft the request", who: bridge, due: 2026-10-07,
 estimate_min: 20}` (`who`: `bridge`, `me`, or a person).
 
@@ -194,7 +203,9 @@ the person's language: `yours_today`, `free_until`, `free_rest`, `busy_until`,
 `next_date`, `since`, `today`, `tomorrow`, `due`, `back_on`, `only_you`,
 `collides`, `waiting_days`, `with`, `task`, `nudge`, `new`, `housekeeping`,
 `no_next`, `muted`, `hidden`, `error`, `workplace`, `more`, `end`, `why`,
-`meanwhile`, `later`, `shutdown`. Placeholders in braces stay as they are.
+`meanwhile`, `later`, `shutdown`. Placeholders in braces stay as they are: a label may use only the placeholders
+its default has (`validate` names them), and one that would not format falls
+back to the default wording instead of breaking the briefing.
 
 **Feedback.** "Not this again" on a row becomes a `mutes:` entry matching it
 (same matching as `to_inbox`). The briefing still says how many rows it hid,

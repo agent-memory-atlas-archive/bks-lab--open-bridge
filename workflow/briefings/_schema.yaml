@@ -96,8 +96,12 @@ $defs:
       width: {type: integer, minimum: 40, description: "Wrap column. Default 100. Rows wrap at a word."}
       labels:
         type: object
+        propertyNames:
+          enum: [back_on, busy_until, collides, due, end, error, free_rest, free_until, hidden, housekeeping, later, meanwhile, more, muted, new, next_date, no_next, nudge, only_you, shutdown, since, task, today, tomorrow, waiting_days, why, with, workplace, yours_today]
         additionalProperties: {type: string}
-        description: "Any word the reader sees, by label name (docs/briefings.md lists them)."
+        description: |
+          Any word the reader sees, by label name (docs/briefings.md lists them). A
+          placeholder must be one the default label has; `briefing.py validate` checks it.
       buckets:
         type: array
         description: "Order, titles, answer options. A bucket left out is hidden and counted."

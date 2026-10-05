@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import datetime as dt
 import re
+import string
 import textwrap
 
 STYLES = ("sources", "triage", "brevity", "plan")
@@ -68,8 +69,12 @@ LABELS = {
     "shutdown": "Day ends {time}",
 }
 HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+# An id that names its repository is the same thing wherever it comes from; any
+# other id (a command's "1", an ADO "1234") is only unique inside its section.
+GLOBAL_ID = re.compile(r"^[\w.-]+/[\w.-]+#\d+$")
 WHO_BRIDGE = ("bridge", "agent", "ai")
 WHO_YOU = ("me", "you", "self")
+URGENCY = {b: n for n, b in enumerate(BUCKETS)}
 
 
 # ---------------------------------------------------------------- choice and validation
@@ -82,8 +87,7 @@ def _cfg(profile: dict) -> dict:
 def style_of(profile: dict, override: str | None = None) -> str:
     if override:
         return override
-    view = _cfg(profile)
-    style = view.get("style", "sources")
+    style = _cfg(profile).get("style", "sources")
     return style if style in STYLES else "sources"
 
 
@@ -91,8 +95,24 @@ def _pos_int(value) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
+def _int(value, default: int, minimum: int = 0) -> int:
+    """A number from a profile that may not have been validated: bad values fall back."""
+    if isinstance(value, bool):
+        return default
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return default
+    return number if number >= minimum else default
+
+
+def _fields(text: str) -> set:
+    """Placeholder names in a label; raises ValueError on a broken brace."""
+    return {name for _, name, _, _ in string.Formatter().parse(text) if name is not None}
+
+
 def problems(view, mutes) -> list:
-    """What is wrong with a profile's `view:` block and `mutes:` list."""
+    """What is wrong with a profile's `view:` block and `mutes:` list (None = not given)."""
     out = []
     if view is not None:
         if not isinstance(view, dict):
@@ -108,9 +128,8 @@ def problems(view, mutes) -> list:
             out.append("view.max_items must be a positive integer")
         if "width" in view and not (_pos_int(view["width"]) and view["width"] >= 40):
             out.append("view.width must be a whole number of 40 or more")
-        if "lookahead_days" in view and not (isinstance(view["lookahead_days"], int)
-                                             and not isinstance(view["lookahead_days"], bool)
-                                             and view["lookahead_days"] >= 0):
+        if "lookahead_days" in view and _int(view["lookahead_days"], -1) < 0 or \
+                isinstance(view.get("lookahead_days"), (str, bool, float)):
             out.append("view.lookahead_days must be a whole number of days, 0 or more")
         if view.get("hygiene", "bottom") not in ("bottom", "hide"):
             out.append("view.hygiene must be bottom or hide")
@@ -120,8 +139,19 @@ def problems(view, mutes) -> list:
         if not isinstance(labels, dict) or not all(isinstance(v, str) for v in labels.values()):
             out.append("view.labels must map label names to text")
         else:
-            for key in sorted(set(labels) - set(LABELS)):
-                out.append(f"view.labels: unknown label {key} (known: {', '.join(sorted(LABELS))})")
+            for key, text in sorted(labels.items()):
+                if key not in LABELS:
+                    out.append(f"view.labels: unknown label {key} (known: {', '.join(sorted(LABELS))})")
+                    continue
+                try:
+                    extra = _fields(text) - _fields(LABELS[key])
+                except ValueError:
+                    out.append(f"view.labels.{key}: a brace that is not a placeholder (write {{{{ or }}}})")
+                    continue
+                if extra:
+                    allowed = ", ".join(f"{{{f}}}" for f in sorted(_fields(LABELS[key]))) or "none"
+                    out.append(f"view.labels.{key}: unknown placeholder {', '.join(sorted(extra))} "
+                               f"(allowed: {allowed})")
         buckets = view.get("buckets", [])
         if not isinstance(buckets, list):
             out.append("view.buckets must be a list")
@@ -153,9 +183,13 @@ def problems(view, mutes) -> list:
             if not isinstance(workday, dict):
                 out.append("view.plan.workday must be a mapping with start and end")
             else:
+                good = True
                 for key in ("start", "end"):
                     if key in workday and not (isinstance(workday[key], str) and HHMM.match(workday[key])):
                         out.append(f"view.plan.workday {key} must be HH:MM")
+                        good = False
+                if good and _hm(workday.get("start", "08:00")) >= _hm(workday.get("end", "18:00")):
+                    out.append("view.plan.workday start must be before its end")
             if "default_minutes" in plan and not _pos_int(plan["default_minutes"]):
                 out.append("view.plan.default_minutes must be a positive integer")
     if mutes is not None:
@@ -169,6 +203,23 @@ def problems(view, mutes) -> list:
                     out.append(f"mutes rule {n} needs a non-empty `when:` mapping")
                 elif set(m) - {"section", "when", "note"}:
                     out.append(f"mutes rule {n}: unknown key {sorted(set(m) - {'section', 'when', 'note'})[0]}")
+                elif "note" in m and not isinstance(m["note"], str):
+                    out.append(f"mutes rule {n}: note must be text")
+    return out
+
+
+def _labels(view: dict) -> dict:
+    """The profile's words over the defaults; a label that would not format keeps the default."""
+    out = dict(LABELS)
+    given = view.get("labels") if isinstance(view.get("labels"), dict) else {}
+    for key, text in given.items():
+        if key not in LABELS or not isinstance(text, str):
+            continue
+        try:
+            if _fields(text) <= _fields(LABELS[key]):
+                out[key] = text
+        except ValueError:
+            pass
     return out
 
 
@@ -210,7 +261,35 @@ def _hm(value: str) -> int:
 
 
 def _clock(minutes: int) -> str:
+    minutes = max(0, min(minutes, 24 * 60 - 1))
     return f"{minutes // 60:02d}:{minutes % 60:02d}"
+
+
+def _events(raw: list, now: dt.datetime) -> list:
+    """Timed events as (start, end, title), sorted by time; no end = 30 minutes."""
+    out = []
+    for e in raw:
+        start = _when(e.get("start"))
+        if start is None or not _has_time(e.get("start")):
+            continue
+        end = _when(e.get("end")) if _has_time(e.get("end")) else None
+        if end is None or end <= start:
+            end = start + dt.timedelta(minutes=30)
+        out.append((start, end, str(e.get("title") or "")))
+    return sorted(out, key=lambda e: e[0])
+
+
+def _today(events: list, now: dt.datetime) -> list:
+    """Events overlapping today, as minute ranges clipped to today."""
+    day0 = dt.datetime.combine(now.date(), dt.time())
+    day1 = day0 + dt.timedelta(days=1)
+    out = []
+    for start, end, title in events:
+        if start < day1 and end > day0:
+            s = max(start, day0)
+            e = min(end, day1)
+            out.append((int((s - day0).total_seconds() // 60), int((e - day0).total_seconds() // 60), title))
+    return out
 
 
 # ---------------------------------------------------------------- build
@@ -241,7 +320,7 @@ def _bucket_cfg(view: dict) -> tuple:
 
 
 def _short(text, limit: int) -> str:
-    """At most `limit` characters, cut at a word and marked, never inside a word."""
+    """At most `limit` characters, marked with an ellipsis; cut at a word when the text has one."""
     text = " ".join(str(text or "").split())
     if len(text) <= limit:
         return text
@@ -256,30 +335,40 @@ def _days_since(value, now: dt.datetime):
     return (now.date() - when.date()).days if when else None
 
 
+def _item_key(sid, iid) -> str:
+    iid = str(iid)
+    return f"item:{iid}" if GLOBAL_ID.match(iid) else f"item:{sid}:{iid}"
+
+
 def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetime) -> dict:
     sections_cfg = {}
     for s in profile.get("sections") or []:
         if isinstance(s, dict):
             sections_cfg[str(s.get("id") or s.get("kind"))] = s
     mutes = [m for m in (profile.get("mutes") or []) if isinstance(m, dict) and isinstance(m.get("when"), dict)]
-    you = {w for w in WHO_YOU} | ({str(profile["for"]).lower()} if profile.get("for") else set())
-    horizon = now.date() + dt.timedelta(days=int(view.get("lookahead_days", 1)))
-    nudge_days: int = next((b["nudge_after_days"] for b in (view.get("buckets") or [])
-                       if isinstance(b, dict) and b.get("id") == "waiting" and b.get("nudge_after_days")),
-                      DEFAULT_BUCKETS["waiting"]["nudge_after_days"])
+    you = set(WHO_YOU) | ({str(profile["for"]).lower()} if profile.get("for") else set())
+    horizon = now.date() + dt.timedelta(days=_int(view.get("lookahead_days"), 1))
+    nudge_days = DEFAULT_BUCKETS["waiting"]["nudge_after_days"]
+    for b in view.get("buckets") or []:
+        if isinstance(b, dict) and b.get("id") == "waiting":
+            nudge_days = _int(b.get("nudge_after_days"), nudge_days, 1)
 
     out = {"rows": {}, "order": [], "hygiene": [], "no_next": [], "muted": 0, "events": [], "workplace": None}
 
     def items_of(s):
-        return s.get("all", s.get("items")) or []
+        # The section's own `max:` still caps what it contributes.
+        return s.get("items") or []
 
     def muted(sid, item):
         return any(m.get("section") == sid and _matches(m["when"], item) for m in mutes)
 
+    def usable(s):
+        return s.get("status") == "ok" and sections_cfg.get(s.get("id"), {}).get("bucket") != "none"
+
     # First pass: what the advice says about tasks (a quiet task is shown once, under drop).
     quiet, blocked = set(), set()
     for s in result.get("sections") or []:
-        if s.get("kind") != "advise" or s.get("status") != "ok":
+        if s.get("kind") != "advise" or not usable(s):
             continue
         for item in items_of(s):
             if muted(s["id"], item):
@@ -295,6 +384,15 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
             for sid in row["sources"]:
                 if sid not in have["sources"]:
                     have["sources"].append(sid)
+            # A section's own `bucket:` is the person's word and wins; otherwise the
+            # more urgent reading of the same thing wins over profile order.
+            if (row["forced"], -URGENCY[row["bucket"]]) > (have["forced"], -URGENCY[have["bucket"]]):
+                have["bucket"], have["forced"] = row["bucket"], row["forced"]
+            have["rank"] = min(have["rank"], row["rank"])
+            have["why"] += [w for w in row["why"] if w not in have["why"]]
+            for k in ("due", "nudge", "estimate"):
+                if row.get(k) and not have.get(k):
+                    have[k] = row[k]
             have["new"] = have["new"] or row["new"]
             have["changed"] = have["changed"] or row["changed"]
             return
@@ -302,17 +400,23 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
         out["order"].append(key)
 
     def row(sid, item, bucket, title, why=(), rank=5, **extra):
-        return {"title": str(title or ""), "bucket": bucket, "why": [w for w in why if w], "sources": [sid],
-                "rank": rank, "url": item.get("url"), "task": item.get("task"), "new": bool(item.get("new")),
-                "changed": bool(item.get("changed")), **extra}
+        r = {"title": str(title or ""), "bucket": bucket, "forced": sid in forced_ids,
+             "why": [w for w in why if w], "sources": [sid],
+             "rank": rank, "url": item.get("url"), "task": item.get("task"), "new": bool(item.get("new")),
+             "changed": bool(item.get("changed"))}
+        if _pos_int(item.get("estimate_min")):
+            r["estimate"] = item["estimate_min"]
+        return {**r, **extra}
 
+    carried = []      # advice that only stands when no other row carries it
+    forced_ids = {sid for sid, c in sections_cfg.items() if c.get("bucket") in BUCKETS}
     for s in result.get("sections") or []:
         sid, kind = s.get("id"), s.get("kind")
         cfg = sections_cfg.get(sid, {})
         if s.get("status") == "error":
             out["hygiene"].append(labels["error"].format(title=s.get("title") or sid, reason=s.get("reason", "")))
             continue
-        if s.get("status") != "ok" or cfg.get("bucket") == "none":
+        if not usable(s):
             continue
         forced = cfg.get("bucket") if cfg.get("bucket") in BUCKETS else None
         if kind == "calendar":
@@ -352,8 +456,12 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
                 else:
                     bucket = "do" if item.get("urgency") in ("now", "today") or soon else "plan"
                 rank = 0 if item.get("urgency") == "now" else 1 if soon else 2
-                add(f"inbox:{iid}", row(sid, item, forced or bucket, item.get("title"), why, rank,
-                                        due=item.get("due")))
+                # An item the briefing filed from a tracker row is that row: one line, not two.
+                key = f"inbox:{iid}"
+                filed = str(item.get("key") or "").split(":", 3)
+                if filed[0] == "briefing" and len(filed) == 4:
+                    key = _item_key(filed[2], filed[3])
+                add(key, row(sid, item, forced or bucket, item.get("title"), why, rank, due=item.get("due")))
             elif kind == "advise":
                 check = item.get("check")
                 if check == "wip":
@@ -363,7 +471,7 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
                 elif check == "collision":
                     add(f"advise:{iid}", row(sid, item, forced or "do", item.get("title"), [labels["collides"]], 0))
                 elif check in ("blocked", "waiting", "due"):
-                    continue          # the task or inbox row carries it
+                    carried.append((sid, item, forced))
                 else:
                     add(f"advise:{iid}", row(sid, item, forced or "plan", item.get("title")))
             elif kind == "tasks":
@@ -413,8 +521,19 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
                 else:
                     bucket = "plan"
                 label = item.get("raw_state") or state
-                add(f"item:{iid}", row(sid, item, forced or bucket, item.get("title"),
-                                       [iid, str(label) if label else ""], 2 if bucket == "do" else 4))
+                add(_item_key(sid, iid), row(sid, item, forced or bucket, item.get("title"),
+                                             [iid, str(label) if label else ""], 2 if bucket == "do" else 4))
+
+    # blocked / waiting / due advice repeats what a task or inbox row already says;
+    # it stands on its own only when no such row is in the view.
+    for sid, item, forced in carried:
+        check = item.get("check")
+        subject = str(item.get("id") or "").split(":", 2)[-1]
+        carrier = f"task:{item.get('task')}" if check == "blocked" else f"inbox:{subject}"
+        if carrier in out["rows"]:
+            continue
+        bucket = {"blocked": "waiting", "due": "do", "waiting": "plan"}[check]
+        add(f"advise:{item.get('id')}", row(sid, item, forced or bucket, item.get("title"), (), 2))
     return out
 
 
@@ -422,14 +541,14 @@ def build(result: dict, profile: dict, style: str | None = None) -> dict:
     """The view of one collected briefing: plain data, drawn by `draw`, read by an agent."""
     style = style_of(profile, style)
     view = _cfg(profile)
-    labels = {**LABELS, **{k: v for k, v in (view.get("labels") or {}).items() if k in LABELS}}
+    labels = _labels(view)
     now = _when(result.get("collected_at")) or dt.datetime.now()
     data = _rows(result, profile, view, labels, now)
     shown, hidden_ids = _bucket_cfg(view)
+    titles = {b: DEFAULT_BUCKETS[b]["title"] for b in BUCKETS} | {b["id"]: b["title"] for b in shown}
 
     rows = [data["rows"][k] for k in data["order"]]
-    order = {b: n for n, b in enumerate(BUCKETS)}
-    rows.sort(key=lambda r: (order[r["bucket"]], r["rank"], str(r.get("due") or "9999")))
+    rows.sort(key=lambda r: (URGENCY[r["bucket"]], r["rank"], str(_when(r.get("due")) or "9999")))
 
     hygiene = list(data["hygiene"])
     if data["no_next"]:
@@ -438,45 +557,51 @@ def build(result: dict, profile: dict, style: str | None = None) -> dict:
         hygiene.append(labels["muted"].format(n=data["muted"]))
     hidden = [r for r in rows if r["bucket"] in hidden_ids]
     if hidden:
-        ids = sorted({r["bucket"] for r in hidden}, key=lambda b: order[b])
+        ids = sorted({r["bucket"] for r in hidden}, key=lambda b: URGENCY[b])
         hygiene.append(labels["hidden"].format(n=len(hidden), ids=", ".join(ids)))
     visible = [r for r in rows if r["bucket"] not in hidden_ids]
 
-    events = sorted((e for e in data["events"] if _when(e.get("start"))), key=lambda e: str(e.get("start")))
+    events = _events(data["events"], now)
     plan_cfg: dict = view["plan"] if isinstance(view.get("plan"), dict) else {}
     workday: dict = plan_cfg["workday"] if isinstance(plan_cfg.get("workday"), dict) else {}
     day_start, day_end = workday.get("start", "08:00"), workday.get("end", "18:00")
+    if not (isinstance(day_start, str) and HHMM.match(day_start) and isinstance(day_end, str)
+            and HHMM.match(day_end) and _hm(day_start) < _hm(day_end)):
+        day_start, day_end = "08:00", "18:00"
 
+    width = view.get("width")
     out = {"style": style, "collected_at": result.get("collected_at"), "headline": None, "since": None,
-           "buckets": [], "hygiene": hygiene, "workplace": data["workplace"], "more": 0,
-           "answer_keys": view.get("answer_keys", True), "show_hygiene": view.get("hygiene", "bottom") == "bottom",
-           "color": view.get("color", "auto"), "width": view.get("width", 100), "labels": labels}
+           "buckets": [], "hygiene": hygiene, "workplace": data["workplace"], "more": 0, "titles": titles,
+           "answer_keys": view.get("answer_keys", True) is not False,
+           "show_hygiene": view.get("hygiene", "bottom") != "hide",
+           "color": view.get("color", "auto"), "width": width if _pos_int(width) and width >= 40 else 100,
+           "labels": labels}
 
-    if view.get("headline", True):
+    if view.get("headline", True) is not False:
         out["headline"] = _headline(visible, events, now, labels, day_end)
-    if view.get("since_last", True) and result.get("previous_at"):
+    if view.get("since_last", True) is not False and result.get("previous_at"):
         prev = _when(result["previous_at"])
         if prev:
             stamp = f"{prev:%H:%M}" if prev.date() == now.date() else f"{prev:%d.%m %H:%M}"
             out["since"] = labels["since"].format(time=stamp, new=sum(1 for r in visible if r["new"]),
                                                    changed=sum(1 for r in visible if r["changed"] and not r["new"]))
 
-    cap = view.get("max_items") if _pos_int(view.get("max_items")) else (3 if style == "brevity" else 12)
+    cap = _int(view.get("max_items"), 3 if style == "brevity" else 12, 1)
     if style == "brevity":
         cap = min(cap, 3)
         pick = ([r for r in visible if r["bucket"] == "do"] +
                 [r for r in visible if r["bucket"] == "waiting" and r.get("nudge")] +
                 [r for r in visible if r["bucket"] in ("plan", "delegate")] +
-                [r for r in visible if r["bucket"] == "waiting" and not r.get("nudge")])
-        titles = {b["id"]: b["title"] for b in shown}
-        out["top"] = []
-        for r in pick[:cap]:
-            out["top"].append({**r, "why": r["why"] or [titles.get(r["bucket"], r["bucket"])]})
+                [r for r in visible if r["bucket"] == "waiting" and not r.get("nudge")] +
+                [r for r in visible if r["bucket"] == "drop"])
+        out["top"] = [{**r, "why": r["why"] or [titles[r["bucket"]]]} for r in pick[:cap]]
         out["more"] = max(0, len(visible) - len(out["top"]))
         return out
 
     if style == "plan":
-        out["plan"] = _plan(visible, events, now, plan_cfg, day_start, day_end, labels)
+        # The plan shows every row (laid out, meanwhile, waiting, drop, later): nothing is "more".
+        out["plan"] = _plan(visible, events, now, plan_cfg, day_start, day_end)
+        return out
 
     left = cap
     for b in shown:
@@ -492,59 +617,58 @@ def build(result: dict, profile: dict, style: str | None = None) -> dict:
 
 def _headline(rows: list, events: list, now: dt.datetime, labels: dict, day_end: str) -> str:
     parts = [labels["yours_today"].format(n=sum(1 for r in rows if r["bucket"] == "do"))]
-    today = [e for e in events if _has_time(e.get("start")) and _when(e["start"]).date() == now.date()]
-    current = next((e for e in today if _when(e["start"]) <= now < (_when(e.get("end")) or _when(e["start"]))), None)
-    upcoming = next((e for e in today if _when(e["start"]) > now), None)
+    current = next((e for e in events if e[0] <= now < e[1]), None)
+    upcoming = next((e for e in events if e[0] > now and e[0].date() == now.date()), None)
     if current:
-        parts.append(labels["busy_until"].format(title=current.get("title"), time=f"{_when(current['end']):%H:%M}"))
+        parts.append(labels["busy_until"].format(title=_short(current[2], 40),
+                                                 time=_fmt_when(current[1].isoformat(timespec="minutes"),
+                                                                now, labels).replace(f"{labels['today']} ", "")))
     elif upcoming:
-        parts.append(labels["free_until"].format(time=f"{_when(upcoming['start']):%H:%M}"))
+        parts.append(labels["free_until"].format(time=f"{upcoming[0]:%H:%M}"))
     elif now.hour * 60 + now.minute < _hm(day_end):
         parts.append(labels["free_rest"])
     dated = [(_when(r["due"]), r["title"], r["due"]) for r in rows if r.get("due") and _when(r["due"])]
-    dated += [(_when(e["start"]), e.get("title"), e["start"]) for e in events
-              if _when(e["start"]).date() > now.date()]
+    dated += [(e[0], e[2], e[0].isoformat(timespec="minutes")) for e in events if e[0].date() > now.date()]
     dated = sorted((d for d in dated if d[0] > now), key=lambda d: d[0])
     if dated:
-        when, title, raw = dated[0]
+        _, title, raw = dated[0]
         parts.append(labels["next_date"].format(when=_fmt_when(raw, now, labels), title=_short(title, 48)))
     return " · ".join(parts)
 
 
-def _plan(rows, events, now, cfg, day_start, day_end, labels) -> dict:
-    """Lay your rows (do, then plan) into today's free gaps between start and end of day."""
-    minutes = cfg.get("default_minutes", 30) if _pos_int(cfg.get("default_minutes")) else 30
-    today = [e for e in events if _has_time(e.get("start")) and _when(e["start"]).date() == now.date()]
-    busy = []
-    for e in today:
-        start = _when(e["start"])
-        end = _when(e.get("end")) or start + dt.timedelta(minutes=30)
-        busy.append((start.hour * 60 + start.minute, end.hour * 60 + end.minute if end.date() == start.date()
-                     else 24 * 60, e.get("title")))
-    busy.sort()
+def _plan(rows, events, now, cfg, day_start, day_end) -> dict:
+    """Lay your rows (do, then plan) into today's free gaps between start and end of day.
+
+    Each row takes the earliest free gap long enough for it, so a long row that does not
+    fit early never pushes a short one past a gap it would have fitted."""
+    minutes = _int(cfg.get("default_minutes"), 30, 1)
+    busy = sorted(_today(events, now))
     now_min = now.hour * 60 + now.minute
-    cursor = max(_hm(day_start), -(-now_min // 15) * 15)
+    first = max(_hm(day_start), -(-now_min // 15) * 15)
     stop = _hm(day_end)
-    slots = [{"start": _clock(s), "end": _clock(min(e, 24 * 60 - 1)), "title": t, "kind": "event"} for s, e, t in busy]
+    free, cursor = [], first
+    for s, e, _ in busy:
+        if s > cursor:
+            free.append([cursor, min(s, stop)])
+        cursor = max(cursor, e)
+    if cursor < stop:
+        free.append([cursor, stop])
+    free = [f for f in free if f[1] > f[0]]
+    slots = [{"start": _clock(s), "end": _clock(e), "title": t, "kind": "event"} for s, e, t in busy]
     later = []
     for r in [r for r in rows if r["bucket"] == "do"] + [r for r in rows if r["bucket"] == "plan"]:
         length = r.get("estimate") or minutes
-        placed = False
-        while cursor + length <= stop:
-            clash = next(((s, e) for s, e, _ in busy if s < cursor + length and cursor < e), None)
-            if clash is None:
-                slots.append({"start": _clock(cursor), "end": _clock(cursor + length), "title": r["title"],
-                              "kind": "work", "why": r["why"]})
-                cursor += length
-                placed = True
-                break
-            cursor = clash[1]
-        if not placed:
+        gap = next((f for f in free if f[1] - f[0] >= length), None)
+        if gap is None:
             later.append(r["title"])
-    slots.sort(key=lambda s: s["start"])
+            continue
+        slots.append({"start": _clock(gap[0]), "end": _clock(gap[0] + length), "title": r["title"],
+                      "kind": "work", "why": r["why"]})
+        gap[0] += length
+    slots.sort(key=lambda s: (s["start"], s["kind"] != "event"))
     return {"slots": slots, "parallel": [r["title"] for r in rows if r["bucket"] == "delegate"],
-            "waiting": [r["title"] for r in rows if r["bucket"] == "waiting"], "later": later,
-            "shutdown": day_end}
+            "waiting": [r["title"] for r in rows if r["bucket"] == "waiting"],
+            "drop": [r["title"] for r in rows if r["bucket"] == "drop"], "later": later, "shutdown": day_end}
 
 
 # ---------------------------------------------------------------- draw
@@ -552,8 +676,9 @@ def _plan(rows, events, now, cfg, day_start, day_end, labels) -> dict:
 def draw(view: dict, color: bool = False, width: int | None = None) -> str:
     """Terminal text. Colour carries meaning only (due now, waiting, scaffolding dimmed)."""
     use = color and view.get("color", "auto") != "none"
-    width = width or int(view.get("width") or 100)
+    width = width or _int(view.get("width"), 100, 40)
     labels = view["labels"]
+    titles = view.get("titles") or {b: DEFAULT_BUCKETS[b]["title"] for b in BUCKETS}
 
     def c(code, text):
         return f"\x1b[{code}m{text}\x1b[0m" if use else text
@@ -574,26 +699,16 @@ def draw(view: dict, color: bool = False, width: int | None = None) -> str:
             out.append("")
             out += wrap(r["title"], style="1")
             out += wrap(f"{labels['why']}: " + " · ".join(r["why"]), indent="  ", hang="  ", style="2")
-        tail = []
-        if view.get("more"):
-            tail.append(labels["more"].format(n=view["more"]))
-        tail.append(labels["end"])
-        out += ["", *wrap(" · ".join(tail), style="2")]
-        return "\n".join(out)
-
-    if view["style"] == "plan" and view.get("plan"):
+    elif view["style"] == "plan" and view.get("plan"):
         plan = view["plan"]
         out.append("")
         for s in plan["slots"]:
             line = f"  {s['start']}-{s['end']}  {s['title']}"
             out += wrap(line, hang=" " * 15, style="2" if s["kind"] == "event" else None)
-        if plan["parallel"]:
-            out += wrap(f"{labels['meanwhile']}: " + " · ".join(plan["parallel"]), indent="  ", hang="    ")
-        if plan["waiting"]:
-            out += wrap(f"{DEFAULT_BUCKETS['waiting']['title']}: " + " · ".join(plan["waiting"]),
-                        indent="  ", hang="    ", style="2")
-        if plan["later"]:
-            out += wrap(f"{labels['later']}: " + " · ".join(plan["later"]), indent="  ", hang="    ", style="2")
+        for key, title, style in (("parallel", labels["meanwhile"], None), ("waiting", titles["waiting"], "2"),
+                                  ("drop", titles["drop"], "2"), ("later", labels["later"], "2")):
+            if plan.get(key):
+                out += wrap(f"{title}: " + " · ".join(plan[key]), indent="  ", hang="    ", style=style)
         out += wrap(labels["shutdown"].format(time=plan["shutdown"]), indent="  ", style="1")
     else:
         n = 0
@@ -621,9 +736,10 @@ def draw(view: dict, color: bool = False, width: int | None = None) -> str:
                 dim = b["id"] in ("waiting", "drop") and not r.get("nudge")
                 out += [c("31", line) if urgent else c("2", line) if dim else line for line in lines]
 
-    if view.get("workplace"):
+    if view.get("workplace") and view["style"] != "brevity":
         out.append("")
         out += wrap(view["workplace"])
+    # Housekeeping in every style: a failed source or a muted row is never silent.
     if view.get("show_hygiene", True) and view.get("hygiene"):
         out.append("")
         out += wrap(f"── {labels['housekeeping']} ──", style="2")

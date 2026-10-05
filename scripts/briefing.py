@@ -431,8 +431,13 @@ def profile_problems(data, stem: str) -> list:
             elif rule.get("urgency", "today") not in ("now", "today", "later") or \
                     rule.get("gate", "your-yes") not in ("free", "your-yes", "only-you"):
                 out.append(f"{where}: to_inbox rule {r} has a bad urgency or gate")
-    if "view" in data or "mutes" in data:
-        out += _view().problems(data.get("view"), data.get("mutes"))
+    if "view" in data and not isinstance(data["view"], dict):
+        out.append("view must be a mapping")
+    if "mutes" in data and not isinstance(data["mutes"], list):
+        out.append("mutes must be a list")
+    if isinstance(data.get("view"), dict) or isinstance(data.get("mutes"), list):
+        out += _view().problems(data.get("view") if isinstance(data.get("view"), dict) else None,
+                                data.get("mutes") if isinstance(data.get("mutes"), list) else None)
         ids = {section_id(s) for s in sections or [] if isinstance(s, dict)}
         for n, m in enumerate(data.get("mutes") if isinstance(data.get("mutes"), list) else [], 1):
             if isinstance(m, dict) and isinstance(m.get("section"), str) and m["section"] not in ids:
@@ -484,7 +489,7 @@ def sec_inbox(section: dict, ctx: Context) -> list:
     for item in box.open_items():
         items.append({"id": item.id, "title": item.summary, "state": item.state, "urgency": item.urgency,
                       "kind": item.kind, "gate": item.gate, "task": item.task, "due": item.due,
-                      "changed_at": str(item.created or "")})
+                      "key": item.key, "changed_at": str(item.created or "")})
     if ctx.lookahead is not None:
         # A view that looks ahead also shows what was put off and comes back within
         # its window: "decide tomorrow" must not vanish until tomorrow.
@@ -493,14 +498,14 @@ def sec_inbox(section: dict, ctx: Context) -> list:
             if item.state != "deferred":
                 continue
             until = next((e.data.get("until") for e in reversed(item.events) if e.verb == "defer"), None)
-            try:
-                back = dt.date.fromisoformat(str(until)[:10])
-            except ValueError:
+            try:   # the same local date the inbox itself compares to decide the item is deferred
+                back = _inbox()._local_date(_inbox()._parse_when(until))
+            except Exception:  # noqa: BLE001 - an unreadable date is not shown, as before
                 continue
             if back <= horizon:
                 items.append({"id": item.id, "title": item.summary, "state": "deferred", "until": str(until),
                               "urgency": item.urgency, "kind": item.kind, "gate": item.gate, "task": item.task,
-                              "due": item.due, "changed_at": str(item.created or "")})
+                              "due": item.due, "key": item.key, "changed_at": str(item.created or "")})
     items.sort(key=lambda i: (order.get(i["urgency"], 3), i["id"]))
     return items
 
