@@ -52,15 +52,19 @@ def collect(section: dict, ctx) -> list:
             raise source_error("assigned_to_me needs integrations.github.assignee_me or a gh login") from None
     states = set(query.get("states") or [])
     keep_done = query.get("include_done") or bool(states & {"done", "removed"})
-    out = []
+    out, summary = [], []
+    order = ("new", "ready", "in_progress", "review", "blocked")
     for board in boards:
         argv = ["gh", "project", "item-list", str(board["number"]), "--owner", str(board["org"]),
                 "--format", "json", "--limit", str(query.get("limit", 200))]
         payload = load_json(ctx.run(argv, timeout=ctx.timeout), f"board {board['slug']}")
+        counts = dict.fromkeys(order, 0)
         for raw in payload.get("items", []) if isinstance(payload, dict) else []:
             item = ts.normalize_gh_item(raw, board, me)
             if not item:
                 continue
+            if item["state"] in counts:      # every open card, before the person's filters
+                counts[item["state"]] += 1
             if query.get("assigned_to_me") and not item["assigned_to_me"]:
                 continue
             if states and item["state"] not in states:
@@ -72,4 +76,9 @@ def collect(section: dict, ctx) -> list:
                         "type": str(item.get("type") or "issue").lower(),
                         "project": board["name"], "tracker": "github-board", "priority": None,
                         "_category_from_state": True})
+        summary.append({"name": board["name"], "number": board["number"], "org": board["org"],
+                        "slug": board["slug"], "counts": counts, "open": sum(counts.values())})
+    if section.get("summary"):
+        # `summary: true`: the whole board as counts per state, beside the person's own rows.
+        section["_summary"] = summary
     return out

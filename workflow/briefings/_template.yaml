@@ -80,6 +80,12 @@ sections:
 
   - kind: activity
     days: 7
+  # What moved: commits per repository per day as a sparkline, your own only.
+  # - kind: commits
+  #   days: 7
+  #   author: me
+  # A board's whole picture beside your own cards: add `summary: true` to a
+  # github-board tracker section (one line per board, cards per state).
 
   # The day's tabs: one per task, grouped into workspaces, opened on your yes
   # through the configured driver (docs/workplace.md; cmux ships as skills/cmux).

@@ -75,6 +75,7 @@ profiles offers the right one instead of the person having to remember ids.
 | `workplace` | the day's tab plan: one tab per task, grouped into workspaces, opened on your yes through the configured driver (cmux ships as `skills/cmux`) ([workplace](workplace.md)) | `max` |
 | `tasks` | `work/tasks/*/STATUS.md` | `status` (default doing, review), `contexts`, `max` |
 | `activity` | `work/log.md` rows of the last days | `days` (default 7), `max` |
+| `commits` | commits per repository per day as a sparkline (`▁▃█▂`), busiest first; repositories without commits in the window are left out, one that fails is skipped | `days` (default 7), `repos` (default: every clone the ecosystem files register, plus this Bridge), `author` (`me` = each repository's git user.email), `all_branches` |
 | `calendar` | events in local time; also handed to `advise` for collisions. `ics` converts UTC and `TZID` times but lists a recurring event (RRULE) on its first date only: use `icalbuddy` or a `command` for recurring calendars | `provider` (auto, icalbuddy, ics, command), `days`, `path` (ics), `argv` (command), `exclude_calendars` (icalbuddy) |
 | `tracker` | work items from an external system | `provider`, `query`, `account_ref`, `state_map`, `max`, `to_inbox` |
 | `command` | any program printing a JSON list of items | `argv`, `max`, `to_inbox` |
@@ -92,7 +93,7 @@ against recorded answers (`scripts/tests/fixtures/briefing/<provider>/`).
 | provider | Reaches it through | `query` keys |
 |---|---|---|
 | `github` | `gh search` (gh's own login) | `assignee` (default `@me`), `owners`, `repos`, `kinds` (issues, prs), `state`, `labels`, `review_requested`, `limit` |
-| `github-board` | `gh project item-list`, boards from `github_projects:` in the ecosystem files, state maps from `workflow/projects/` (the same code as `scripts/tracker-sync.py`) | `boards`, `assigned_to_me`, `states`, `include_done`, `limit` |
+| `github-board` | `gh project item-list`, boards from `github_projects:` in the ecosystem files, state maps from `workflow/projects/` (the same code as `scripts/tracker-sync.py`). With `summary: true` on the section, also one line per board with its open cards per state, counted before `assigned_to_me` and the other filters | `boards`, `assigned_to_me`, `states`, `include_done`, `limit` |
 | `gitlab` | `glab issue list` | `repos` (required), `assignee`, `state`, `labels`, `limit` |
 | `ado` | `az boards query` (WIQL) | `wiql`, `organization`, `project`, `limit` |
 | `jira` | REST API | `jql` (default: assigned to you, not done), `fields`, `limit` |
@@ -168,6 +169,11 @@ mutes:                     # rows the person never wants again; the briefing say
 profile copied from the template starts with `triage`; a profile without a
 `view:` block keeps one block per section.
 
+Two overview blocks sit below the buckets, never in them, since they say what
+moved rather than what to do: **Boards** (one line per board of a `github-board`
+section with `summary: true`, boards without open cards left out) and
+**Activity** (the `commits` sections' sparklines). `brevity` leaves both out.
+
 Small aids for reading at a glance: each bucket header says how many rows it
 holds (`── Plan · 4 ──`, also when `max_items` shows fewer), the day line puts
 the calendar in one row, and in a colour terminal an issue id is a link (OSC 8)
@@ -212,7 +218,8 @@ the person's language: `yours_today`, `free_until`, `free_rest`, `busy_until`,
 `next_date`, `since`, `today`, `tomorrow`, `due`, `back_on`, `only_you`,
 `collides`, `waiting_days`, `with`, `task`, `nudge`, `new`, `housekeeping`,
 `no_next`, `muted`, `hidden`, `error`, `workplace`, `more`, `end`, `why`,
-`meanwhile`, `later`, `shutdown`. Placeholders in braces stay as they are: a label may use only the placeholders
+`meanwhile`, `later`, `shutdown`, `activity_title`, `commits`, `boards_title`,
+`st_new`, `st_ready`, `st_in_progress`, `st_review`, `st_blocked`. Placeholders in braces stay as they are: a label may use only the placeholders
 its default has (`validate` names them), and one that would not format falls
 back to the default wording instead of breaking the briefing.
 
