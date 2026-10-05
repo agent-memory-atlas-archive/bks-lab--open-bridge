@@ -366,6 +366,8 @@ def _section_types(s: dict) -> list:
     for key in ("title", "provider", "account_ref", "path"):
         if key in s and not isinstance(s[key], str):
             out.append(f"{key} must be text")
+    if s.get("kind") == "commits" and "days" in s and not _is_positive_int(s["days"]):
+        out.append("commits: days must be 1 or more")
     if "repos" in s and not _is_str_list(s["repos"]):
         out.append("repos must be a list of names or paths")
     if "author" in s and not (isinstance(s["author"], str) or _is_str_list(s["author"])):
@@ -590,12 +592,30 @@ def sec_activity(section: dict, ctx: Context) -> list:
 SPARK = "▁▂▃▄▅▆▇█"
 
 
-def _ecosystem_repos(root: Path) -> list:
-    """(name, path) of every repository the ecosystem files register with a local clone
-    (`local_path`, else `<local_root>/<name>`), plus this Bridge itself."""
+VAR = re.compile(r"\$\{([a-z_]+)\}")
+
+
+def _expand(raw: str, root: Path, variables: dict) -> Path | None:
+    """A registry path: `${var}` from bridge-config `identity:` (plus home), `~`, and a
+    relative path taken from the Bridge root. None when a variable is unknown."""
+    text = VAR.sub(lambda m: str(variables.get(m.group(1), m.group(0))), raw)
+    if "${" in text:
+        return None
+    here = Path(text).expanduser()
+    return here if here.is_absolute() else root / here
+
+
+def _ecosystem_repos(root: Path, cfg: dict | None = None) -> list:
+    """(name, path) of every repository the ecosystem files register with a local clone,
+    plus this Bridge. A clone is `local_path`, else `<local_root>/<repo name from github:>`,
+    else `<local_root>/<key>`; a file without `local_root` uses the one of ecosystem.yaml."""
+    cfg = cfg if cfg is not None else read_config(root)
+    variables = {"home": str(Path.home()), **{k: v for k, v in (cfg.get("identity") or {}).items()
+                                              if isinstance(v, (str, int))}}
     out, seen = [(root.name, root)], {root.resolve()}
     files = ([root / "ecosystem.yaml"] if (root / "ecosystem.yaml").is_file() else []) + \
         [p for p in sorted(root.glob("ecosystem.*.yaml")) if p.name != "ecosystem.example.yaml"]
+    base_root = ""
     for path in files:
         try:
             data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
@@ -603,7 +623,9 @@ def _ecosystem_repos(root: Path) -> list:
             continue
         if not isinstance(data, dict):
             continue
-        local_root = str(data.get("local_root") or "")
+        if path.name == "ecosystem.yaml":
+            base_root = str(data.get("local_root") or "")
+        local_root = str(data.get("local_root") or base_root)
 
         def walk(node):
             if not isinstance(node, dict):
@@ -612,12 +634,20 @@ def _ecosystem_repos(root: Path) -> list:
                 if not isinstance(entry, dict):
                     continue
                 if entry.get("github") or entry.get("local_path"):
-                    raw = str(entry.get("local_path") or (f"{local_root}/{name}" if local_root else ""))
-                    if raw and "${" not in raw:
-                        here = Path(raw).expanduser()
-                        if here.resolve() not in seen:
-                            seen.add(here.resolve())
-                            out.append((str(name), here))
+                    candidates = []
+                    if entry.get("local_path"):
+                        candidates.append(str(entry["local_path"]))
+                    elif local_root:
+                        if isinstance(entry.get("github"), str) and "/" in entry["github"]:
+                            candidates.append(f"{local_root}/{entry['github'].rsplit('/', 1)[1]}")
+                        candidates.append(f"{local_root}/{name}")
+                    for raw in candidates:
+                        here = _expand(raw, root, variables)
+                        if here is not None and (here / ".git").exists():
+                            if here.resolve() not in seen:
+                                seen.add(here.resolve())
+                                out.append((str(name), here))
+                            break
                 walk(entry)
 
         walk(data)
@@ -626,20 +656,30 @@ def _ecosystem_repos(root: Path) -> list:
 
 def sec_commits(section: dict, ctx: Context) -> list:
     """Commits per repository per day over `days`, oldest first, with a sparkline.
-    A repository that is missing or fails is left out; it never fails the section."""
+
+    Days are the local committer date, the same date `--since` filters on (an author
+    date in another zone, or a rebase, would land on the wrong day). A repository that
+    cannot be read is named under `skipped`; reaching the section's time limit fails the
+    section rather than hiding the repositories it did not get to."""
     days = max(1, int(section.get("days", 7)))
     first = ctx.now.date() - dt.timedelta(days=days - 1)
     if section.get("repos"):
+        known = {name: path for name, path in _ecosystem_repos(ctx.root, ctx.cfg)}
         repos = []
         for entry in section["repos"]:
-            here = Path(entry).expanduser()
-            here = here if here.is_absolute() else ctx.root / here
-            repos.append((here.name, here))
+            if entry in known:
+                repos.append((entry, known[entry]))
+                continue
+            here = _expand(str(entry), ctx.root, {"home": str(Path.home()), **(ctx.cfg.get("identity") or {})})
+            if here is not None:
+                repos.append((here.name, here))
     else:
-        repos = _ecosystem_repos(ctx.root)
+        repos = _ecosystem_repos(ctx.root, ctx.cfg)
+    names = [n for n, _ in repos]
+    repos = [(f"{p.parent.name}/{n}" if names.count(n) > 1 else n, p) for n, p in repos]
     authors = section.get("author") or []
     authors = [authors] if isinstance(authors, str) else list(authors)
-    items = []
+    items, skipped = [], []
     for name, path in repos:
         if not (path / ".git").exists():
             continue
@@ -647,8 +687,8 @@ def sec_commits(section: dict, ctx: Context) -> list:
             wanted = []
             for a in authors:
                 wanted.append(ctx.run(["git", "-C", str(path), "config", "user.email"]).strip() if a == "me" else a)
-            argv = ["git", "-C", str(path), "log", "--since", f"{first.isoformat()} 00:00", "--format=%ad",
-                    "--date=short"] + (["--all"] if section.get("all_branches") else []) + \
+            argv = ["git", "-C", str(path), "log", "--since", f"{first.isoformat()} 00:00", "--format=%cd",
+                    "--date=short-local"] + (["--branches"] if section.get("all_branches") else []) + \
                 [f"--author={a}" for a in wanted if a]
             dates = [line.strip() for line in ctx.run(argv).splitlines() if line.strip()]
             counts = [0] * days
@@ -661,8 +701,11 @@ def sec_commits(section: dict, ctx: Context) -> list:
                     counts[n] += 1
             if not sum(counts):
                 continue
-            branch = ctx.run(["git", "-C", str(path), "branch", "--show-current"]).strip()
+            branch = ctx.run(["git", "-C", str(path), "rev-parse", "--abbrev-ref", "HEAD"]).strip()
         except SourceError:
+            if ctx.deadline is not None and time.monotonic() >= ctx.deadline:
+                raise
+            skipped.append(name)
             continue
         last = first + dt.timedelta(days=max(i for i, c in enumerate(counts) if c))
         items.append({"id": name, "title": name, "branch": branch, "counts": counts, "total": sum(counts),
@@ -672,6 +715,7 @@ def sec_commits(section: dict, ctx: Context) -> list:
         i["spark"] = "".join(SPARK[0] if c == 0 else SPARK[max(1, round(c / top * (len(SPARK) - 1)))]
                              for c in i["counts"])
     items.sort(key=lambda i: (-i["total"], i["id"]))
+    section["_skipped"] = skipped
     return items
 
 
@@ -881,7 +925,8 @@ def collect(root: Path, profile: dict, ctx: Context, previous: dict | None = Non
         if "_summary" in s:
             entry["summary"] = s["_summary"]
         if s.get("kind") == "commits":
-            entry["days"] = _positive(s.get("days"), 7)
+            entry["days"] = max(1, _positive(s.get("days"), 7))
+            entry["skipped"] = s.get("_skipped") or []
         old = {i.get("id"): i.get("_fp") for i in (before.get(sid) or {}).get("items", [])}
         old_known = sid in before and before[sid].get("status") == "ok"
         for item in items:

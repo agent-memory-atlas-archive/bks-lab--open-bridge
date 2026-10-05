@@ -98,7 +98,7 @@ $defs:
       labels:
         type: object
         propertyNames:
-          enum: [activity_title, back_on, boards_title, busy_until, collides, commits, due, end, error, free_rest, free_until, hidden, housekeeping, later, meanwhile, more, muted, new, next_date, no_next, nudge, only_you, shutdown, since, st_blocked, st_in_progress, st_new, st_ready, st_review, task, today, tomorrow, waiting_days, why, with, workplace, yours_today]
+          enum: [activity_title, back_on, boards_title, busy_until, capped, collides, commits, due, end, error, free_rest, free_until, hidden, housekeeping, later, meanwhile, more, muted, new, next_date, no_next, nudge, only_you, repos_skipped, shutdown, since, st_blocked, st_in_progress, st_new, st_ready, st_review, task, today, tomorrow, waiting_days, why, with, workplace, yours_today]
         additionalProperties: {type: string}
         description: |
           Any word the reader sees, by label name (docs/briefings.md lists them). A
@@ -173,7 +173,10 @@ $defs:
       repos:
         type: array
         items: {type: string}
-        description: "commits: repository paths or names (default: every clone the ecosystem files register, plus this Bridge)."
+        description: |
+          commits: a name the ecosystem files register, or a path (`~`, `${var}` from
+          bridge-config identity, relative = from the Bridge root). Default: every
+          registered clone, plus this Bridge.
       author:
         oneOf:
           - {type: string}
@@ -181,7 +184,7 @@ $defs:
         description: "commits: only these authors; `me` is each repository's git user.email."
       all_branches:
         type: boolean
-        description: "commits: count every branch, not only the checked-out one."
+        description: "commits: count every local branch (`--branches`), not only the checked-out one; no stash, no remotes."
       bucket:
         enum: [do, plan, delegate, waiting, drop, none]
         description: "triage: put every row of this section in one bucket (none: leave it out of the view)."
@@ -244,5 +247,7 @@ $defs:
         then: {required: [provider]}
       - if: {properties: {kind: {const: command}}}
         then: {required: [argv]}
+      - if: {properties: {kind: {const: commits}}}
+        then: {properties: {days: {minimum: 1}}}
       - if: {properties: {kind: {const: calendar}, provider: {const: command}}, required: [provider]}
         then: {required: [argv]}

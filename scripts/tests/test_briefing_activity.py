@@ -64,7 +64,7 @@ class Git:
         path = argv[2]
         if argv[3] == "log":
             return "\n".join(self.dates.get(path, [])) + "\n"
-        if argv[3:5] == ["branch", "--show-current"]:
+        if argv[3:6] == ["rev-parse", "--abbrev-ref", "HEAD"]:
             return self.branch + "\n"
         if argv[3:5] == ["config", "user.email"]:
             return self.email + "\n"
@@ -100,7 +100,7 @@ def test_commits_take_an_explicit_list_and_the_authors_filter(tmp_path):
     sec = run_commits(root, {"kind": "commits", "repos": [str(b)], "author": "me", "all_branches": True}, git)
     assert sec["items"][0]["id"] == "beta"
     log = next(c for c in git.calls if c[3] == "log")
-    assert "--author=me@example.com" in log and "--all" in log
+    assert "--author=me@example.com" in log and "--branches" in log
 
 
 def test_a_repository_that_fails_is_skipped_not_the_section(tmp_path):
@@ -214,3 +214,136 @@ def test_a_board_without_open_cards_takes_no_line():
                                               {"name": "Busy", "number": 2, "open": 1, "counts": {"review": 1}}])
     out = ANSI.sub("", bv.draw(view_of(s)))
     assert "Busy" in out and "Quiet" not in out
+
+
+# ---------------------------------------------------------------- findings of the independent review
+
+def log_call(git):
+    return next(c for c in git.calls if c[3] == "log")
+
+
+def test_days_count_by_local_committer_date_and_branches_not_all_refs(tmp_path):
+    b = repo(tmp_path / "beta")
+    git = Git({str(b): ["2026-10-05"]})
+    run_commits(bridge(tmp_path), {"kind": "commits", "repos": [str(b)], "all_branches": True}, git)
+    argv = log_call(git)
+    assert "--format=%cd" in argv and "--date=short-local" in argv
+    assert "--branches" in argv and "--all" not in argv
+
+
+def test_commits_need_at_least_one_day_and_the_title_follows_the_counts(tmp_path):
+    p = {"schema_version": 1, "scope": "user", "id": "p", "sections": [{"kind": "commits", "days": 0}]}
+    assert any("days" in x for x in bf.profile_problems(p, "p"))
+    b = repo(tmp_path / "beta")
+    s = run_commits(bridge(tmp_path), {"kind": "commits", "repos": [str(b)], "days": 3}, Git({str(b): ["2026-10-05"]}))
+    assert s["days"] == 3 and len(s["items"][0]["counts"]) == 3
+
+
+def test_repos_given_by_name_resolve_through_the_registry(tmp_path):
+    w = repo(tmp_path / "code" / "wiki")
+    root = bridge(tmp_path, {"local_root": str(tmp_path / "code"), "base": {"wiki": {"github": "o/wiki"}}})
+    s = run_commits(root, {"kind": "commits", "repos": ["wiki"]}, Git({str(w): ["2026-10-05"]}))
+    assert [i["id"] for i in s["items"]] == ["wiki"]
+
+
+def test_two_repositories_with_one_basename_keep_distinct_ids(tmp_path):
+    a, b = repo(tmp_path / "a" / "app"), repo(tmp_path / "b" / "app")
+    s = run_commits(bridge(tmp_path), {"kind": "commits", "repos": [str(a), str(b)]},
+                    Git({str(a): ["2026-10-05"], str(b): ["2026-10-05"]}))
+    assert len({i["id"] for i in s["items"]}) == 2
+
+
+def test_discovery_inherits_local_root_uses_the_github_name_and_expands_variables(tmp_path):
+    code = tmp_path / "code"
+    io = repo(code / "me.github.io")
+    rel = repo(tmp_path / "bridge" / "rel" / "tool")
+    var = repo(tmp_path / "proj" / "x")
+    root = bridge(tmp_path, {"local_root": str(code)})
+    (root / "ecosystem.personal.yaml").write_text(yaml.safe_dump({
+        "personal": {"site": {"github": "me/me.github.io"},
+                     "tool": {"github": "me/tool", "local_path": "rel/tool"},
+                     "x": {"github": "me/x", "local_path": "${projects_root}/x"}}}), encoding="utf-8")
+    (root / "bridge-config.yaml").write_text(yaml.safe_dump({"identity": {"projects_root": str(tmp_path / "proj")}}),
+                                             encoding="utf-8")
+    paths = {str(p) for _, p in bf._ecosystem_repos(root, bf.read_config(root))}
+    assert str(io) in paths and str(rel) in paths and str(var) in paths
+
+
+def test_a_repository_that_cannot_be_read_is_named_not_silently_dropped(tmp_path):
+    good, bad = repo(tmp_path / "good"), repo(tmp_path / "bad")
+
+    class Flaky(Git):
+        def __call__(self, argv, timeout=30, cwd=None):
+            if argv[2] == str(bad):
+                raise bf.SourceError("no user.email")
+            return super().__call__(argv, timeout, cwd)
+
+    s = run_commits(bridge(tmp_path), {"kind": "commits", "repos": [str(bad), str(good)], "author": "me"},
+                    Flaky({str(good): ["2026-10-05"]}))
+    assert s["skipped"] == ["bad"]
+    v = bv.build({"profile": "p", "collected_at": NOW.isoformat(), "sections": [s]},
+                 {"id": "p", "sections": [{"kind": "commits"}], "view": {"style": "triage"}})
+    assert any("bad" in h for h in v["hygiene"])
+
+
+def test_the_section_time_limit_fails_the_section_instead_of_hiding_repositories(tmp_path):
+    import time
+    repos = [repo(tmp_path / f"r{n}") for n in range(3)]
+
+    class Slow(Git):
+        def __call__(self, argv, timeout=30, cwd=None):
+            time.sleep(0.6)
+            return super().__call__(argv, timeout, cwd)
+
+    c = bf.Context(bridge(tmp_path), now=NOW, run=Slow({str(r): ["2026-10-05"] for r in repos}), cfg={})
+    s = bf.collect(c.root, {"id": "p", "timeout_sec": 1,
+                            "sections": [{"kind": "commits", "repos": [str(r) for r in repos]}]}, c)["sections"][0]
+    assert s["status"] == "error" and "time limit" in s["reason"]
+
+
+def test_board_counts_use_the_section_state_map_and_skip_unknown_states(tmp_path):
+    import json
+    root = bridge(tmp_path, {"github_projects": [{"number": 30, "name": "People", "org": "o"}]})
+
+    def card(n, status):
+        return {"id": f"P{n}", "status": status, "title": f"C{n}", "assignees": [],
+                "content": {"number": n, "repository": "o/r", "type": "Issue", "title": f"C{n}"}}
+
+    payload = {"items": [card(1, "QA"), card(2, "Parked"), card(3, "Todo")]}
+    c = bf.Context(root, now=NOW, run=lambda argv, timeout=30, cwd=None: json.dumps(payload),
+                   cfg={"integrations": {"github": {"assignee_me": "me"}}})
+    sec_ = {"kind": "tracker", "id": "b", "provider": "github-board", "summary": True,
+            "state_map": {"QA": "review"}}
+    s = bf.collect(root, {"id": "p", "sections": [sec_]}, c)["sections"][0]
+    [board] = s["summary"]
+    assert board["counts"]["review"] == 1 and board["open"] == 2      # Parked is not counted as new
+
+
+def test_board_summary_says_when_the_limit_cut_it(tmp_path):
+    import json
+    root = bridge(tmp_path, {"github_projects": [{"number": 1, "name": "Big", "org": "o"}]})
+    items = [{"id": f"P{n}", "status": "Todo", "title": "t", "assignees": [],
+              "content": {"number": n, "repository": "o/r", "type": "Issue", "title": "t"}} for n in range(3)]
+    c = bf.Context(root, now=NOW, run=lambda argv, timeout=30, cwd=None: json.dumps({"items": items}), cfg={})
+    s = bf.collect(root, {"id": "p", "sections": [{"kind": "tracker", "id": "b", "provider": "github-board",
+                                                    "summary": True, "query": {"limit": 3}}]}, c)["sections"][0]
+    assert s["summary"][0]["capped"] == 3
+    out = ANSI.sub("", bv.draw(view_of(sec("b", "tracker", [], summary=s["summary"]))))
+    assert "first 3 cards" in out
+
+
+def test_overview_blocks_respect_width_sections_and_duplicates():
+    row = {"id": "a-very-long-repository-name", "title": "x", "branch": "feature/very-long-branch",
+           "spark": "▁" * 7, "total": 3, "counts": [0] * 7}
+    s1 = sec("c7", "commits", [row], days=7)
+    s2 = sec("c30", "commits", [{**row, "spark": "▁" * 30, "counts": [0] * 30}], days=30)
+    board = {"name": "Infra", "number": 26, "org": "o", "open": 1, "counts": {"new": 1}}
+    b1, b2 = sec("b1", "tracker", [], summary=[board]), sec("b2", "tracker", [], summary=[board])
+    result = {"profile": "p", "collected_at": NOW.isoformat(), "sections": [s1, s2, b1, b2]}
+    v = bv.build(result, {"id": "p", "sections": [{"kind": "commits", "id": "c7"}, {"kind": "commits", "id": "c30"},
+                                                  {"kind": "tracker", "id": "b1"}, {"kind": "tracker", "id": "b2"}],
+                          "view": {"style": "triage", "width": 50}})
+    out = ANSI.sub("", bv.draw(v))
+    assert "Activity (7 days)" in out and "Activity (30 days)" in out
+    assert out.count("#26 Infra") == 1
+    assert all(len(line) <= 50 for line in out.splitlines() if "▁▁▁▁▁▁▁" in line and len(line) and "▁" * 30 not in line)
