@@ -27,7 +27,7 @@ import textwrap
 
 STYLES = ("sources", "triage", "brevity", "plan")
 BUCKETS = ("do", "plan", "delegate", "waiting", "drop")
-VIEW_KEYS = {"style", "headline", "since_last", "lookahead_days", "max_items", "answer_keys", "hygiene", "color",
+VIEW_KEYS = {"style", "headline", "dayline", "since_last", "lookahead_days", "max_items", "answer_keys", "hygiene", "color",
              "width", "labels", "buckets", "plan"}
 BUCKET_KEYS = {"id", "title", "options", "nudge_after_days"}
 DEFAULT_BUCKETS = {
@@ -121,7 +121,7 @@ def problems(view, mutes) -> list:
             out.append(f"unknown view key {key}")
         if view.get("style", "sources") not in STYLES:
             out.append(f"view.style must be one of {', '.join(STYLES)}")
-        for key in ("headline", "since_last", "answer_keys"):
+        for key in ("headline", "dayline", "since_last", "answer_keys"):
             if key in view and not isinstance(view[key], bool):
                 out.append(f"view.{key} must be true or false")
         if "max_items" in view and not _pos_int(view["max_items"]):
@@ -522,7 +522,8 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
                     bucket = "plan"
                 label = item.get("raw_state") or state
                 add(_item_key(sid, iid), row(sid, item, forced or bucket, item.get("title"),
-                                             [iid, str(label) if label else ""], 2 if bucket == "do" else 4))
+                                             [iid, str(label) if label else ""], 2 if bucket == "do" else 4,
+                                             ref=iid))
 
     # blocked / waiting / due advice repeats what a task or inbox row already says;
     # it stands on its own only when no such row is in the view.
@@ -548,6 +549,10 @@ def build(result: dict, profile: dict, style: str | None = None) -> dict:
     titles = {b: DEFAULT_BUCKETS[b]["title"] for b in BUCKETS} | {b["id"]: b["title"] for b in shown}
 
     rows = [data["rows"][k] for k in data["order"]]
+    if not result.get("previous_at"):
+        # A first run has nothing to compare with: every row would say "new".
+        for r in rows:
+            r["new"] = r["changed"] = False
     rows.sort(key=lambda r: (URGENCY[r["bucket"]], r["rank"], str(_when(r.get("due")) or "9999")))
 
     hygiene = list(data["hygiene"])
@@ -579,6 +584,9 @@ def build(result: dict, profile: dict, style: str | None = None) -> dict:
 
     if view.get("headline", True) is not False:
         out["headline"] = _headline(visible, events, now, labels, day_end)
+    out["dayline"] = None
+    if view.get("dayline", True) is not False and style != "brevity":
+        out["dayline"] = _dayline(events, now, day_start, day_end)
     if view.get("since_last", True) is not False and result.get("previous_at"):
         prev = _when(result["previous_at"])
         if prev:
@@ -611,7 +619,7 @@ def build(result: dict, profile: dict, style: str | None = None) -> dict:
         out["more"] += len(mine) - len(take)
         if take:
             out["buckets"].append({"id": b["id"], "title": b["title"], "options": list(b.get("options") or []),
-                                   "items": take})
+                                   "items": take, "total": len(mine)})
     return out
 
 
@@ -634,6 +642,24 @@ def _headline(rows: list, events: list, now: dt.datetime, labels: dict, day_end:
         _, title, raw = dated[0]
         parts.append(labels["next_date"].format(when=_fmt_when(raw, now, labels), title=_short(title, 48)))
     return " · ".join(parts)
+
+
+DAYLINE_CELLS = 40
+
+
+def _dayline(events, now, day_start, day_end) -> str:
+    """The workday as one line: · free, █ busy, ▲ now. Read at a glance, no legend needed."""
+    start, end = _hm(day_start), _hm(day_end)
+    span = end - start
+    busy = _today(events, now)
+    now_min = now.hour * 60 + now.minute
+    cells = []
+    for i in range(DAYLINE_CELLS):
+        t = start + i * span / DAYLINE_CELLS
+        cells.append("█" if any(s <= t < e for s, e, _ in busy) else "·")
+    if start <= now_min < end:
+        cells[int((now_min - start) / span * DAYLINE_CELLS)] = "▲"
+    return f"{day_start} {''.join(cells)} {day_end}"
 
 
 def _plan(rows, events, now, cfg, day_start, day_end) -> dict:
@@ -693,6 +719,8 @@ def draw(view: dict, color: bool = False, width: int | None = None) -> str:
         out += wrap(view["headline"], style="1")
     if view.get("since"):
         out += wrap(view["since"], style="2")
+    if view.get("dayline"):
+        out.append(c("2", view["dayline"]) if use else view["dayline"])
 
     if view["style"] == "brevity":
         for r in view.get("top", []):
@@ -714,7 +742,7 @@ def draw(view: dict, color: bool = False, width: int | None = None) -> str:
         n = 0
         for b in view["buckets"]:
             out.append("")
-            head = f"── {b['title']} ──"
+            head = f"── {b['title']} · {b.get('total', len(b['items']))} ──"
             if view.get("answer_keys") and b.get("options"):
                 letters = "abcdefghij"
                 head += " " + " · ".join(f"{letters[i]} {o}" for i, o in enumerate(b["options"][:10]))
@@ -734,7 +762,13 @@ def draw(view: dict, color: bool = False, width: int | None = None) -> str:
                                       break_long_words=False, break_on_hyphens=False)
                 urgent = b["id"] == "do" and r["rank"] <= 1
                 dim = b["id"] in ("waiting", "drop") and not r.get("nudge")
-                out += [c("31", line) if urgent else c("2", line) if dim else line for line in lines]
+                lines = [c("31", line) if urgent else c("2", line) if dim else line for line in lines]
+                ref, url = r.get("ref"), str(r.get("url") or "")
+                if use and ref and url.startswith(("https://", "http://")):
+                    # OSC 8: the id itself is the link, in terminals that support it; others show the id.
+                    link = f"\x1b]8;;{url}\x1b\\{ref}\x1b]8;;\x1b\\"
+                    lines = [line.replace(ref, link, 1) if ref in line else line for line in lines]
+                out += lines
 
     if view.get("workplace") and view["style"] != "brevity":
         out.append("")

@@ -84,6 +84,7 @@ $defs:
           brevity: the bottom line and the top three with why.
           plan: your rows laid into today's free calendar gaps.
       headline: {type: boolean, description: "One bottom line on top. Default true."}
+      dayline: {type: boolean, description: "The workday as one line (· free, █ busy, ▲ now). Default true; not in brevity."}
       since_last: {type: boolean, description: "Say what is new since the previous run. Default true."}
       lookahead_days:
         type: integer

@@ -25,17 +25,19 @@ default: true
 offer_on: ["good morning", "briefing", "what's up today"]
 
 # How the briefing is SHOWN (the sections below say where the data comes from).
-# Leave it out for one block per section, as before. docs/briefings.md § Views.
-# view:
-#   style: triage          # sources | triage | brevity | plan; `render --style` for one run
-#   max_items: 12          # then "+N more" and an explicit end
-#   buckets:               # order and titles; a bucket left out is hidden and counted
-#     - {id: do, title: "Do (you, today)"}
-#     - {id: delegate, title: "I'll do"}
-#     - {id: plan}
-#     - {id: waiting, nudge_after_days: 7}
-#     - {id: drop}
-#   labels: {end: "That's all for today."}
+# triage sorts every row by what to do with it; `style: sources` (or no view
+# block at all) gives one block per section instead. docs/briefings.md § Views.
+view:
+  style: triage            # sources | triage | brevity | plan; `render --style` for one run
+  max_items: 12            # then "+N more" and an explicit end
+  # dayline: true          # the workday as one line: · free, █ busy, ▲ now
+  # buckets:               # order and titles; a bucket left out is hidden and counted
+  #   - {id: do, title: "Do (you, today)"}
+  #   - {id: plan}
+  #   - {id: delegate, title: "I'll do"}
+  #   - {id: waiting, nudge_after_days: 7}
+  #   - {id: drop}
+  # labels: {end: "That's all for today."}
 # mutes:                   # rows you never want again
 #   - {section: advise, when: {check: quiet}}
 

@@ -140,6 +140,7 @@ reader sees it, and every person picks their own:
 view:
   style: triage            # sources | triage | brevity | plan
   headline: true           # one bottom line on top: yours today, free until, next hard date
+  dayline: true            # the workday as one line: · free, █ busy, ▲ now (not in brevity)
   since_last: true         # "since 07:18: 2 new, 1 changed"
   lookahead_days: 1        # due within today + 1 day counts as now; deferred items coming back show
   max_items: 12            # the whole briefing, then "+N more" and an explicit end
@@ -163,7 +164,15 @@ mutes:                     # rows the person never wants again; the briefing say
 ```
 
 `render --style <style>` shows one run another way without touching the file;
-`collect --json` carries the computed view under `view` for the agent.
+`collect --json` carries the computed view under `view` for the agent. A new
+profile copied from the template starts with `triage`; a profile without a
+`view:` block keeps one block per section.
+
+Small aids for reading at a glance: each bucket header says how many rows it
+holds (`── Plan · 4 ──`, also when `max_items` shows fewer), the day line puts
+the calendar in one row, and in a colour terminal an issue id is a link (OSC 8)
+to its page. A first run (no previous snapshot) marks nothing as new, since
+there is nothing to compare with.
 
 **Which bucket a row lands in** is a fixed rule, so the shape never depends on
 which agent renders it:

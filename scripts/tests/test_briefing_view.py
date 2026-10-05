@@ -511,3 +511,57 @@ def test_a_full_view_profile_passes_the_json_schema_too():
         pass
     assert bf.profile_problems(bad, "morning")
 
+
+
+# ---------------------------------------------------------------- visual aids
+
+def test_the_day_line_shows_the_workday_with_busy_time_and_now():
+    view = bv.build(sample(), profile(view={"style": "triage", "plan": {"workday": {"start": "08:00",
+                                                                                    "end": "18:00"}}}))
+    line = view["dayline"]
+    assert line.startswith("08:00 ") and line.endswith(" 18:00")
+    bar = line[6:-6]
+    assert "█" in bar and "·" in bar
+    # 16:30 of 08:00-18:00 is 85 % of the bar: the training starts there.
+    assert abs(bar.index("█") / len(bar) - 0.85) < 0.05
+    out = ANSI.sub("", bv.draw(view))
+    assert line in out
+
+
+def test_the_day_line_marks_now_inside_the_day_and_can_be_turned_off():
+    r = sample()
+    r["collected_at"] = "2026-10-05T13:00"
+    view = bv.build(r, profile(view={"style": "triage"}))
+    bar = view["dayline"][6:-6]
+    assert abs(bar.index("▲") / len(bar) - 0.5) < 0.05
+    off = bv.build(sample(), profile(view={"style": "triage", "dayline": False}))
+    assert off["dayline"] is None
+    assert bv.problems({"dayline": "yes"}, None)
+
+
+def test_bucket_headers_say_how_many_rows_they_hold():
+    view = bv.build(sample(), profile(view={"style": "triage", "max_items": 2}))
+    out = ANSI.sub("", bv.draw(view))
+    plan = next(b for b in view["buckets"] if b["id"] == "plan") if any(
+        b["id"] == "plan" for b in view["buckets"]) else None
+    do = view["buckets"][0]
+    assert f"── {do['title']} · {do['total']} ──" in out
+    assert plan is None or plan["total"] >= len(plan["items"])
+
+
+def test_issue_ids_become_clickable_links_only_with_colour():
+    r = result(sec("gh", "tracker", [{"id": "acme/infra#17", "title": "Time tracking", "state": "review",
+                                      "category": "qa", "url": "https://github.com/acme/infra/issues/17"}]))
+    view = bv.build(r, profile(view={"style": "triage"}))
+    linked = bv.draw(view, color=True)
+    assert "\x1b]8;;https://github.com/acme/infra/issues/17\x1b\\acme/infra#17\x1b]8;;\x1b\\" in linked
+    assert "\x1b]8" not in bv.draw(view, color=False)
+
+
+def test_without_a_previous_run_nothing_is_marked_new():
+    r = sample()
+    r["sections"][0]["items"][0]["new"] = True
+    p = profile(view={"style": "triage", "labels": {"new": "FRESH"}})
+    assert "FRESH" not in bv.draw(bv.build(r, p))
+    r["previous_at"] = "2026-10-05T07:18"
+    assert "FRESH" in bv.draw(bv.build(r, p))
