@@ -58,9 +58,10 @@ SECTION_KINDS = ("inbox", "advise", "workplace", "tasks", "activity", "calendar"
 TRACKERS = ("github", "github-board", "gitlab", "ado", "jira", "linear")
 CALENDARS = ("auto", "icalbuddy", "ics", "command")
 STATES = ("new", "ready", "in_progress", "review", "done", "blocked", "removed")
-PROFILE_KEYS = {"schema_version", "scope", "id", "title", "for", "default", "offer_on", "timeout_sec", "sections"}
+PROFILE_KEYS = {"schema_version", "scope", "id", "title", "for", "default", "offer_on", "timeout_sec", "sections",
+                "view", "mutes"}
 SECTION_KEYS = {"kind", "id", "title", "max", "to_inbox", "provider", "query", "account_ref", "state_map",
-                "status", "contexts", "days", "path", "argv", "exclude_calendars"}
+                "status", "contexts", "days", "path", "argv", "exclude_calendars", "bucket"}
 # A profile is committed and often shared: a value under one of these names is
 # a credential, and credentials only ever travel as references (account_ref).
 SECRET_NAME = re.compile(r"(token|secret|password|passwd|api[_-]?key|private[_-]?key)", re.I)
@@ -105,6 +106,10 @@ def _load_module(name: str, path: Path):
 
 def _inbox():
     return _load_module("inbox", ROOT / "scripts" / "inbox.py")
+
+
+def _view():
+    return _load_module("briefing_view", ROOT / "scripts" / "lib" / "briefing_view.py")
 
 
 def _providers():
@@ -177,6 +182,7 @@ class Context:
         self.timeout = timeout
         self.calendar: list | None = None   # events of the profile's calendar sections, for advise
         self.deadline: float | None = None  # monotonic end of the running section
+        self.lookahead: int | None = None   # days a view looks ahead; deferred items returning in them show
 
     def remaining(self) -> float:
         """Seconds left for the running section: its limit covers ALL its calls together."""
@@ -359,6 +365,8 @@ def _section_types(s: dict) -> list:
     for key in ("title", "provider", "account_ref", "path"):
         if key in s and not isinstance(s[key], str):
             out.append(f"{key} must be text")
+    if "bucket" in s and s["bucket"] not in (*_view().BUCKETS, "none"):
+        out.append(f"bucket must be one of {', '.join(_view().BUCKETS)} or none")
     return out
 
 
@@ -423,6 +431,17 @@ def profile_problems(data, stem: str) -> list:
             elif rule.get("urgency", "today") not in ("now", "today", "later") or \
                     rule.get("gate", "your-yes") not in ("free", "your-yes", "only-you"):
                 out.append(f"{where}: to_inbox rule {r} has a bad urgency or gate")
+    if "view" in data and not isinstance(data["view"], dict):
+        out.append("view must be a mapping")
+    if "mutes" in data and not isinstance(data["mutes"], list):
+        out.append("mutes must be a list")
+    if isinstance(data.get("view"), dict) or isinstance(data.get("mutes"), list):
+        out += _view().problems(data.get("view") if isinstance(data.get("view"), dict) else None,
+                                data.get("mutes") if isinstance(data.get("mutes"), list) else None)
+        ids = {section_id(s) for s in sections or [] if isinstance(s, dict)}
+        for n, m in enumerate(data.get("mutes") if isinstance(data.get("mutes"), list) else [], 1):
+            if isinstance(m, dict) and isinstance(m.get("section"), str) and m["section"] not in ids:
+                out.append(f"mutes rule {n}: no section {m['section']!r} in this profile")
     for name in _secret_values(data):
         out.append(f"{name} holds a credential: use account_ref with a token_ref URI instead")
     defaults = data.get("default")
@@ -470,7 +489,23 @@ def sec_inbox(section: dict, ctx: Context) -> list:
     for item in box.open_items():
         items.append({"id": item.id, "title": item.summary, "state": item.state, "urgency": item.urgency,
                       "kind": item.kind, "gate": item.gate, "task": item.task, "due": item.due,
-                      "changed_at": str(item.created or "")})
+                      "key": item.key, "changed_at": str(item.created or "")})
+    if ctx.lookahead is not None:
+        # A view that looks ahead also shows what was put off and comes back within
+        # its window: "decide tomorrow" must not vanish until tomorrow.
+        horizon = ctx.now.date() + dt.timedelta(days=ctx.lookahead)
+        for item in box.items():
+            if item.state != "deferred":
+                continue
+            until = next((e.data.get("until") for e in reversed(item.events) if e.verb == "defer"), None)
+            try:   # the same local date the inbox itself compares to decide the item is deferred
+                back = _inbox()._local_date(_inbox()._parse_when(until))
+            except Exception:  # noqa: BLE001 - an unreadable date is not shown, as before
+                continue
+            if back <= horizon:
+                items.append({"id": item.id, "title": item.summary, "state": "deferred", "until": str(until),
+                              "urgency": item.urgency, "kind": item.kind, "gate": item.gate, "task": item.task,
+                              "due": item.due, "key": item.key, "changed_at": str(item.created or "")})
     items.sort(key=lambda i: (order.get(i["urgency"], 3), i["id"]))
     return items
 
@@ -515,7 +550,8 @@ def sec_tasks(section: dict, ctx: Context) -> list:
         heading = re.search(r"^# (.+)$", body, flags=re.M)
         title = fm.get("title") or (heading.group(1).strip() if heading else slug)
         items.append({"id": slug, "title": title, "state": fm.get("status"),
-                      "project": fm.get("context"), "blocked_by": fm.get("blocked_by"),
+                      "project": fm.get("context"), "blocked_by": fm.get("blocked_by"), "next": fm.get("next"),
+                      "blocked_since": str(fm["blocked_since"]) if fm.get("blocked_since") else None,
                       "changed_at": str(fm.get("last_updated") or ""), "url": str(status.relative_to(ctx.root))})
     return items
 
@@ -699,10 +735,15 @@ def _positive(value, default: int) -> int:
     return number if number > 0 else default
 
 
-def collect(root: Path, profile: dict, ctx: Context, previous: dict | None = None, skip=()) -> dict:
+def collect(root: Path, profile: dict, ctx: Context, previous: dict | None = None, skip=(),
+            style: str | None = None) -> dict:
     """Run every section. `skip` names kinds left out (the briefing's --quick and
-    --skip-trackers modes); a skipped section is listed as such and closes nothing."""
+    --skip-trackers modes); a skipped section is listed as such and closes nothing.
+    `style` is the view a caller chose for this run (`render --style`)."""
     ctx.timeout = _positive(profile.get("timeout_sec"), ctx.timeout)
+    if _view().style_of(profile, style) != "sources":
+        view = profile.get("view") if isinstance(profile.get("view"), dict) else {}
+        ctx.lookahead = view.get("lookahead_days", 1) if isinstance(view.get("lookahead_days", 1), int) else 1
     sections = [dict(s) for s in profile.get("sections") or [] if isinstance(s, dict)]
     # The advice checks look for calendar collisions wherever the calendar stands.
     calendars = [s for s in sections if s.get("kind") == "calendar" and "calendar" not in skip]
@@ -753,8 +794,11 @@ def collect(root: Path, profile: dict, ctx: Context, previous: dict | None = Non
         entry["all"] = items
         entry["items"] = items[: _positive(s.get("max"), len(items) or 1)] if s.get("max") else items
         out.append(entry)
-    return {"profile": profile.get("id"), "title": profile.get("title") or profile.get("id"),
-            "collected_at": ctx.now.isoformat(timespec="minutes"), "sections": out}
+    result = {"profile": profile.get("id"), "title": profile.get("title") or profile.get("id"),
+              "collected_at": ctx.now.isoformat(timespec="minutes"), "sections": out}
+    if previous and previous.get("collected_at"):
+        result["previous_at"] = previous["collected_at"]
+    return result
 
 
 def _public(result: dict) -> dict:
@@ -887,6 +931,15 @@ def render(result: dict) -> str:
     return "\n".join(out)
 
 
+def render_view(result: dict, profile: dict, style: str | None = None, color: bool = False) -> str:
+    """The briefing as the profile's `view:` (or a one-off `style`) wants it shown."""
+    view = _view()
+    chosen = view.style_of(profile, style)
+    if chosen == "sources":
+        return render(_public(result))
+    return view.draw(view.build(result, profile, chosen), color=color)
+
+
 # ---------------------------------------------------------------- CLI
 
 def main(argv=None) -> int:
@@ -905,8 +958,12 @@ def main(argv=None) -> int:
         p.add_argument("--no-save", action="store_true", help="do not update the last-run snapshot")
         p.add_argument("--skip", action="append", default=[], choices=SECTION_KINDS, metavar="KIND",
                        help="leave out sections of this kind (repeatable; --quick: tracker and calendar)")
+        p.add_argument("--style", choices=("sources", "triage", "brevity", "plan"),
+                       help="show this run in another view than the profile's view.style")
         if name == "collect":
             p.add_argument("--json", action="store_true")
+        else:
+            p.add_argument("--color", choices=("auto", "always", "never"), default="auto")
     sub.add_parser("validate")
     args = ap.parse_args(argv)
     root = args.root.resolve()
@@ -957,17 +1014,24 @@ def main(argv=None) -> int:
 
     ctx = Context(root, cfg=cfg)
     previous = load_snapshot(root, profile["id"])
-    result = collect(root, profile, ctx, previous=previous, skip=tuple(args.skip))
+    result = collect(root, profile, ctx, previous=previous, skip=tuple(args.skip), style=args.style)
     if args.file:
         box = _inbox().Inbox(root / "work" / "inbox", actor="briefing")
         filed, closed = file_to_inbox(box, profile, result)
         result["inbox"] = {"filed": filed, "closed": closed}
     if not args.no_save:
         save_snapshot(root, result, previous)
-    if args.cmd == "collect" and args.json:
-        print(json.dumps(_public(result), ensure_ascii=False, indent=1, default=str))
+    if args.cmd == "collect":
+        data = _public(result)
+        if _view().style_of(profile, args.style) != "sources":
+            data["view"] = _view().build(result, profile, args.style)
+        if args.json:
+            print(json.dumps(data, ensure_ascii=False, indent=1, default=str))
+        else:
+            print(render_view(result, profile, args.style))
     else:
-        print(render(_public(result)))
+        color = args.color == "always" or (args.color == "auto" and sys.stdout.isatty())
+        print(render_view(result, profile, args.style, color=color))
     return 0
 
 

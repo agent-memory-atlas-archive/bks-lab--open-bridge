@@ -45,9 +45,32 @@ calendar the collision check is skipped, everything else runs. Thresholds:
 
 Then `python3 scripts/inbox.py list --json` is the source for the top of the output.
 
+## Phase 4 with a view: the script's shape is the output
+
+When the profile has `view.style` other than `sources` (or the person asked for
+`--style`), run `python3 scripts/briefing.py render [<id>] --file` and show its
+text as it is. The buckets, the order, the numbering and the housekeeping are
+computed there (docs/briefings.md § Views); do not regroup, re-sort or drop
+rows, and do not add the sections below on top. Two things are yours:
+
+- **Why the first row is first**, in one sentence under the headline, when the
+  derived reason (due, back on, waiting N days) does not already say it.
+- **The answers.** "1a 3b" picks the letter of that row's bucket. Default
+  letters: do `a yes · b later · c drop` (inbox approve, defer, drop),
+  delegate `a go · b not now` (start it, or leave it), waiting `a nudge · b wait`
+  (a nudge is a DRAFT for the person, never sent), drop `a park · b keep`
+  (park = `status: backlog`). A profile may rename the options; their order
+  keeps these meanings.
+
+"Not this again" on a row is a `mutes:` entry in the profile matching that row
+(`{section: <id>, when: {...}}`): propose the entry, write it on a yes, run
+`briefing.py validate`. A task under housekeeping without a next step gets one
+proposed (`next: {what, who, due}` in its STATUS.md), not guessed into a bucket.
+
 ## Phase 4: the top of the output
 
-Render these three sections ABOVE everything else in `workflow.md` § Phase 4.
+Without a view (`style: sources`, the default), render these three sections
+ABOVE everything else in `workflow.md` § Phase 4.
 
 ```
 ── One thing first ────────────────────────────────────────────────────────

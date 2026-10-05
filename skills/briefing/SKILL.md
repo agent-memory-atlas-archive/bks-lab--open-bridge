@@ -19,6 +19,7 @@ Daily and on-demand briefing. Read the referenced file ONLY when triggered.
 | `--quick` | Focus box + Stream A only (Phase 0.5 inbox still runs); **skips** trackers, companion data, channels, Phase 2 | false |
 | `--skip-trackers` | All streams except Stream B (offline-friendly); Phase 2 still runs | false |
 | `--commits YYYY-MM-DD` | Detailed commit analysis for one day (sessions, time est., types) — see `references/commit-analysis.md` | — |
+| `--style <s>` | Show this run as `sources`, `triage`, `brevity` or `plan` instead of the profile's `view.style` (`briefing.py render --style`) | profile's view |
 | `--html` | After terminal output, delegate to `/bridge-dashboard` to render the operational HTML dashboard | false |
 
 ### Mode × Phase matrix
@@ -52,6 +53,10 @@ User wants to...
 │                                       references/control.md (inbox first,
 │                                       one thing first, levers)
 ├── Quick local-only briefing        → Read references/workflow.md (--quick path)
+├── Change how mine LOOKS (triage, brevity, plan, bucket titles,
+│   "not this again")                → the profile's `view:` / `mutes:`,
+│                                       docs/briefings.md § Views; then
+│                                       `briefing.py validate`
 ├── Which briefings do I have / set one up / change what mine shows
 │                                    → `python3 scripts/briefing.py list`;
 │                                       new or changed profile: copy

@@ -58,8 +58,84 @@ properties:
     type: array
     minItems: 1
     items: {$ref: "#/$defs/section"}
+  view:
+    $ref: "#/$defs/view"
+  mutes:
+    type: array
+    items: {$ref: "#/$defs/mute"}
+    description: |
+      Rows the person never wants to see again ("not this again" on a row adds one).
+      The briefing hides them and says how many it hid.
 
 $defs:
+  view:
+    type: object
+    additionalProperties: false
+    description: |
+      How the briefing is SHOWN (the sections say where the data comes from).
+      `briefing.py render --style <style>` overrides the style for one run.
+      Bucket rules and every label: docs/briefings.md § Views.
+    properties:
+      style:
+        enum: [sources, triage, brevity, plan]
+        description: |
+          sources: one block per section (default, the briefing as it always was).
+          triage: rows sorted by what to do: do, plan, delegate, waiting, drop.
+          brevity: the bottom line and the top three with why.
+          plan: your rows laid into today's free calendar gaps.
+      headline: {type: boolean, description: "One bottom line on top. Default true."}
+      dayline: {type: boolean, description: "The workday as one line (· free, █ busy, ▲ now). Default true; not in brevity."}
+      since_last: {type: boolean, description: "Say what is new since the previous run. Default true."}
+      lookahead_days:
+        type: integer
+        minimum: 0
+        description: "Due dates and deferred items within today + N days count as now. Default 1."
+      max_items: {type: integer, minimum: 1, description: "Rows in the whole briefing, then '+N more'. Default 12."}
+      answer_keys: {type: boolean, description: "Number rows and name a letter per answer ('1a 3b'). Default true."}
+      hygiene: {enum: [bottom, hide], description: "Housekeeping last, or not at all. Default bottom."}
+      color: {enum: [auto, meaning, none], description: "auto/meaning: colour only where it means something."}
+      width: {type: integer, minimum: 40, description: "Wrap column. Default 100. Rows wrap at a word."}
+      labels:
+        type: object
+        propertyNames:
+          enum: [back_on, busy_until, collides, due, end, error, free_rest, free_until, hidden, housekeeping, later, meanwhile, more, muted, new, next_date, no_next, nudge, only_you, shutdown, since, task, today, tomorrow, waiting_days, why, with, workplace, yours_today]
+        additionalProperties: {type: string}
+        description: |
+          Any word the reader sees, by label name (docs/briefings.md lists them). A
+          placeholder must be one the default label has; `briefing.py validate` checks it.
+      buckets:
+        type: array
+        description: "Order, titles, answer options. A bucket left out is hidden and counted."
+        items:
+          type: object
+          required: [id]
+          additionalProperties: false
+          properties:
+            id: {enum: [do, plan, delegate, waiting, drop]}
+            title: {type: string}
+            options: {type: array, items: {type: string}}
+            nudge_after_days: {type: integer, minimum: 1}
+      plan:
+        type: object
+        additionalProperties: false
+        properties:
+          workday:
+            type: object
+            additionalProperties: false
+            properties:
+              start: {type: string, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"}
+              end: {type: string, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"}
+          default_minutes: {type: integer, minimum: 1}
+
+  mute:
+    type: object
+    required: [section, when]
+    additionalProperties: false
+    properties:
+      section: {type: string, description: "A section id of this profile."}
+      when: {type: object, minProperties: 1, description: "Same matching as to_inbox rules."}
+      note: {type: string}
+
   rule:
     type: object
     required: [when]
@@ -88,6 +164,9 @@ $defs:
       max:
         type: integer
         minimum: 1
+      bucket:
+        enum: [do, plan, delegate, waiting, drop, none]
+        description: "triage: put every row of this section in one bucket (none: leave it out of the view)."
       to_inbox:
         type: array
         items: {$ref: "#/$defs/rule"}

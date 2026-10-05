@@ -74,6 +74,27 @@ properties:
       Free-text reason the task is blocked. Presence = blocked; status stays
       doing/review. Blocked is a FLAG, not a status.
 
+  blocked_since:
+    type: string
+    format: date
+    description: |
+      When the block started. The briefing counts "waiting N days" from it;
+      without it, from last_updated.
+
+  next:
+    type: object
+    required: [what]
+    additionalProperties: false
+    description: |
+      The next step and who takes it. The briefing's triage view sorts the task
+      by it: who bridge → "I'll do", me → do/plan, anyone else → waiting.
+      docs/briefings.md § Views.
+    properties:
+      what: {type: string}
+      who: {type: string, description: "bridge | me | a person"}
+      due: {type: string, format: date}
+      estimate_min: {type: integer, minimum: 1}
+
   outcome:
     enum: [declined]
     description: |
