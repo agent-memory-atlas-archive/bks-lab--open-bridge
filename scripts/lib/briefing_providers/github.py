@@ -9,12 +9,18 @@ query keys (all optional):
   state             open (default) | closed
   labels            [label, ...]  all must be present
   review_requested  true: also PRs where a review is requested from you
+  authored          true: also your own open PRs (a PR waiting for a merge shows
+                    even when nobody assigned it to you)
+  others_prs        N: also open, non-draft PRs by colleagues in owners/repos,
+                    updated in the last N days (bots and your own left out)
   limit             per search, default 50
 
 `@me` resolves on each person's machine to their own login, which is what lets
 one shared (org) profile give every colleague their own issues.
 """
 from __future__ import annotations
+
+import datetime as dt
 
 from . import load_json
 
@@ -95,4 +101,35 @@ def collect(section: dict, ctx) -> list:
         for raw in load_json(ctx.run(argv, timeout=ctx.timeout), "gh search prs --review-requested"):
             item = normalize(raw, is_pr=True, me=me, assignee_query=assignee, review=True)
             out[item["id"]] = item        # asked to review wins: it is the version that needs me
+    days = query.get("others_prs")
+    scoped = bool(query.get("owners") or query.get("repos"))   # never all of GitHub
+    if isinstance(days, int) and not isinstance(days, bool) and days > 0 and scoped:
+        since = (ctx.now.date() - dt.timedelta(days=days)).isoformat()
+        argv = ["gh", "search", "prs", *base, "--updated", f">={since}", "--sort", "updated", "--json", FIELDS + ",isDraft,author"]
+        for raw in load_json(ctx.run(argv, timeout=ctx.timeout), "gh search prs (others)"):
+            author = raw.get("author") or {}
+            login = str(author.get("login") or "")
+            if raw.get("isDraft") or author.get("is_bot") or author.get("type") == "Bot" or \
+                    login.endswith("[bot]") or login.startswith("app/") or (me and login == me):
+                continue
+            item = normalize(raw, is_pr=True, me=me, assignee_query=None)
+            item["raw_state"] = f"by {login}" if login else item["raw_state"]
+            if item["state"] == "review":
+                item["state"] = "ready"   # worth a look (plan), not an order for today (do)
+            out.setdefault(item["id"], item)   # assigned or asked to review is the stronger reading
+    if query.get("authored") is True:
+        argv = ["gh", "search", "prs", "--author", "@me", *base, "--json", FIELDS + ",isDraft,createdAt"]
+        for raw in load_json(ctx.run(argv, timeout=ctx.timeout), "gh search prs --author"):
+            item = normalize(raw, is_pr=True, me=me, assignee_query=None)
+            if item["id"] in out or item["state"] == "done":
+                continue
+            created = str(raw.get("createdAt") or "")[:10]
+            try:
+                age = (ctx.now.date() - dt.date.fromisoformat(created)).days
+            except ValueError:
+                age = None
+            if item["state"] != "blocked":
+                item["state"] = "in_progress"
+            item["raw_state"] = f"your PR, open {age} days" if age is not None else "your PR"
+            out[item["id"]] = item
     return list(out.values())

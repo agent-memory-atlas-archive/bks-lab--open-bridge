@@ -51,7 +51,10 @@ Daily and on-demand briefing. Read the referenced file ONLY when triggered.
 User wants to...
 ├── Full daily briefing              → Read references/workflow.md, then
 │                                       references/control.md (inbox first,
-│                                       one thing first, levers)
+│                                       one thing first, levers). With a view:
+│                                       the render is the shape, not the whole
+│                                       run; uncovered streams still run, end
+│                                       with the receipt line
 ├── Quick local-only briefing        → Read references/workflow.md (--quick path)
 ├── Change how mine LOOKS (triage, brevity, plan, bucket titles,
 │   "not this again")                → the profile's `view:` / `mutes:`,

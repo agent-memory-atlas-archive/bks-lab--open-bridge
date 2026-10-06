@@ -85,6 +85,12 @@ $defs:
           plan: your rows laid into today's free calendar gaps.
       headline: {type: boolean, description: "One bottom line on top. Default true."}
       dayline: {type: boolean, description: "The workday as one line (· free, █ busy, ▲ now). Default true; not in brevity."}
+      agenda:
+        type: boolean
+        description: |
+          A Calendar block after the headline: every event from now through the
+          lookahead, with overlapping events marked and turned into a do row.
+          Default true; not in plan (which lays the events out itself).
       since_last: {type: boolean, description: "Say what is new since the previous run. Default true."}
       lookahead_days:
         type: integer
@@ -98,7 +104,7 @@ $defs:
       labels:
         type: object
         propertyNames:
-          enum: [activity_title, back_on, boards_title, busy_until, capped, collides, commits, due, end, error, free_rest, free_until, hidden, housekeeping, later, meanwhile, more, muted, new, next_date, no_next, nudge, only_you, repos_skipped, shutdown, since, st_blocked, st_in_progress, st_new, st_ready, st_review, task, today, tomorrow, waiting_days, why, with, workplace, yours_today]
+          enum: [activity_title, agenda_title, all_clear, back_on, boards_title, busy_until, capped, clash_row, clashes, collides, commits, due, end, error, free_rest, free_until, hidden, housekeeping, later, meanwhile, more, muted, new, next_date, no_next, nudge, only_you, repos_skipped, shutdown, since, st_blocked, st_in_progress, st_new, st_ready, st_review, task, today, tomorrow, waiting_days, why, with, workplace, yours_today]
         additionalProperties: {type: string}
         description: |
           Any word the reader sees, by label name (docs/briefings.md lists them). A
@@ -185,6 +191,12 @@ $defs:
       all_branches:
         type: boolean
         description: "commits: count every local branch (`--branches`), not only the checked-out one; no stash, no remotes."
+      report_ok:
+        type: boolean
+        description: |
+          Say so when this section completed and has nothing open ("<title>: all
+          clear"), so a green source reads differently from one that never ran.
+          A failed or skipped section never claims it.
       bucket:
         enum: [do, plan, delegate, waiting, drop, none]
         description: "triage: put every row of this section in one bucket (none: leave it out of the view)."

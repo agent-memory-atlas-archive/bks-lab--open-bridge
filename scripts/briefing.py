@@ -62,7 +62,7 @@ PROFILE_KEYS = {"schema_version", "scope", "id", "title", "for", "default", "off
                 "view", "mutes"}
 SECTION_KEYS = {"kind", "id", "title", "max", "to_inbox", "provider", "query", "account_ref", "state_map",
                 "status", "contexts", "days", "path", "argv", "exclude_calendars", "bucket",
-                "repos", "author", "all_branches", "summary"}
+                "repos", "author", "all_branches", "summary", "report_ok"}
 # A profile is committed and often shared: a value under one of these names is
 # a credential, and credentials only ever travel as references (account_ref).
 SECRET_NAME = re.compile(r"(token|secret|password|passwd|api[_-]?key|private[_-]?key)", re.I)
@@ -372,7 +372,7 @@ def _section_types(s: dict) -> list:
         out.append("repos must be a list of names or paths")
     if "author" in s and not (isinstance(s["author"], str) or _is_str_list(s["author"])):
         out.append("author must be text or a list of text (`me` = this repository's git user.email)")
-    for key in ("all_branches", "summary"):
+    for key in ("all_branches", "summary", "report_ok"):
         if key in s and not isinstance(s[key], bool):
             out.append(f"{key} must be true or false")
     if "bucket" in s and s["bucket"] not in (*_view().BUCKETS, "none"):
@@ -425,6 +425,10 @@ def profile_problems(data, stem: str) -> list:
         for key in sorted(set(s) - SECTION_KEYS):
             out.append(f"{where}: unknown key {key}")
         out += [f"{where}: {p}" for p in _section_types(s)]
+        query = s.get("query") if isinstance(s.get("query"), dict) else {}
+        if kind == "tracker" and s.get("provider") == "github" and query.get("others_prs") and \
+                not (query.get("owners") or query.get("repos")):
+            out.append(f"{where}: others_prs needs owners or repos (it would search all of GitHub)")
         if kind == "tracker" and s.get("provider") not in TRACKERS:
             out.append(f"{where}: tracker provider must be one of {', '.join(TRACKERS)}")
         if kind == "calendar" and s.get("provider", "auto") not in CALENDARS:
@@ -948,7 +952,7 @@ def collect(root: Path, profile: dict, ctx: Context, previous: dict | None = Non
 
 def _public(result: dict) -> dict:
     """The result as shown: no fingerprints, no uncapped item lists."""
-    clean = {**result, "sections": []}
+    clean = {**result, "sections": []}   # housekeeping travels along
     for s in result["sections"]:
         s = {k: v for k, v in s.items() if k != "all"}
         s["items"] = [{k: v for k, v in i.items() if k != "_fp"} for i in s["items"]]
@@ -980,6 +984,107 @@ def load_snapshot(root: Path, pid: str) -> dict | None:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+
+
+# ---------------------------------------------------------------- housekeeping
+
+# The same day heading scripts/worklog.py reads: any token, then DD.MM at the end.
+DAY_HEADING = re.compile(r"^## .*?(\d{2})\.(\d{2})\s*$")
+ROW_TIME = re.compile(r"^\| (\d{4}-\d{2}-\d{2} \d{2}:\d{2}) \|")
+
+
+def _weekday(now: dt.datetime) -> str:
+    """Today's weekday as `date '+%a'` writes it on this machine; the header is cosmetic.
+    No setlocale: that would change the whole process."""
+    if now.date() == dt.date.today():
+        try:
+            out = subprocess.run(["date", "+%a"], capture_output=True, text=True, timeout=5).stdout.strip()
+            if out:
+                return out
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return now.strftime("%a")
+
+
+def _new_day_block(root: Path, now: dt.datetime, weekday: str) -> str:
+    template = root / "work" / "templates" / "day.md"
+    try:
+        body = re.sub(r"<!--.*?-->", "", template.read_text(encoding="utf-8"), flags=re.S).strip()
+    except OSError:
+        body = ""
+    if "{Weekday} DD.MM" not in body:
+        body = ("## {Weekday} DD.MM\n\n| Timestamp | Glyph | Context | What |\n|---|---|---|---|")
+    return body.replace("{Weekday} DD.MM", f"{weekday} {now:%d.%m}")
+
+
+def log_row(text: str, now: dt.datetime, row: str, marker: str, block: str) -> str:
+    """Put `row` into today's day block: after its last table row, inside <details> when
+    the block has one, wherever the block stands (newest first or last). A row carrying
+    `marker` written less than 30 minutes ago is replaced, so a run that files twice
+    leaves one row. A missing block is `block`, appended."""
+    lines = text.rstrip("\n").split("\n")
+    heads = [i for i, line in enumerate(lines) if DAY_HEADING.match(line)]
+    today = next((i for i in heads if DAY_HEADING.match(lines[i]).groups() == (f"{now:%d}", f"{now:%m}")), None)
+    if today is None:
+        lines += ["", *block.split("\n")]
+        heads = [i for i, line in enumerate(lines) if DAY_HEADING.match(line)]
+        today = heads[-1]
+    end = next((i for i in heads if i > today), len(lines))
+    for i in range(today, end):
+        m = ROW_TIME.match(lines[i])
+        if m and marker in lines[i]:
+            then = dt.datetime.strptime(m.group(1), "%Y-%m-%d %H:%M")
+            if dt.timedelta(0) <= now - then < dt.timedelta(minutes=30):
+                lines[i] = row
+                return "\n".join(lines) + "\n"
+    table = [i for i in range(today, end) if lines[i].startswith("|")]
+    if table:
+        at = table[-1] + 1
+    else:
+        close = next((i for i in range(today, end) if lines[i].strip() == "</details>"), end)
+        lines[close:close] = ["| Timestamp | Glyph | Context | What |", "|---|---|---|---|"]
+        at, end = close + 2, end + 2
+    lines.insert(at, row)
+    end += 1
+    count = sum(1 for i in range(today, end) if ROW_TIME.match(lines[i]))
+    for i in range(today, end):
+        lines[i] = re.sub(r"<summary>Worklog \(\d+\)</summary>", f"<summary>Worklog ({count})</summary>", lines[i])
+    return "\n".join(lines) + "\n"
+
+
+def housekeep(root: Path, now: dt.datetime, *, summary: str, profile_id: str, run=None,
+              weekday: str | None = None) -> list:
+    """The briefing's own bookkeeping, done by the engine so a run cannot skip it:
+    today's day block, the log row, a regenerated board, an overdue archive named.
+    Returns notes for housekeeping; a step that fails is a note, never an abort."""
+    run = run or _default_run
+    notes = []
+    log = root / "work" / "log.md"
+    if log.is_file():
+        try:
+            marker = f"/briefing ({profile_id})"
+            row = f"| {now:%Y-%m-%d %H:%M} | 📋 | bridge | {marker}: {summary.replace('|', '/')} |"
+            text = log_row(log.read_text(encoding="utf-8"), now, row, marker,
+                           _new_day_block(root, now, weekday or _weekday(now)))
+            log.write_text(text, encoding="utf-8")
+        except OSError as exc:
+            notes.append(f"work/log.md not written: {exc}")
+    board = root / "scripts" / "gen-board.py"
+    if board.is_file() and (root / "work").is_dir():
+        try:
+            run([sys.executable, str(board)], timeout=60, cwd=str(root))
+        except Exception as exc:  # noqa: BLE001 - bookkeeping never takes the briefing down
+            notes.append(f"gen-board.py failed, work/board.md may be stale: {exc}")
+    plan_script = root / "scripts" / "archive-buckets.py"
+    if plan_script.is_file():
+        try:
+            plan = json.loads(run([sys.executable, str(plan_script), "--json"], timeout=30, cwd=str(root)) or "{}")
+            due = [b.get("label") for b in plan.get("buckets", []) if b.get("archive")]
+            if due:
+                notes.append(f"work/log.md holds {len(due)} closed period(s) ({', '.join(map(str, due))}): /archive")
+        except Exception:  # noqa: BLE001 - no plan, no claim either way
+            pass
+    return notes
 
 
 # ---------------------------------------------------------------- inbox
@@ -1067,6 +1172,19 @@ def _line(kind: str, i: dict) -> str:
     return f"  {str(i['id'])[:30]:<30} {title[:56]:<56} {state[:16]}{mark}".rstrip()
 
 
+def _summary(result: dict, profile: dict, style: str | None) -> str:
+    """One line for the log: rows per bucket (counted as triage, whatever the style
+    shows), or rows per section without a view."""
+    if _view().style_of(profile, style) != "sources":
+        v = _view().build(result, profile, "triage")
+        parts = [f"{b['title']} {b.get('total', len(b['items']))}" for b in v["buckets"]]
+        parts += [f"{len(v.get('agenda') or [])} events"] if v.get("agenda") else []
+    else:
+        parts = [f"{s['title']} {s['total']}" for s in result["sections"] if s.get("status") == "ok" and s["total"]]
+    errors = [s["title"] for s in result["sections"] if s.get("status") == "error"]
+    return ", ".join(parts or ["nothing open"]) + (f"; failed: {', '.join(errors)}" if errors else "")
+
+
 def render(result: dict) -> str:
     out = [f"{result.get('title') or result['profile']}  ({result.get('collected_at', '')})"]
     for s in result["sections"]:
@@ -1079,6 +1197,8 @@ def render(result: dict) -> str:
         for b in [b for b in s.get("summary") or [] if b.get("open")]:
             counts = " · ".join(f"{n} {st.replace('_', ' ')}" for st, n in b["counts"].items() if n)
             out.append(f"  #{b.get('number')} {b['name']}: {counts or 'empty'}")
+    if result.get("housekeeping"):
+        out += ["", "── Housekeeping"] + [f"  · {n}" for n in result["housekeeping"]]
     return "\n".join(out)
 
 
@@ -1170,6 +1290,8 @@ def main(argv=None) -> int:
         box = _inbox().Inbox(root / "work" / "inbox", actor="briefing")
         filed, closed = file_to_inbox(box, profile, result)
         result["inbox"] = {"filed": filed, "closed": closed}
+        result["housekeeping"] = housekeep(root, ctx.now, summary=_summary(result, profile, args.style),
+                                           profile_id=profile["id"])
     if not args.no_save:
         save_snapshot(root, result, previous)
     if args.cmd == "collect":
