@@ -249,6 +249,23 @@ section declares what it covers with `covers: [meetings]`; a github tracker with
 `others_prs` covers `prs` by itself. So the agent runs exactly the gaps, instead
 of guessing which ones exist.
 
+The upstream stream ships its own source, so it can live in the profile instead
+of being run by hand:
+
+```yaml
+  - kind: command
+    id: upstream
+    title: "Upstreams"
+    argv: ["python3", "skills/briefing/scripts/upstream_items.py"]
+    covers: [upstream]
+    report_ok: true
+```
+
+It fetches each CORE upstream through the remote whose URL names it and counts
+the commits not merged yet, and reads org overlays through
+`scripts/overlay.py status --json`. An upstream it cannot reach is a row, never
+"in sync".
+
 **Bookkeeping.** `--file` also does what the playbook once left to the agent,
 because a step a run can skip is a step nobody did: it opens today's day block in
 `work/log.md` when missing, writes the briefing's log row into today's block (inside its table, wherever the
