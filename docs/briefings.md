@@ -138,10 +138,11 @@ reader sees it, and every person picks their own:
 | `triage` | Every row sorted by what to do with it: **do** (you, now), **plan** (you, no date), **delegate** (the Bridge does it), **waiting** (on someone else, with how long), **drop** (park it?). A thing two sources carry (the same issue on GitHub and on a board) is one row naming both. Housekeeping comes last. |
 | `brevity` | The bottom line, then the top three with why each matters, then how many more. For a phone or a busy day. |
 | `plan` | Your rows laid into today's free calendar gaps, what the Bridge does meanwhile, and when the day ends. |
+| `report` | Markdown that reads like a report, in three levels: a **status** table (every source with its open count, all clear, or why it failed), the **details** as tables (calendar, boards, activity), and at the bottom **what to act on**, one table per bucket with number, what and why. Issue and PR ids are links; internal ids stay out. For chats that render Markdown. |
 
 ```yaml
 view:
-  style: triage            # sources | triage | brevity | plan
+  style: triage            # sources | triage | brevity | plan | report
   headline: true           # one bottom line on top: yours today, free until, next hard date
   dayline: true            # the workday as one line: · free, █ busy, ▲ now (not in brevity)
   overview: inline         # inline | file: Boards and Activity below the buckets, or in a file
@@ -229,7 +230,7 @@ the person's language: `yours_today`, `free_until`, `free_rest`, `busy_until`,
 `no_next`, `muted`, `hidden`, `error`, `workplace`, `more`, `end`, `why`,
 `meanwhile`, `later`, `shutdown`, `activity_title`, `commits`, `boards_title`,
 `st_new`, `st_ready`, `st_in_progress`, `st_review`, `st_blocked`, `agenda_title`,
-`clashes`, `clash_row`, `all_clear`, `owed`, `overview_file`. Placeholders in braces stay as they are: a label may use only the placeholders
+`clashes`, `clash_row`, `all_clear`, `owed`, `overview_file`, and for `report` the headings and columns `report_title`, `status_title`, `act_title`, `col_area`, `col_state`, `col_when`, `col_what`, `col_note`, `col_why`, `col_board`, `col_repo`, `col_branch`, `col_days`, `col_commits`, `st_open`, `st_clear`, `st_failed`, `st_skipped`. Placeholders in braces stay as they are: a label may use only the placeholders
 its default has (`validate` names them), and one that would not format falls
 back to the default wording instead of breaking the briefing.
 

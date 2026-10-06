@@ -722,3 +722,64 @@ def test_overview_file_leaves_it_out_of_the_text_and_draws_it_separately():
 
 def test_overview_value_is_validated():
     assert any("overview" in m for m in bv.problems({"overview": "elsewhere"}, None))
+
+
+# ---------------------------------------------------------------- style: report
+# A person asked for the briefing to read like a report: levels, tables, and what to
+# act on at the bottom, instead of a wall of text. Markdown, since chats render it.
+
+def _report(view=None, sections=None, *secs):
+    v = {"style": "report", **(view or {})}
+    return bv.build(result(*secs), profile(view=v, sections=sections))
+
+
+def test_report_has_status_details_and_actions_in_that_order():
+    sections = [{"kind": "inbox"}, {"kind": "command", "id": "systems", "title": "Systems", "argv": ["x"]},
+                {"kind": "command", "id": "pipeline", "title": "Pipeline", "argv": ["x"]},
+                {"kind": "calendar"}]
+    text = bv.draw(_report(None, sections,
+                           sec("inbox", "inbox", [inbox_item("i1", "Answer the client", due="2026-10-05")]),
+                           sec("systems", "command", [], title="Systems"),
+                           sec("pipeline", "command", [], status="error", title="Pipeline", reason="timeout"),
+                           _cal(("Review", "2026-10-05T16:00", "2026-10-05T16:45"))))
+    assert text.index("### Status") < text.index("### Calendar") < text.index("### To act on")
+    assert "| Systems | ✓ all clear |" in text
+    assert "| Pipeline | ✗ failed: timeout |" in text
+    assert "| Inbox | 1 open |" in text
+    assert "| today 16:00-16:45 | Review |" in text
+    assert "| 1 | Answer the client |" in text
+
+
+def test_report_escapes_pipes_in_cells():
+    sections = [{"kind": "inbox"}]
+    text = bv.draw(_report(None, sections, sec("inbox", "inbox", [inbox_item("i1", "A | B", urgency="today")])))
+    assert "A \\| B" in text
+
+
+def test_report_draws_boards_and_activity_as_tables_unless_in_a_file():
+    sections = [{"kind": "commits", "id": "commits"}]
+    rows = [{"id": "repo-a", "branch": "main", "spark": "▁▃█", "total": 4, "counts": [1, 1, 2]}]
+    inline = bv.draw(_report(None, sections, sec("commits", "commits", rows)))
+    assert "| repo-a | main | ▁▃█ | 4 |" in inline
+    filed = bv.draw(_report({"overview": "file"}, sections, sec("commits", "commits", rows)))
+    assert "repo-a" not in filed
+
+
+def test_report_is_a_valid_style_and_its_labels_relabel():
+    assert bf.profile_problems(profile(view={"style": "report"}), "morning") == []
+    v = _report({"labels": {"status_title": "Lage", "act_title": "Angehen"}}, [{"kind": "inbox"}],
+                sec("inbox", "inbox", []))
+    text = bv.draw(v)
+    assert "### Lage" in text and "Angehen" not in text or "### Angehen" in text
+
+
+def test_report_why_has_no_internal_ids_and_links_issue_refs():
+    sections = [{"kind": "command", "id": "up", "argv": ["x"]},
+                {"kind": "tracker", "id": "gh", "provider": "github"}]
+    up = {"id": "upstream:bks", "title": "Overlay bks: sync due", "state": "ready", "raw_state": "drift"}
+    pr = {"id": "acme/app#7", "title": "Fix it", "state": "ready", "raw_state": "your PR, open 8 days",
+          "url": "https://github.com/acme/app/pull/7"}
+    text = bv.draw(_report(None, sections, sec("up", "command", [up]), sec("gh", "tracker", [pr])))
+    assert "upstream:bks" not in text
+    assert "| Overlay bks: sync due | drift |" in text
+    assert "[acme/app#7](https://github.com/acme/app/pull/7) · your PR, open 8 days" in text

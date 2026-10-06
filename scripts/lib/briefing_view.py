@@ -25,7 +25,7 @@ import re
 import string
 import textwrap
 
-STYLES = ("sources", "triage", "brevity", "plan")
+STYLES = ("sources", "triage", "brevity", "plan", "report")
 BUCKETS = ("do", "plan", "delegate", "waiting", "drop")
 VIEW_KEYS = {"style", "headline", "dayline", "agenda", "overview", "since_last", "lookahead_days", "max_items", "answer_keys", "hygiene", "color",
              "width", "labels", "buckets", "plan"}
@@ -83,6 +83,24 @@ LABELS = {
     "all_clear": "{title}: all clear",
     "owed": "Not in this profile, still yours to run: {streams} (briefing.py owed)",
     "overview_file": "Boards and activity: {path}",
+    "report_title": "Briefing {date}",
+    "status_title": "Status",
+    "act_title": "To act on",
+    "col_area": "Area",
+    "col_state": "State",
+    "col_when": "When",
+    "col_what": "What",
+    "col_note": "Note",
+    "col_why": "Why",
+    "col_board": "Board",
+    "col_repo": "Repository",
+    "col_branch": "Branch",
+    "col_days": "{days} days",
+    "col_commits": "Commits",
+    "st_open": "{n} open",
+    "st_clear": "✓ all clear",
+    "st_failed": "✗ failed: {reason}",
+    "st_skipped": "skipped: {reason}",
 }
 BOARD_STATES = ("new", "ready", "in_progress", "review", "blocked")
 HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -373,7 +391,7 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
             nudge_days = _int(b.get("nudge_after_days"), nudge_days, 1)
 
     out = {"rows": {}, "order": [], "hygiene": [], "no_next": [], "muted": 0, "events": [], "workplace": None,
-           "activity": [], "boards": [], "clear": []}
+           "activity": [], "boards": [], "clear": [], "status": []}
 
     def items_of(s):
         # The section's own `max:` still caps what it contributes.
@@ -436,12 +454,22 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
     for s in result.get("sections") or []:
         sid, kind = s.get("id"), s.get("kind")
         cfg = sections_cfg.get(sid, {})
+        if s.get("status") in ("error", "skipped") and kind not in ("calendar", "activity", "commits", "workplace",
+                                                                    "advise"):
+            out["status"].append({"title": s.get("title") or sid, "status": s["status"],
+                                  "reason": s.get("reason", "")})
         if s.get("status") == "error":
             out["hygiene"].append(labels["error"].format(title=s.get("title") or sid, reason=s.get("reason", "")))
             continue
         if not usable(s):
             continue
         forced = cfg.get("bucket") if cfg.get("bucket") in BUCKETS else None
+        if kind not in ("calendar", "activity", "commits", "workplace", "advise"):
+            title = s.get("title") or sid
+            if title == sid:
+                title = str(sid).replace("-", " ").capitalize()
+            n = sum(1 for i in items_of(s) if not muted(sid, i) and i.get("state") not in ("done", "removed"))
+            out["status"].append({"title": title, "count": n})
         if cfg.get("report_ok") is True and not any(
                 not muted(sid, i) and i.get("state") not in ("done", "removed") for i in items_of(s)):
             # Green says so: an empty source is otherwise indistinguishable from one that never ran.
@@ -667,7 +695,7 @@ def build(result: dict, profile: dict, style: str | None = None) -> dict:
            "color": view.get("color", "auto"), "width": width if _pos_int(width) and width >= 40 else 100,
            "labels": labels,
            "activity": data["activity"],
-           "boards": data["boards"], "overview": view.get("overview", "inline"), "agenda": agenda if style != "plan" else [], "clear": data["clear"]}
+           "boards": data["boards"], "overview": view.get("overview", "inline"), "status": data["status"], "agenda": agenda if style != "plan" else [], "clear": data["clear"]}
 
     if view.get("headline", True) is not False:
         out["headline"] = _headline(visible, events, now, labels, day_end)
@@ -788,6 +816,8 @@ def _plan(rows, events, now, cfg, day_start, day_end) -> dict:
 
 def draw(view: dict, color: bool = False, width: int | None = None) -> str:
     """Terminal text. Colour carries meaning only (due now, waiting, scaffolding dimmed)."""
+    if view.get("style") == "report":
+        return draw_report(view)
     use = color and view.get("color", "auto") != "none"
     width = width or _int(view.get("width"), 100, 40)
     labels = view["labels"]
@@ -929,3 +959,91 @@ def draw_overview(view: dict, color: bool = False, width: int | None = None) -> 
                               break_long_words=False, break_on_hyphens=False) or [indent]
         return [c(style, line) if style else line for line in lines]
     return "\n".join(_overview_lines(view, width, c, wrap)).lstrip("\n") + "\n"
+
+
+# ---------------------------------------------------------------- report (markdown)
+
+def _cell(text) -> str:
+    return " ".join(str(text if text is not None else "").split()).replace("|", "\\|")
+
+
+def _table(head: list, rows: list) -> list:
+    out = ["| " + " | ".join(_cell(h) for h in head) + " |", "|" + "---|" * len(head)]
+    out += ["| " + " | ".join(_cell(c) for c in r) + " |" for r in rows]
+    return out
+
+
+def draw_report(view: dict) -> str:
+    """Markdown in three levels: status of every source, the details as tables, then
+    what to act on. For chats that render Markdown; colour and width do not apply."""
+    labels = view["labels"]
+    when = _when(view.get("collected_at"))
+    out = [f"## {labels['report_title'].format(date=f'{when:%d.%m. %H:%M}' if when else '')}".rstrip(), ""]
+    if view.get("headline"):
+        out += [f"**{view['headline']}**", ""]
+    if view.get("since"):
+        out += [f"*{view['since']}*", ""]
+    rows = []
+    for st in view.get("status") or []:
+        if st.get("status") == "error":
+            state = labels["st_failed"].format(reason=st.get("reason", ""))
+        elif st.get("status") == "skipped":
+            state = labels["st_skipped"].format(reason=st.get("reason", ""))
+        else:
+            state = labels["st_open"].format(n=st["count"]) if st["count"] else labels["st_clear"]
+        rows.append([st["title"], state])
+    if rows:
+        out += [f"### {labels['status_title']}", ""] + _table([labels["col_area"], labels["col_state"]], rows) + [""]
+    if view.get("agenda"):
+        out += [f"### {labels['agenda_title']}", ""]
+        out += _table([labels["col_when"], labels["col_what"], labels["col_note"]],
+                      [[a["when"], a["title"], labels["clashes"].format(title=a["clash"]) if a.get("clash") else ""]
+                       for a in view["agenda"]]) + [""]
+    if view.get("overview", "inline") != "file":
+        if view.get("boards"):
+            out += [f"### {labels['boards_title']}", ""]
+            out += _table([labels["col_board"]] + [labels["st_" + st] for st in BOARD_STATES],
+                          [[f"#{b.get('number')} {b.get('name')}" + (f" {labels['capped'].format(n=b['capped'])}"
+                                                                    if b.get("capped") else "")]
+                           + [str((b.get("counts") or {}).get(st) or "") for st in BOARD_STATES]
+                           for b in view["boards"]]) + [""]
+        for act in view.get("activity") or []:
+            out += [f"### {labels['activity_title'].format(days=act['days'])}", ""]
+            out += _table([labels["col_repo"], labels["col_branch"], labels["col_days"].format(days=act["days"]),
+                           labels["col_commits"]],
+                          [[r.get("id"), r.get("branch") or "", r.get("spark", ""), str(r.get("total", 0))]
+                           for r in act["rows"]]) + [""]
+    if view.get("buckets"):
+        out += [f"### {labels['act_title']}", ""]
+        n = 0
+        for b in view["buckets"]:
+            head = f"#### {b['title']} · {b.get('total', len(b['items']))}"
+            if view.get("answer_keys") and b.get("options"):
+                head += "  (" + " · ".join(f"{'abcdefghij'[i]} {o}" for i, o in enumerate(b["options"][:10])) + ")"
+            body = []
+            for r in b["items"]:
+                n += 1
+                # A reader needs the reason, not the plumbing: an id that names nothing a
+                # person can open goes, an issue or PR id becomes its link.
+                ref, url = r.get("ref"), str(r.get("url") or "")
+                extras = []
+                for w in r["why"]:
+                    if w and w == ref:
+                        if GLOBAL_ID.match(str(ref)):
+                            extras.append(f"[{ref}]({url})" if url.startswith(("https://", "http://")) else ref)
+                        continue
+                    extras.append(w)
+                if r.get("nudge"):
+                    extras.append(labels["nudge"])
+                if r["new"]:
+                    extras.append(labels["new"])
+                body.append([str(n), r["title"], " · ".join(e for e in extras if e)])
+            out += [head, ""] + _table(["#", labels["col_what"], labels["col_why"]], body) + [""]
+    if view.get("workplace"):
+        out += [view["workplace"], ""]
+    if view.get("show_hygiene", True) and view.get("hygiene"):
+        out += [f"### {labels['housekeeping']}", ""] + [f"- {h}" for h in view["hygiene"]] + [""]
+    if view.get("more"):
+        out.append(f"*{labels['more'].format(n=view['more'])}*")
+    out.append(f"*{labels['end']}*")
+    return "\n".join(out)

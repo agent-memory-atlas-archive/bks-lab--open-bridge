@@ -77,12 +77,14 @@ $defs:
       Bucket rules and every label: docs/briefings.md § Views.
     properties:
       style:
-        enum: [sources, triage, brevity, plan]
+        enum: [sources, triage, brevity, plan, report]
         description: |
           sources: one block per section (default, the briefing as it always was).
           triage: rows sorted by what to do: do, plan, delegate, waiting, drop.
           brevity: the bottom line and the top three with why.
           plan: your rows laid into today's free calendar gaps.
+          report: Markdown in three levels: a status table of every source, the
+          details as tables, then what to act on, one table per bucket.
       headline: {type: boolean, description: "One bottom line on top. Default true."}
       dayline: {type: boolean, description: "The workday as one line (· free, █ busy, ▲ now). Default true; not in brevity."}
       agenda:
@@ -110,7 +112,7 @@ $defs:
       labels:
         type: object
         propertyNames:
-          enum: [activity_title, agenda_title, all_clear, back_on, boards_title, busy_until, capped, clash_row, clashes, collides, commits, owed, overview_file, due, end, error, free_rest, free_until, hidden, housekeeping, later, meanwhile, more, muted, new, next_date, no_next, nudge, only_you, repos_skipped, shutdown, since, st_blocked, st_in_progress, st_new, st_ready, st_review, task, today, tomorrow, waiting_days, why, with, workplace, yours_today]
+          enum: [act_title, activity_title, agenda_title, all_clear, back_on, boards_title, busy_until, capped, clash_row, clashes, col_area, col_board, col_branch, col_commits, col_days, col_note, col_repo, col_state, col_what, col_when, col_why, collides, commits, due, end, error, free_rest, free_until, hidden, housekeeping, later, meanwhile, more, muted, new, next_date, no_next, nudge, only_you, overview_file, owed, report_title, repos_skipped, shutdown, since, st_blocked, st_clear, st_failed, st_in_progress, st_new, st_open, st_ready, st_review, st_skipped, status_title, task, today, tomorrow, waiting_days, why, with, workplace, yours_today]
         additionalProperties: {type: string}
         description: |
           Any word the reader sees, by label name (docs/briefings.md lists them). A
