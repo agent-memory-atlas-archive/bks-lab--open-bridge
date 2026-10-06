@@ -78,7 +78,7 @@ profiles offers the right one instead of the person having to remember ids.
 | `tasks` | `work/tasks/*/STATUS.md` | `status` (default doing, review), `contexts`, `max` |
 | `activity` | `work/log.md` rows of the last days | `days` (default 7), `max` |
 | `commits` | commits per repository per day as a sparkline (`▁▃█▂`), busiest first, by local committer date (the date `--since` filters on, so a rebase or another time zone lands on the right day). Repositories without commits in the window are left out; one that cannot be read is named under housekeeping; reaching the time limit fails the section instead of hiding repositories | `days` (1 or more, default 7), `repos` (registered names or paths; default: every clone the ecosystem files register, plus this Bridge; a clone is `local_path`, else `local_root` + the repository name from `github:`, and a file without `local_root` uses the one in `ecosystem.yaml`; `${var}` from bridge-config `identity:`), `author` (`me` = each repository's git user.email), `all_branches` (every local branch) |
-| `calendar` | events in local time; also handed to `advise` for collisions. `ics` converts UTC and `TZID` times but lists a recurring event (RRULE) on its first date only: use `icalbuddy` or a `command` for recurring calendars | `provider` (auto, icalbuddy, ics, command), `days`, `path` (ics), `argv` (command), `exclude_calendars` (icalbuddy) |
+| `calendar` | events in local time; also handed to `advise` for collisions. `ics` converts UTC and `TZID` times but lists a recurring event (RRULE) on its first date only: use `icalbuddy` or a `command` for recurring calendars | `provider` (auto, icalbuddy, ics, command), `days`, `path` (ics), `argv` (command), `exclude_calendars` (icalbuddy), `info_calendars` (calendar names whose events are information, not a commitment: see Calendar and all clear) |
 | `tracker` | work items from an external system | `provider`, `query`, `account_ref`, `state_map`, `max`, `to_inbox` |
 | `command` | any program printing a JSON list of items | `argv`, `max`, `to_inbox` |
 
@@ -210,6 +210,7 @@ which agent renders it:
 | a section that failed | housekeeping, with its reason |
 | calendar | the headline, the Calendar block and the plan; activity: the since line; workplace: one line |
 | two calendar events within the lookahead that overlap | do ("A and B overlap"), and both are marked in the Calendar block |
+| an overlap with an info event (`info_calendars`) | no row: the Calendar block marks both entries "alongside …" and tags the info event |
 
 When two sources carry the same thing, the row takes the more urgent bucket of
 the two, unless a section forces its own. Only ids that name their repository
@@ -231,7 +232,7 @@ the person's language: `yours_today`, `free_until`, `free_rest`, `busy_until`,
 `no_next`, `muted`, `hidden`, `error`, `workplace`, `more`, `end`, `why`,
 `meanwhile`, `later`, `shutdown`, `activity_title`, `commits`, `boards_title`,
 `st_new`, `st_ready`, `st_in_progress`, `st_review`, `st_blocked`, `agenda_title`,
-`clashes`, `clash_row`, `all_clear`, `owed`, `overview_file`, and for `report` `report_title`, `lage`, `first_title`, `bucket_more` and the table columns `col_when`, `col_what`, `col_note`, `col_board`, `col_repo`, `col_branch`, `col_days`, `col_commits`. Placeholders in braces stay as they are: a label may use only the placeholders
+`clashes`, `clash_row`, `parallel`, `info_tag`, `all_clear`, `owed`, `overview_file`, and for `report` `report_title`, `lage`, `first_title`, `bucket_more` and the table columns `col_when`, `col_what`, `col_note`, `col_board`, `col_repo`, `col_branch`, `col_days`, `col_commits`. Placeholders in braces stay as they are: a label may use only the placeholders
 its default has (`validate` names them), and one that would not format falls
 back to the default wording instead of breaking the briefing.
 
@@ -246,6 +247,18 @@ shows the section with its count `(0)` instead. The same event from two
 calendars is listed once, and events that overlap in a chain (A with B, B with C)
 are one do row naming all of them; `plan` lays events out itself and gets no
 such row.
+
+**Info calendars.** Some calendars say what others do, not what the reader
+committed to: a family calendar, a shared team rota. List them on the calendar
+section as `info_calendars: [Family]`. Their events stay in the Calendar block,
+tagged `[info]`, and an overlap with one is marked `alongside <title>` on both
+entries, but it never becomes a do row, never makes the headline say "busy",
+never blocks a slot in `plan`, and never raises an advise collision. Two
+ordinary events still clash as before, and an info event in the same chain is
+named beside them, not in the row. `icalbuddy` asks a second time, limited to
+those calendars (`-ic`); `ics` matches the file's `X-WR-CALNAME`; a `command`
+marks an event `"info": true` or names its `"calendar"`. An event that is in an
+info calendar and in an ordinary one counts as ordinary.
 
 **Owed streams.** A profile covers some of the playbook's streams; the rest
 are still run by the agent. `briefing.py owed [<id>]` names every stream that

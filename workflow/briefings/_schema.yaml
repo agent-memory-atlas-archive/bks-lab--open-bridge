@@ -120,7 +120,7 @@ $defs:
       labels:
         type: object
         propertyNames:
-          enum: [activity_title, agenda_title, all_clear, back_on, boards_title, bucket_more, busy_until, capped, clash_row, clashes, col_board, col_branch, col_commits, col_days, col_note, col_repo, col_what, col_when, collides, commits, due, end, error, first_title, free_rest, free_until, hidden, housekeeping, lage, later, meanwhile, more, muted, new, next_date, no_next, nudge, only_you, overview_file, owed, report_title, repos_skipped, shutdown, since, st_blocked, st_in_progress, st_new, st_ready, st_review, task, today, tomorrow, waiting_days, why, with, workplace, yours_today]
+          enum: [activity_title, agenda_title, all_clear, back_on, boards_title, bucket_more, busy_until, capped, clash_row, clashes, col_board, col_branch, col_commits, col_days, col_note, col_repo, col_what, col_when, collides, commits, due, end, error, first_title, free_rest, free_until, hidden, housekeeping, info_tag, lage, later, meanwhile, more, muted, new, next_date, no_next, nudge, only_you, overview_file, owed, parallel, report_title, repos_skipped, shutdown, since, st_blocked, st_in_progress, st_new, st_ready, st_review, task, today, tomorrow, waiting_days, why, with, workplace, yours_today]
         additionalProperties: {type: string}
         description: |
           Any word the reader sees, by label name (docs/briefings.md lists them). A
@@ -267,6 +267,15 @@ $defs:
         type: array
         items: {type: string}
         description: "calendar icalbuddy: calendar names to leave out (holidays, birthdays)."
+      info_calendars:
+        type: array
+        items: {type: string}
+        description: |
+          calendar: calendar names whose events are information, not a
+          commitment (a family calendar). Shown in the agenda, marked as parallel
+          when they overlap; never a clash row and never an advise collision.
+          icalbuddy and ics (X-WR-CALNAME) match by name; a command marks an
+          event `info: true` or names its `calendar`.
       # command (section kind, or calendar provider)
       argv:
         type: array

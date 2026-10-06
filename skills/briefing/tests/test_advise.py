@@ -150,3 +150,10 @@ def test_a_dropped_finding_is_not_filed_again(repo):
     b.event(item.id, "drop", text="leave it")
     advise.file_findings(b, advise.advise(repo, now=NOW))
     assert b.open_items() == []
+
+
+def test_an_info_event_never_collides(repo):
+    # An event from an info calendar (family) is someone else's: not a collision of yours.
+    box(repo).add(source="session", kind="decision", summary="Post the launch", due="2026-10-06T15:00")
+    calendar = [{"title": "School play", "start": "2026-10-06T15:30", "end": "2026-10-06T16:15", "info": True}]
+    assert "collision" not in checks(advise.advise(repo, now=NOW, calendar=calendar))

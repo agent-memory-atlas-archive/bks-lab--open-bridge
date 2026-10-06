@@ -976,3 +976,83 @@ def test_no_retry_when_the_wait_would_exceed_the_section_limit(tmp_path):
     with pytest.raises(bf.SourceError):
         ctx.run(["gh", "search", "issues"])
     assert waits == []
+
+
+# ---------------------------------------------------------------- info calendars
+# A family calendar shows what others do: information, not a commitment of the
+# reader. Its events are tagged `info` at the source, so an overlap with them
+# never becomes a do row and never a collision finding.
+
+ICAL_TWO = ("2026-10-04 at 18:00 - 18:45\tWeekly\n"
+            "2026-10-04 at 18:05 - 19:05\tSchool play\n")
+
+
+def _ical_by_calendar(argv):
+    return "2026-10-04 at 18:05 - 19:05\tSchool play\n" if "-ic" in argv else ICAL_TWO
+
+
+def test_icalbuddy_tags_events_of_info_calendars(tmp_path):
+    root = bridge(tmp_path)
+    run = FakeRun({("icalBuddy",): _ical_by_calendar})
+    section = {"kind": "calendar", "provider": "icalbuddy", "exclude_calendars": ["Holidays"],
+               "info_calendars": ["Family", "Kids"]}
+    items = bf.collect(root, {"id": "p", "sections": [section]}, ctx(root, run))["sections"][0]["items"]
+    assert {i["title"]: bool(i.get("info")) for i in items} == {"Weekly": False, "School play": True}
+    first, second = run.calls
+    assert "-ic" not in first
+    assert second[second.index("-ic") + 1] == "Family,Kids" and "-ec" not in second
+    assert second[-1] == first[-1] == "eventsToday+1"
+
+
+def test_icalbuddy_without_info_calendars_calls_once(tmp_path):
+    root = bridge(tmp_path)
+    run = FakeRun({("icalBuddy",): ICAL_TWO})
+    items = bf.collect(root, {"id": "p", "sections": [{"kind": "calendar", "provider": "icalbuddy"}]},
+                       ctx(root, run))["sections"][0]["items"]
+    assert len(run.calls) == 1 and not any(i.get("info") for i in items)
+
+
+def test_ics_file_named_as_info_calendar_is_info(tmp_path):
+    root = bridge(tmp_path)
+    ics = tmp_path / "family.ics"
+    ics.write_text("BEGIN:VCALENDAR\nX-WR-CALNAME:Family\nBEGIN:VEVENT\nSUMMARY:School play\n"
+                   "DTSTART:20261004T180500\nDTEND:20261004T190500\nEND:VEVENT\nEND:VCALENDAR\n", encoding="utf-8")
+    section = {"kind": "calendar", "provider": "ics", "path": str(ics), "info_calendars": ["Family"]}
+    items = bf.collect(root, {"id": "p", "sections": [section]}, ctx(root))["sections"][0]["items"]
+    assert [(i["title"], i.get("info")) for i in items] == [("School play", True)]
+    plain = dict(section, info_calendars=["Other"])
+    items = bf.collect(root, {"id": "p", "sections": [plain]}, ctx(root))["sections"][0]["items"]
+    assert not items[0].get("info")
+
+
+def test_command_calendar_passes_info_through_and_matches_calendar_names(tmp_path):
+    root = bridge(tmp_path)
+    events = [{"title": "Weekly", "start": "2026-10-04T18:00", "end": "2026-10-04T18:45"},
+              {"title": "School play", "start": "2026-10-04T18:05", "end": "2026-10-04T19:05", "info": True},
+              {"title": "Swim", "start": "2026-10-04T20:00", "end": "2026-10-04T21:00", "calendar": "Family"}]
+    run = FakeRun({("cal",): json.dumps(events)})
+    section = {"kind": "calendar", "provider": "command", "argv": ["cal"], "info_calendars": ["Family"]}
+    items = bf.collect(root, {"id": "p", "sections": [section]}, ctx(root, run))["sections"][0]["items"]
+    assert {i["title"]: bool(i.get("info")) for i in items} == {"Weekly": False, "School play": True, "Swim": True}
+
+
+def test_advise_ignores_info_events_for_collisions(tmp_path):
+    root = bridge(tmp_path)
+    box = inbox.Inbox(root / "work" / "inbox", actor="t", clock=lambda: NOW)
+    box.add(source="t", kind="decision", summary="Call the vendor", due="2026-10-04T19:00")
+    run = FakeRun({("icalBuddy",): _ical_by_calendar})
+    profile = {"id": "p", "sections": [{"kind": "advise"},
+                                       {"kind": "calendar", "provider": "icalbuddy", "info_calendars": ["Family"]}]}
+    advice = bf.collect(root, profile, ctx(root, run))["sections"][0]
+    assert not any(i.get("check") == "collision" for i in advice["items"]), advice
+
+
+def test_validate_info_calendars_is_a_list_of_text():
+    ok = {"schema_version": 1, "scope": "user", "id": "p",
+          "sections": [{"kind": "calendar", "info_calendars": ["Family"]}]}
+    assert bf.profile_problems(ok, "p") == []
+    bad = {**ok, "sections": [{"kind": "calendar", "info_calendars": "Family"}]}
+    assert any("info_calendars" in p for p in bf.profile_problems(bad, "p"))
+    schema = yaml.safe_load((ROOT / "workflow" / "briefings" / "_schema.yaml").read_text(encoding="utf-8"))
+    jsonschema = pytest.importorskip("jsonschema")
+    jsonschema.validate(ok, schema)

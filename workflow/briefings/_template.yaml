@@ -77,6 +77,7 @@ sections:
   - kind: calendar
     provider: auto          # icalbuddy on macOS when installed, else skipped
     days: 1
+    # info_calendars: [Family]   # what others do: listed, never a clash or a collision
 
   - kind: activity
     days: 7
