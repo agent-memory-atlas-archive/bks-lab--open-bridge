@@ -81,6 +81,7 @@ LABELS = {
     "clashes": "overlaps {title}",
     "clash_row": "{first} and {second} overlap ({when})",
     "all_clear": "{title}: all clear",
+    "owed": "Not in this profile, still yours to run: {streams} (briefing.py owed)",
 }
 BOARD_STATES = ("new", "ready", "in_progress", "review", "blocked")
 HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -409,6 +410,9 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
             for k in ("due", "nudge", "estimate"):
                 if row.get(k) and not have.get(k):
                     have[k] = row[k]
+            if have.get("filed") and not row.get("filed"):
+                have["title"] = row["title"]   # the source's wording today, not the day it was filed
+                have["filed"] = False
             have["new"] = have["new"] or row["new"]
             have["changed"] = have["changed"] or row["changed"]
             return
@@ -498,7 +502,8 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
                 filed = str(item.get("key") or "").split(":", 3)
                 if filed[0] == "briefing" and len(filed) == 4:
                     key = _item_key(filed[2], filed[3])
-                add(key, row(sid, item, forced or bucket, item.get("title"), why, rank, due=item.get("due")))
+                add(key, row(sid, item, forced or bucket, item.get("title"), why, rank, due=item.get("due"),
+                             filed=key != f"inbox:{iid}"))
             elif kind == "advise":
                 check = item.get("check")
                 if check == "wip":
@@ -632,6 +637,8 @@ def build(result: dict, profile: dict, style: str | None = None) -> dict:
     rows.sort(key=lambda r: (URGENCY[r["bucket"]], r["rank"], str(_when(r.get("due")) or "9999")))
 
     hygiene = list(data["hygiene"]) + [str(n) for n in result.get("housekeeping") or []]
+    if result.get("owed"):
+        hygiene.append(labels["owed"].format(streams=", ".join(result["owed"])))
     if data["no_next"]:
         hygiene.append(labels["no_next"].format(n=len(data["no_next"]), slugs=", ".join(data["no_next"])))
     if data["muted"]:

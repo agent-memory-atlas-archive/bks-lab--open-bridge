@@ -683,3 +683,14 @@ def test_an_event_past_midnight_names_its_end_day():
     r = result(_cal(("Night", "2026-10-05T23:30", "2026-10-06T00:30")))
     v = bv.build(r, profile(view={"style": "triage"}))
     assert v["agenda"][0]["when"] == "today 23:30-tomorrow 00:30"
+
+
+def test_a_filed_row_shows_the_sources_current_title_not_the_filed_one():
+    # The inbox keeps the summary from the day it was filed; the source says it better today.
+    sections = [{"kind": "inbox"}, {"kind": "command", "id": "systems", "argv": ["x"]}]
+    filed = inbox_item("i1", "Disk over 90%", key="briefing:morning:systems:disk")
+    fresh = {"id": "disk", "title": "Disk over 90% (measured 99)", "state": "in_progress"}
+    r = result(sec("inbox", "inbox", [filed]), sec("systems", "command", [fresh]))
+    v = bv.build(r, profile(view={"style": "triage"}, sections=sections))
+    titles = [i["title"] for b in v["buckets"] for i in b["items"]]
+    assert titles == ["Disk over 90% (measured 99)"]

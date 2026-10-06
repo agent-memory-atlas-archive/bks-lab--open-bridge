@@ -852,3 +852,66 @@ def test_render_file_end_to_end_writes_one_row_and_shows_housekeeping(tmp_path, 
     text = (root / "work" / "log.md").read_text(encoding="utf-8")
     assert sum(1 for l in text.splitlines() if "/briefing (morning)" in l) == 1
     assert "/briefing (morning): nothing open" in text
+
+
+# ---------------------------------------------------------------- owed streams
+# A profile covers some streams; the playbook's other streams were left to the agent's
+# judgement, and a test run improvised its own commands (and failed on them). The engine
+# names what the profile does not cover, with the way to run it, so nothing is guessed.
+
+def _owed_root(tmp_path, cfg=""):
+    root = tmp_path / "bridge"
+    (root / "work" / "inbox").mkdir(parents=True)
+    (root / "bridge-config.yaml").write_text(cfg or "{}\n", encoding="utf-8")
+    return root
+
+
+def test_owed_names_relevant_streams_the_profile_does_not_cover(tmp_path):
+    root = _owed_root(tmp_path, "upstreams:\n  - {name: core, repo: acme/core, role: oss-core}\n"
+                                "applications: {enabled: true}\nintegrations: {github: {enabled: true}}\n")
+    (root / "work" / "tasks" / "_meetings").mkdir(parents=True)
+    (root / "work" / "imports").mkdir(parents=True)
+    (root / "work" / "imports" / "call.vtt").write_text("x", encoding="utf-8")
+    profile = {"id": "m", "sections": [{"kind": "inbox"}]}
+    owed = {o["id"] for o in bf.owed(root, bf.read_config(root), profile)}
+    assert owed == {"prs", "meetings", "imports", "upstream", "applications"}
+
+
+def test_owed_is_empty_when_nothing_applies(tmp_path):
+    root = _owed_root(tmp_path)
+    assert bf.owed(root, bf.read_config(root), {"id": "m", "sections": [{"kind": "inbox"}]}) == []
+
+
+def test_a_section_covers_streams_by_declaration_and_others_prs_covers_prs(tmp_path):
+    root = _owed_root(tmp_path, "integrations: {github: {enabled: true}}\n")
+    (root / "work" / "tasks" / "_meetings").mkdir(parents=True)
+    profile = {"id": "m", "sections": [
+        {"kind": "command", "id": "dl", "argv": ["x"], "covers": ["meetings"]},
+        {"kind": "tracker", "provider": "github", "query": {"owners": ["acme"], "others_prs": 14}}]}
+    assert bf.owed(root, bf.read_config(root), profile) == []
+
+
+def test_every_owed_stream_says_how_to_run_it(tmp_path):
+    root = _owed_root(tmp_path, "integrations: {github: {enabled: true}}\n")
+    (o,) = bf.owed(root, bf.read_config(root), {"id": "m", "sections": []})
+    assert o["id"] == "prs" and o["how"] and o["title"]
+
+
+def test_covers_is_validated(tmp_path):
+    p = {"schema_version": 1, "scope": "user", "id": "m",
+         "sections": [{"kind": "command", "argv": ["x"], "covers": ["nonsense"]}]}
+    assert any("covers" in m for m in bf.profile_problems(p, "m"))
+
+
+def test_render_names_owed_streams_under_housekeeping(tmp_path, capsys):
+    root = _owed_root(tmp_path, "integrations: {github: {enabled: false}}\n")
+    (root / "work" / "tasks" / "_meetings").mkdir(parents=True)
+    prof = {"schema_version": 1, "scope": "user", "id": "morning", "default": True,
+            "sections": [{"kind": "inbox"}], "view": {"style": "triage"}}
+    (root / "workflow" / "briefings").mkdir(parents=True)
+    (root / "workflow" / "briefings" / "morning.yaml").write_text(yaml.safe_dump(prof), encoding="utf-8")
+    assert bf.main(["--root", str(root), "render", "--no-save"]) == 0
+    out = capsys.readouterr().out
+    assert "meetings" in out and "briefing.py owed" in out
+    assert bf.main(["--root", str(root), "owed"]) == 0
+    assert "meeting-obligations.py" in capsys.readouterr().out
