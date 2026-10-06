@@ -83,8 +83,9 @@ $defs:
           triage: rows sorted by what to do: do, plan, delegate, waiting, drop.
           brevity: the bottom line and the top three with why.
           plan: your rows laid into today's free calendar gaps.
-          report: Markdown in three levels: a status table of every source, the
-          details as tables, then what to act on, one table per bucket.
+          report: Markdown by exception: one status line naming only what failed
+          or needs a look, the first few rows in bold, short lists per bucket with
+          the rest counted, tables only where rows compare (calendar, boards, activity).
       headline: {type: boolean, description: "One bottom line on top. Default true."}
       dayline: {type: boolean, description: "The workday as one line (· free, █ busy, ▲ now). Default true; not in brevity."}
       agenda:
@@ -93,6 +94,13 @@ $defs:
           A Calendar block after the headline: every event from now through the
           lookahead, with overlapping events marked and turned into a do row.
           Default true; not in plan (which lays the events out itself).
+      report:
+        type: object
+        additionalProperties: false
+        description: "style report: how many rows lead in bold (top, default 3) and per bucket (per_bucket, default 5)."
+        properties:
+          top: {type: integer, minimum: 1}
+          per_bucket: {type: integer, minimum: 1}
       overview:
         enum: [inline, file]
         description: |
@@ -112,7 +120,7 @@ $defs:
       labels:
         type: object
         propertyNames:
-          enum: [act_title, activity_title, agenda_title, all_clear, back_on, boards_title, busy_until, capped, clash_row, clashes, col_area, col_board, col_branch, col_commits, col_days, col_note, col_repo, col_state, col_what, col_when, col_why, collides, commits, due, end, error, free_rest, free_until, hidden, housekeeping, later, meanwhile, more, muted, new, next_date, no_next, nudge, only_you, overview_file, owed, report_title, repos_skipped, shutdown, since, st_blocked, st_clear, st_failed, st_in_progress, st_new, st_open, st_ready, st_review, st_skipped, status_title, task, today, tomorrow, waiting_days, why, with, workplace, yours_today]
+          enum: [activity_title, agenda_title, all_clear, back_on, boards_title, bucket_more, busy_until, capped, clash_row, clashes, col_board, col_branch, col_commits, col_days, col_note, col_repo, col_what, col_when, collides, commits, due, end, error, first_title, free_rest, free_until, hidden, housekeeping, lage, later, meanwhile, more, muted, new, next_date, no_next, nudge, only_you, overview_file, owed, report_title, repos_skipped, shutdown, since, st_blocked, st_in_progress, st_new, st_ready, st_review, task, today, tomorrow, waiting_days, why, with, workplace, yours_today]
         additionalProperties: {type: string}
         description: |
           Any word the reader sees, by label name (docs/briefings.md lists them). A
