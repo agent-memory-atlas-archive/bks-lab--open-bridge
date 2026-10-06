@@ -27,7 +27,7 @@ import textwrap
 
 STYLES = ("sources", "triage", "brevity", "plan")
 BUCKETS = ("do", "plan", "delegate", "waiting", "drop")
-VIEW_KEYS = {"style", "headline", "dayline", "agenda", "since_last", "lookahead_days", "max_items", "answer_keys", "hygiene", "color",
+VIEW_KEYS = {"style", "headline", "dayline", "agenda", "overview", "since_last", "lookahead_days", "max_items", "answer_keys", "hygiene", "color",
              "width", "labels", "buckets", "plan"}
 BUCKET_KEYS = {"id", "title", "options", "nudge_after_days"}
 DEFAULT_BUCKETS = {
@@ -82,6 +82,7 @@ LABELS = {
     "clash_row": "{first} and {second} overlap ({when})",
     "all_clear": "{title}: all clear",
     "owed": "Not in this profile, still yours to run: {streams} (briefing.py owed)",
+    "overview_file": "Boards and activity: {path}",
 }
 BOARD_STATES = ("new", "ready", "in_progress", "review", "blocked")
 HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -147,6 +148,8 @@ def problems(view, mutes) -> list:
         if "lookahead_days" in view and _int(view["lookahead_days"], -1) < 0 or \
                 isinstance(view.get("lookahead_days"), (str, bool, float)):
             out.append("view.lookahead_days must be a whole number of days, 0 or more")
+        if view.get("overview", "inline") not in ("inline", "file"):
+            out.append("view.overview must be inline or file")
         if view.get("hygiene", "bottom") not in ("bottom", "hide"):
             out.append("view.hygiene must be bottom or hide")
         if view.get("color", "auto") not in ("auto", "meaning", "none"):
@@ -664,7 +667,7 @@ def build(result: dict, profile: dict, style: str | None = None) -> dict:
            "color": view.get("color", "auto"), "width": width if _pos_int(width) and width >= 40 else 100,
            "labels": labels,
            "activity": data["activity"],
-           "boards": data["boards"], "agenda": agenda if style != "plan" else [], "clear": data["clear"]}
+           "boards": data["boards"], "overview": view.get("overview", "inline"), "agenda": agenda if style != "plan" else [], "clear": data["clear"]}
 
     if view.get("headline", True) is not False:
         out["headline"] = _headline(visible, events, now, labels, day_end)
@@ -863,6 +866,28 @@ def draw(view: dict, color: bool = False, width: int | None = None) -> str:
                     lines = [line.replace(ref, link, 1) if ref in line else line for line in lines]
                 out += lines
 
+    if view.get("overview", "inline") != "file":
+        out += _overview_lines(view, width, c, wrap)
+    if view.get("workplace") and view["style"] != "brevity":
+        out.append("")
+        out += wrap(view["workplace"])
+    # Housekeeping in every style: a failed source or a muted row is never silent.
+    if view.get("show_hygiene", True) and view.get("hygiene"):
+        out.append("")
+        out += wrap(f"── {labels['housekeeping']} ──", style="2")
+        for h in view["hygiene"]:
+            out += wrap(h, indent="  · ", hang="    ", style="2")
+    out.append("")
+    if view.get("more"):
+        out += wrap(labels["more"].format(n=view["more"]), style="2")
+    out += wrap(labels["end"], style="2")
+    return "\n".join(out)
+
+
+def _overview_lines(view: dict, width: int, c, wrap) -> list:
+    """Boards and Activity: what moved, never what to do."""
+    labels = view["labels"]
+    out = []
     if view["style"] != "brevity" and view.get("boards"):
         out.append("")
         out += wrap(f"── {labels['boards_title']} ──", style="1")
@@ -888,17 +913,19 @@ def draw(view: dict, color: bool = False, width: int | None = None) -> str:
             branch = f"{str(r.get('branch') or '')[:branch_w]:<{branch_w}}  " if branch_w else ""
             out.append(f"  {str(r.get('id'))[:name_w]:<{name_w}}  {branch}"
                        f"{r.get('spark', '')}  {labels['commits'].format(n=r.get('total', 0))}")
-    if view.get("workplace") and view["style"] != "brevity":
-        out.append("")
-        out += wrap(view["workplace"])
-    # Housekeeping in every style: a failed source or a muted row is never silent.
-    if view.get("show_hygiene", True) and view.get("hygiene"):
-        out.append("")
-        out += wrap(f"── {labels['housekeeping']} ──", style="2")
-        for h in view["hygiene"]:
-            out += wrap(h, indent="  · ", hang="    ", style="2")
-    out.append("")
-    if view.get("more"):
-        out += wrap(labels["more"].format(n=view["more"]), style="2")
-    out += wrap(labels["end"], style="2")
-    return "\n".join(out)
+    return out
+
+
+def draw_overview(view: dict, color: bool = False, width: int | None = None) -> str:
+    """Boards and Activity on their own, for `overview: file`."""
+    use = color and view.get("color", "auto") != "none"
+    width = width or _int(view.get("width"), 100, 40)
+
+    def c(code, text):
+        return f"\x1b[{code}m{text}\x1b[0m" if use else text
+
+    def wrap(text, indent="", hang=None, style=None):
+        lines = textwrap.wrap(text, width=width, initial_indent=indent, subsequent_indent=hang or indent,
+                              break_long_words=False, break_on_hyphens=False) or [indent]
+        return [c(style, line) if style else line for line in lines]
+    return "\n".join(_overview_lines(view, width, c, wrap)).lstrip("\n") + "\n"

@@ -915,3 +915,15 @@ def test_render_names_owed_streams_under_housekeeping(tmp_path, capsys):
     assert "meetings" in out and "briefing.py owed" in out
     assert bf.main(["--root", str(root), "owed"]) == 0
     assert "meeting-obligations.py" in capsys.readouterr().out
+
+
+def test_render_file_writes_the_overview_and_names_it(tmp_path, capsys):
+    root = _hk_root(tmp_path)
+    prof = {"schema_version": 1, "scope": "user", "id": "morning", "default": True,
+            "sections": [{"kind": "inbox"}], "view": {"style": "triage", "overview": "file"}}
+    (root / "workflow" / "briefings").mkdir(parents=True)
+    (root / "workflow" / "briefings" / "morning.yaml").write_text(yaml.safe_dump(prof), encoding="utf-8")
+    assert bf.main(["--root", str(root), "render", "--file"]) == 0
+    out = capsys.readouterr().out
+    path = root / ".bridge" / "briefings" / "morning.overview.txt"
+    assert path.is_file() and str(path.relative_to(root)) in out

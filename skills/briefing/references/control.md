@@ -29,6 +29,11 @@ No `work/inbox/` yet: skip silently; the first item creates it.
 
 ## After the streams: advise
 
+**With a profile, skip this section:** an `advise` section next to a `calendar`
+section gets the calendar from the engine (`briefing.py collect`/`render`), so
+the collision check already ran. The commands below are for a Bridge without a
+profile, or a profile without an `advise` section.
+
 Once Stream C has today's and tomorrow's calendar, write it as a JSON list of
 `{"title", "start", "end"}` to a temp file and run:
 
@@ -56,7 +61,9 @@ wrote the briefing's log row and regenerated the board; do not do those again.
 **Show the rendered text verbatim**, in a code block at the top of your answer.
 The person does not see tool output: a table that summarises the view, or "see
 above", is a briefing they never got. Do not regroup, re-sort, shorten or drop
-rows.
+rows. With `view.overview: file` the Boards and Activity blocks are in the file
+housekeeping names; do not paste the file as well unless the person asks for it,
+the short copy is the point.
 
 **Then the owed streams, and only those.** The view covers what the profile's
 sections cover. `python3 scripts/briefing.py owed [<id>]` names every stream
