@@ -840,3 +840,75 @@ def test_report_calendar_marks_a_clash_without_repeating_the_do_row():
     table = [l for l in text.splitlines() if l.startswith("| tomorrow")]
     assert all(l.endswith("| ⚠ |") for l in table)
     assert sum(1 for l in text.splitlines() if "overlap" in l) == 1     # the do row says it, once
+
+
+# ---------------------------------------------------------------- info events
+# An event from an info calendar (a family calendar) is what someone else does:
+# the reader may or may not be affected. An overlap with it stays visible in the
+# agenda, marked as parallel, and never becomes a do row.
+
+def _cal_info(*events):
+    return sec("calendar", "calendar", [{"id": f"e{n}", "title": t, "start": s, "end": e, "info": info}
+                                        for n, (t, s, e, info) in enumerate(events)])
+
+
+def test_overlap_with_an_info_event_is_a_hint_not_a_do_row():
+    r = result(_cal_info(("Weekly", "2026-10-06T18:00", "2026-10-06T18:45", False),
+                         ("Ballet", "2026-10-06T18:05", "2026-10-06T19:05", True)))
+    v = bv.build(r, profile(view={"style": "triage", "lookahead_days": 1}))
+    agenda = {a["title"]: a for a in v["agenda"]}
+    assert not any(a.get("clash") for a in v["agenda"])
+    assert agenda["Weekly"]["parallel"] == "Ballet" and agenda["Ballet"]["parallel"] == "Weekly"
+    assert agenda["Ballet"]["info"] is True and not agenda["Weekly"].get("info")
+    do = next((b for b in v["buckets"] if b["id"] == "do"), {"items": []})["items"]
+    assert not any("overlap" in i["title"] for i in do)
+    text = bv.draw(v)
+    assert "alongside Ballet" in text and "Ballet [info]" in text
+    assert "overlaps" not in text
+
+
+def test_two_real_events_still_clash_and_the_info_one_is_named_apart():
+    r = result(_cal_info(("A", "2026-10-05T10:00", "2026-10-05T11:00", False),
+                         ("B", "2026-10-05T10:30", "2026-10-05T11:30", False),
+                         ("Kid pickup", "2026-10-05T10:45", "2026-10-05T11:15", True)))
+    v = bv.build(r, profile(view={"style": "triage"}))
+    do = next(b for b in v["buckets"] if b["id"] == "do")["items"]
+    clash = [i for i in do if "overlap" in i["title"]]
+    assert len(clash) == 1 and "A" in clash[0]["title"] and "Kid pickup" not in clash[0]["title"]
+    agenda = {a["title"]: a for a in v["agenda"]}
+    assert agenda["A"]["clash"] == "B" and agenda["A"]["parallel"] == "Kid pickup"
+    assert not agenda["Kid pickup"].get("clash") and agenda["Kid pickup"]["parallel"] == "A, B"
+
+
+def test_info_events_do_not_make_the_reader_busy():
+    r = result(_cal_info(("Ballet", "2026-10-05T07:30", "2026-10-05T09:00", True),
+                         ("Review", "2026-10-05T16:00", "2026-10-05T16:45", False)))
+    v = bv.build(r, profile(view={"style": "triage"}))
+    assert "Ballet" not in v["headline"] and "free until 16:00" in v["headline"]
+    assert [a["title"] for a in v["agenda"]] == ["Ballet", "Review"]
+
+
+def test_info_event_from_two_calendars_counts_as_real_if_one_copy_is_real():
+    r = result(_cal_info(("A", "2026-10-05T10:00", "2026-10-05T11:00", True),
+                         ("A", "2026-10-05T10:00", "2026-10-05T11:00", False),
+                         ("B", "2026-10-05T10:30", "2026-10-05T11:30", False)))
+    v = bv.build(r, profile(view={"style": "triage"}))
+    assert len(v["agenda"]) == 2 and not v["agenda"][0].get("info")
+    assert v["agenda"][0]["clash"] == "B"
+
+
+def test_report_table_marks_the_parallel_info_event():
+    r = result(_cal_info(("Weekly", "2026-10-06T18:00", "2026-10-06T18:45", False),
+                         ("Ballet", "2026-10-06T18:05", "2026-10-06T19:05", True)))
+    text = bv.draw(bv.build(r, profile(view={"style": "report", "lookahead_days": 1})))
+    assert "alongside Ballet" in text and "Ballet [info]" in text and "⚠" not in text
+
+
+def test_parallel_and_info_labels_can_be_relabelled():
+    p = profile(view={"style": "triage", "lookahead_days": 1,
+                      "labels": {"parallel": "parallel zu {title}", "info_tag": "Info"}})
+    assert bv.problems(p["view"], None) == []
+    r = result(_cal_info(("Weekly", "2026-10-06T18:00", "2026-10-06T18:45", False),
+                         ("Ballet", "2026-10-06T18:05", "2026-10-06T19:05", True)))
+    text = bv.draw(bv.build(r, p))
+    assert "parallel zu Ballet" in text and "Ballet [Info]" in text

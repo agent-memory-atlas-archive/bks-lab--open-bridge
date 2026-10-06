@@ -80,6 +80,8 @@ LABELS = {
     "agenda_title": "Calendar",
     "clashes": "overlaps {title}",
     "clash_row": "{first} and {second} overlap ({when})",
+    "parallel": "alongside {title}",
+    "info_tag": "info",
     "all_clear": "{title}: all clear",
     "owed": "Not in this profile, still yours to run: {streams} (briefing.py owed)",
     "overview_file": "Boards and activity: {path}",
@@ -620,16 +622,20 @@ def build(result: dict, profile: dict, style: str | None = None) -> dict:
     shown, hidden_ids = _bucket_cfg(view)
     titles = {b: DEFAULT_BUCKETS[b]["title"] for b in BUCKETS} | {b["id"]: b["title"] for b in shown}
 
-    events = _events(data["events"], now)
+    # An info event (an `info_calendars` calendar, e.g. a family one) is someone else's:
+    # it is listed, but it neither makes the reader busy nor raises a clash.
+    events = _events([e for e in data["events"] if e.get("info") is not True], now)
+    real = set(events)
     agenda = []
     if view.get("agenda", True) is not False:
         horizon = dt.datetime.combine(now.date() + dt.timedelta(days=_int(view.get("lookahead_days"), 1) + 1),
                                       dt.time())
         seen = set()
-        for s_, e_, t_ in events:
+        for s_, e_, t_ in _events(data["events"], now):
             if e_ > now and s_ < horizon and (s_, e_, t_) not in seen:   # one event from two calendars
                 seen.add((s_, e_, t_))
-                agenda.append({"start": s_, "end": e_, "title": t_})
+                agenda.append({"start": s_, "end": e_, "title": t_,
+                               **({"info": True} if (s_, e_, t_) not in real else {})})
         # Overlaps as clusters: A-B-C overlapping is one decision, not three.
         cluster, reach = [], None
         for a in agenda + [None]:
@@ -637,10 +643,18 @@ def build(result: dict, profile: dict, style: str | None = None) -> dict:
                 cluster.append(a)
                 reach = max(reach, a["end"])
                 continue
+            names = [c["title"] for c in cluster if not c.get("info")]
             if len(cluster) > 1:
-                names = [c["title"] for c in cluster]
+                side = [c["title"] for c in cluster if c.get("info")]
                 for c in cluster:
-                    c["clash"] = ", ".join(n for n in names if n != c["title"]) or c["title"]
+                    if c.get("info") or len(names) < 2:
+                        others = [c_["title"] for c_ in cluster if c_ is not c]
+                        c["parallel"] = ", ".join(others)
+                    else:
+                        c["clash"] = ", ".join(n for n in names if n != c["title"]) or c["title"]
+                        if side:
+                            c["parallel"] = ", ".join(side)
+            if len(names) > 1:
                 key = f"clash:{cluster[0]['start']:%Y%m%d%H%M}:" + "|".join(names)
                 if style != "plan" and key not in data["rows"]:
                     data["rows"][key] = {
@@ -814,6 +828,11 @@ def _plan(rows, events, now, cfg, day_start, day_end) -> dict:
 
 # ---------------------------------------------------------------- draw
 
+def _agenda_title(a: dict, labels: dict) -> str:
+    """An agenda entry's title, an info event's tagged as such."""
+    return f"{a['title']} [{labels['info_tag']}]" if a.get("info") else a["title"]
+
+
 def draw(view: dict, color: bool = False, width: int | None = None) -> str:
     """Terminal text. Colour carries meaning only (due now, waiting, scaffolding dimmed)."""
     if view.get("style") == "report":
@@ -845,8 +864,9 @@ def draw(view: dict, color: bool = False, width: int | None = None) -> str:
         out += wrap(f"── {labels['agenda_title']} ──", style="1")
         for a in view["agenda"]:
             clash = f"  ({labels['clashes'].format(title=a['clash'])})" if a.get("clash") else ""
-            out += wrap(f"{a['when']}  {a['title']}{clash}", indent="  ", hang="    ",
-                        style="31" if clash else None)
+            side = f"  ({labels['parallel'].format(title=a['parallel'])})" if a.get("parallel") else ""
+            out += wrap(f"{a['when']}  {_agenda_title(a, labels)}{clash}{side}", indent="  ", hang="    ",
+                        style="31" if clash else "2" if a.get("info") else None)
 
     if view["style"] == "brevity":
         for r in view.get("top", []):
@@ -1032,11 +1052,15 @@ def draw_report(view: dict) -> str:
     agenda = view.get("agenda") or []
     if len(agenda) == 1:
         a = agenda[0]
-        out += [f"**{labels['agenda_title']}:** {a['when']} {a['title']}", ""]
+        out += [f"**{labels['agenda_title']}:** {a['when']} {_agenda_title(a, labels)}", ""]
     elif agenda:
         out += _table([labels["col_when"], labels["col_what"], labels["col_note"]],
-                      # the do row explains a clash; the table only marks it
-                      [[a["when"], a["title"], "⚠" if a.get("clash") else ""] for a in agenda]) + [""]
+                      # the do row explains a clash; the table only marks it. A parallel
+                      # info event has no do row, so the note names it.
+                      [[a["when"], _agenda_title(a, labels),
+                        " · ".join(([("⚠")] if a.get("clash") else []) +
+                                   ([labels["parallel"].format(title=a["parallel"])] if a.get("parallel") else []))]
+                       for a in agenda]) + [""]
 
     rows = [(b, r) for b in view.get("buckets") or [] for r in b["items"]]
     n = 0

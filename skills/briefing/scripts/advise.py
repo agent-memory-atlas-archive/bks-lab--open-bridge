@@ -27,6 +27,7 @@ Thresholds: bridge-config.yaml `briefing.advise` (stale_days 7, blocked_days 14,
 waiting_days 2, collision_minutes 60, customer_contexts []). The calendar is a JSON
 list of {"title", "start", "end"} in ISO form, produced by whatever calendar source
 the instance has (the briefing's Stream C); without it the collision check is skipped.
+An event with "info": true (from a section's `info_calendars`) never collides.
 Contract: skills/briefing/tests/test_advise.py.
 """
 from __future__ import annotations
@@ -128,6 +129,8 @@ def advise(root: Path, *, now: dt.datetime | None = None, calendar: list | None 
         if not start or not calendar:
             continue
         for event in calendar:
+            if event.get("info") is True:   # an info calendar's event is someone else's
+                continue
             e_start, e_end = _when(event.get("start")), _when(event.get("end"))
             if not e_start:
                 continue

@@ -61,7 +61,7 @@ STATES = ("new", "ready", "in_progress", "review", "done", "blocked", "removed")
 PROFILE_KEYS = {"schema_version", "scope", "id", "title", "for", "default", "offer_on", "timeout_sec", "sections",
                 "view", "mutes"}
 SECTION_KEYS = {"kind", "id", "title", "max", "to_inbox", "provider", "query", "account_ref", "state_map",
-                "status", "contexts", "days", "path", "argv", "exclude_calendars", "bucket",
+                "status", "contexts", "days", "path", "argv", "exclude_calendars", "info_calendars", "bucket",
                 "repos", "author", "all_branches", "summary", "report_ok", "covers"}
 # A profile is committed and often shared: a value under one of these names is
 # a credential, and credentials only ever travel as references (account_ref).
@@ -369,7 +369,7 @@ def _section_types(s: dict) -> list:
         out.append("max must be a positive integer")
     if "days" in s and not (isinstance(s["days"], int) and not isinstance(s["days"], bool) and s["days"] >= 0):
         out.append("days must be a whole number of days, 0 or more")
-    for key in ("contexts", "exclude_calendars", "argv"):
+    for key in ("contexts", "exclude_calendars", "info_calendars", "argv"):
         if key in s and not _is_str_list(s[key]):
             out.append(f"{key} must be a list of text")
     if "status" in s and not (_is_str_list(s["status"]) and set(s["status"]) <= {"backlog", "doing", "review", "done"}):
@@ -749,12 +749,25 @@ ICAL_LINE = re.compile(r"^(\d{4}-\d{2}-\d{2})(?: at (\d{1,2}:\d{2}))?"
 def _icalbuddy(section: dict, ctx: Context) -> list:
     days = int(section.get("days", 1))
     # -nrd: absolute dates, never "today"/"tomorrow" (those cannot be parsed back)
-    argv = ["icalBuddy", "-nrd", "-nc", "-b", "", "-ps", "|\t|", "-iep", "datetime,title", "-po", "datetime,title",
+    base = ["icalBuddy", "-nrd", "-nc", "-b", "", "-ps", "|\t|", "-iep", "datetime,title", "-po", "datetime,title",
             "-df", "%Y-%m-%d", "-tf", "%H:%M"]
+    argv = list(base)
     if section.get("exclude_calendars"):
         argv += ["-ec", ",".join(str(c) for c in section["exclude_calendars"])]
-    argv.append(f"eventsToday+{days}")
-    out = ctx.run(argv, timeout=ctx.timeout)
+    events = _icalbuddy_events(ctx.run(argv + [f"eventsToday+{days}"], timeout=ctx.timeout))
+    if section.get("info_calendars"):
+        # -nc leaves the calendar name out (with it, every title ends in one to strip):
+        # a second call limited to the info calendars says which events are theirs.
+        only = ["-ic", ",".join(str(c) for c in section["info_calendars"]), f"eventsToday+{days}"]
+        info = {(e["start"], e["end"], e["title"]) for e in _icalbuddy_events(ctx.run(base + only,
+                                                                                       timeout=ctx.timeout))}
+        for e in events:
+            if (e["start"], e["end"], e["title"]) in info:
+                e["info"] = True
+    return events
+
+
+def _icalbuddy_events(out: str) -> list:
     events = []
     for line in out.splitlines():
         m = ICAL_LINE.match(line.strip("\n"))
@@ -797,13 +810,16 @@ def _ics(section: dict, ctx: Context) -> list:
     start_day = ctx.now.date()
     last_day = start_day + dt.timedelta(days=int(section.get("days", 1)))
     events, current = [], None
+    # X-WR-CALNAME: the calendar's own name, which `info_calendars` can list
+    calname = next((line.split(":", 1)[1].strip() for line in text.splitlines()
+                    if line.startswith("X-WR-CALNAME")), None)
     for line in text.splitlines():
         if line == "BEGIN:VEVENT":
             current = {}
         elif line == "END:VEVENT" and current is not None:
             if current.get("start") and start_day <= dt.date.fromisoformat(current["start"][:10]) <= last_day:
                 events.append({"title": current.get("title", ""), "start": current["start"],
-                               "end": current.get("end")})
+                               "end": current.get("end"), **({"calendar": calname} if calname else {})})
             current = None
         elif current is not None and ":" in line:
             head, value = line.split(":", 1)
@@ -819,6 +835,19 @@ def _ics(section: dict, ctx: Context) -> list:
 
 
 def calendar_events(section: dict, ctx: Context) -> list:
+    """Events of one calendar section. An event of an `info_calendars` calendar (or one a
+    command marks `info: true`) carries `info: true`: shown, never a clash or a collision."""
+    events = _calendar_events(section, ctx)
+    names = {str(c) for c in section.get("info_calendars") or []}
+    for e in events:
+        if e.get("info") is True or (names and str(e.get("calendar")) in names):
+            e["info"] = True
+        else:
+            e.pop("info", None)
+    return events
+
+
+def _calendar_events(section: dict, ctx: Context) -> list:
     provider = section.get("provider", "auto")
     if provider == "auto":
         if not shutil.which("icalBuddy"):
@@ -836,7 +865,7 @@ def calendar_events(section: dict, ctx: Context) -> list:
 def sec_calendar(section: dict, ctx: Context) -> list:
     events = calendar_events(section, ctx)
     return [{"id": f"{e.get('start')} {e.get('title')}", "title": e.get("title"), "start": e.get("start"),
-             "end": e.get("end"), "state": "new"} for e in events]
+             "end": e.get("end"), "state": "new", **({"info": True} if e.get("info") else {})} for e in events]
 
 
 def _json_list(text: str) -> list:
