@@ -346,6 +346,18 @@ calendar:
 mandants:
   enabled: false
 
+# ─── Mail drafts ──────────────────────────────────────────────────────
+# Machine defaults for skills/mail-draft. Occasions live in
+# workflow/mail-profiles/, footers in identity/mail-footers/ (docs/mail-draft.md).
+# Nothing here sends; every client gets a draft.
+# mail:
+#   client: apple-mail          # apple-mail | outlook | eml | none (default: apple-mail on macOS, else eml)
+#   default_profile: everyday
+#   language: en                # language of footers/profiles without a variant suffix
+#   drafts_dir: .bridge/mail-drafts
+#   labels: {done: "DONE", blocked: "BLOCKED"}
+#   attachment_words: ["attached", "enclosed"]
+
 # ─── Document Sensor ──────────────────────────────────────────────────
 # Inbox scanning + PARA-style document routing. See workflow/contexts/doc-system.yaml.
 # Activate via:  /bridge-onboard --add doc-system

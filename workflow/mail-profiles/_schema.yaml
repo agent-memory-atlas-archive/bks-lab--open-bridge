@@ -1,0 +1,209 @@
+# Mail Profile Schema: JSON Schema Draft 2020-12 in YAML
+#
+# Validates `workflow/mail-profiles/<id>.yaml`. A profile is an OCCASION: a
+# job application, a status report to a customer, a note to the family, an
+# invoice cover letter. It decides everything about a draft that is not the
+# message itself: which footer signs it, which theme dresses it, how it greets
+# and signs off, what is attached by default, which mail client gets it, and
+# for which recipients it is picked without being named.
+#
+# How a draft finds its profile, first match wins:
+#   1. `--profile <id>` on the command line
+#   2. the recipient person's `mail_profile` (identity/mandants/<id>.yaml)
+#   3. the recipient mandant's `mail_profile`
+#   4. a profile whose `applies_to` matches the mandant, its type or a tag
+#   5. bridge-config.yaml `mail.default_profile`, then the profile with `default: true`
+#   6. a built-in neutral profile
+# `mail-draft explain --to <recipient>` prints which step decided and why.
+#
+# Validation:
+#   skills/mail-draft/mail-draft.sh validate          # what CI runs
+#
+# Model and examples: docs/mail-draft.md.
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://bks-lab.github.io/open-bridge/schemas/mail-profile.yaml"
+title: Mail profile
+description: One occasion for writing mail, and how a draft for it is built.
+
+type: object
+required: [schema_version, scope, id]
+additionalProperties: false
+
+$defs:
+  address_list:
+    type: array
+    items:
+      type: string
+      description: An address, `mandant:<id>`, `<mandant>/<person>` or a person id.
+
+properties:
+  schema_version: {const: 1}
+  scope:
+    enum: [core, org, personal, user, private]
+    description: |
+      `org` for a profile a team shares through an org overlay (the company
+      status-report format), `user` for your own. A profile that names a real
+      recipient or a real footer is never core.
+  id:
+    type: string
+    pattern: "^[a-z0-9][a-z0-9-]*$"
+    description: Matches the filename without .yaml. `--profile <id>` picks it.
+  title: {type: string}
+  description: {type: string, description: "When to use this profile, in one sentence."}
+  default:
+    type: boolean
+    description: The profile used when nothing else decides. At most one may say true.
+  extends:
+    type: string
+    pattern: "^[a-z0-9][a-z0-9-]*$"
+    description: |
+      Another profile this one starts from; fields here win, maps merge, lists
+      replace. Lets "application-en" be "application" with three changes.
+  offer_on:
+    type: array
+    items: {type: string, minLength: 2}
+    description: Phrases that suggest this profile ("job application", "status report").
+
+  applies_to:
+    type: object
+    additionalProperties: false
+    description: Recipients this profile is picked for without `--profile`.
+    properties:
+      mandants: {type: array, items: {type: string}}
+      types:
+        type: array
+        items: {type: string}
+        description: Mandant types (company, family, friends, customer, ...).
+      tags: {type: array, items: {type: string}}
+
+  # ------------------------------------------------------------ who signs --
+  footer:
+    oneOf:
+      - {type: string, pattern: "^[a-z0-9][a-z0-9-]*$"}
+      - {const: false}
+    description: identity/mail-footers/<id>.yaml, or false for no footer at all.
+  footer_style:
+    enum: [card, compact, minimal, text]
+    description: Overrides the footer's own style for this occasion (a reply wants compact).
+  persona_ref:
+    type: string
+    description: Persona whose plain `signature` closes the mail when `footer` is not set.
+  sender:
+    type: string
+    format: email
+    description: From address. Overrides the footer's sender.
+
+  # --------------------------------------------------------------- dress --
+  theme:
+    enum: [design, minimal, plain]
+    description: |
+      design   colours and type from DESIGN.md
+      minimal  neutral, no brand
+      plain    no card, no colour; for recipients who want text that happens to be HTML
+  tokens:
+    type: object
+    additionalProperties: {type: string}
+    description: "Per-role DESIGN.md token override, e.g. {link: secondary}. Roles in docs/mail-draft.md."
+  masthead:
+    type: boolean
+    description: Repeat the subject as a title at the top of the card. Default true for design.
+  eyebrow: {type: string, description: "Small caps line above the title (an organisation, a series)."}
+  preheader: {type: string, description: "Inbox preview text. Supports placeholders."}
+
+  # ---------------------------------------------------------------- words --
+  language:
+    type: string
+    pattern: "^[a-z]{2}(-[A-Z]{2})?$"
+    description: Default language, overridden by the recipient's `defaults.language`.
+  address_form:
+    enum: [formal, informal]
+    description: Default form of address, overridden by the recipient's `defaults.address_form`.
+  subject:
+    type: string
+    description: "Subject template, `{subject}` is what was passed. E.g. \"Application: {subject}\"."
+  greeting:
+    type: object
+    additionalProperties: false
+    properties:
+      formal: {type: string}
+      informal: {type: string}
+      fallback: {type: string, description: "When the recipient has no known name."}
+    description: |
+      Opening line. Placeholders: {first_name} {last_name} {name} {group}
+      {sender_name} {sender_first_name} {subject} {date}. Left out when the
+      body already starts with a greeting of its own (see `greeting_words`).
+  sign_off:
+    type: object
+    additionalProperties: false
+    properties:
+      formal: {type: string}
+      informal: {type: string}
+    description: Closing lines before the footer, same placeholders.
+  greeting_words:
+    type: array
+    items: {type: string}
+    description: Words that mark a body as already greeted ("Hello", "Dear", ...).
+  snippets:
+    type: object
+    additionalProperties: {type: string}
+    description: |
+      Named Markdown blocks a body pulls in with {{snippet:<name>}}: the
+      availability paragraph of an application, the disclaimer of a report.
+  labels:
+    type: object
+    additionalProperties: {type: string}
+    description: Badge and alert labels in this profile's language (done, blocked, note, warning, ...).
+  badge_aliases:
+    type: object
+    additionalProperties: {type: string}
+    description: "Extra badge words mapped to a built-in one, e.g. {finished: done}."
+
+  # ------------------------------------------------------------- envelope --
+  cc: {$ref: "#/$defs/address_list"}
+  bcc: {$ref: "#/$defs/address_list"}
+  attachments:
+    type: array
+    items: {type: string}
+    description: Files attached by default (a CV for applications). `~` and ${variables} expand.
+  priority: {enum: [low, normal, high]}
+  client:
+    enum: [apple-mail, outlook, eml, none]
+    description: Overrides bridge-config.yaml `mail.client` for this occasion.
+
+  # ---------------------------------------------------------------- checks --
+  style_skill:
+    type: string
+    description: Skill the agent loads for tone before writing the body (a house style guide).
+  attachment_words:
+    type: array
+    items: {type: string}
+    description: Words that promise an attachment; used with no file attached they raise a warning.
+  require:
+    type: object
+    additionalProperties: false
+    properties:
+      attachments: {type: boolean, description: "Refuse a draft with no attachment (applications)."}
+      subject_pattern: {type: string, description: "Regex the final subject must match."}
+
+  variants:
+    type: object
+    propertyNames: {pattern: "^[a-z]{2}(-[A-Z]{2})?$"}
+    additionalProperties:
+      type: object
+      additionalProperties: false
+      properties:
+        subject: {type: string}
+        greeting: {$ref: "#/properties/greeting"}
+        sign_off: {$ref: "#/properties/sign_off"}
+        greeting_words: {$ref: "#/properties/greeting_words"}
+        preheader: {type: string}
+        eyebrow: {type: string}
+        snippets: {$ref: "#/properties/snippets"}
+        labels: {$ref: "#/properties/labels"}
+        attachment_words: {$ref: "#/properties/attachment_words"}
+        attachments: {$ref: "#/properties/attachments"}
+    description: |
+      Per-language wording, applied when the draft's language (recipient,
+      --lang or profile) has an entry: `de: {greeting: {...}, sign_off: {...}}`.
+      The language decides the words; the profile still decides everything else.

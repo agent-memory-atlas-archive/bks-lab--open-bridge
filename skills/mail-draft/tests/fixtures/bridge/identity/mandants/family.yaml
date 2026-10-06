@@ -1,0 +1,11 @@
+schema_version: 1
+scope: user
+id: family
+type: family
+display_name: Family
+mail_profile: family
+persons:
+  - id: sam
+    display_name: Sam
+    channels: {email: sam@example.org}
+    defaults: {language: de, address_form: informal}

@@ -85,11 +85,19 @@ families:
     writer: "a person"
     read: named
 
+  - path: identity/mail-footers/
+    object: "how a drafted mail is signed: contact block, badges, cards, a dated notice, small print"
+    island: "core: template, schema; user: entries; org: a shared team footer via an overlay"
+    lives: [core, pii, overlay]
+    references: ["persona_ref → identity/personas/", "extends → identity/mail-footers/"]
+    writer: "a person (skills/mail-draft reads and renders it)"
+    read: named
+
   - path: identity/mandants/
     object: "a group that receives outgoing messages"
     island: "core: template, schema; user: entries; org: a shared group via scope"
     lives: [core, pii]
-    references: ["context_ref → workflow/contexts/"]
+    references: ["context_ref → workflow/contexts/", "mail_profile → workflow/mail-profiles/"]
     writer: "/mandants"
     read: named
 
@@ -206,6 +214,15 @@ families:
     lives: [core, pii, overlay]
     references: ["persona_ref → identity/personas/"]
     writer: "a person, or an org overlay"
+    read: named
+
+  - path: workflow/mail-profiles/
+    object: "an occasion for mail: footer, theme, greeting, snippets, attachments, client, who it applies to"
+    island: "core: template, schema; user: entries; org: a shared format via an overlay"
+    lives: [core, private, overlay]
+    references: ["footer → identity/mail-footers/", "persona_ref → identity/personas/",
+                 "extends → workflow/mail-profiles/", "applies_to.mandants → identity/mandants/"]
+    writer: "a person (skills/mail-draft selects and applies it)"
     read: named
 
   - path: workflow/projects/

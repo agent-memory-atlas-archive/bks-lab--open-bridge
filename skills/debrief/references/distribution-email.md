@@ -112,8 +112,12 @@ overlay; open-bridge does not ship one) with `action: send` and draft
 frontmatter. On success, update draft status → `sent-at: {ISO}`. Without
 such a skill, `[s]` is unavailable — use `[o]`.
 
-**[o] Apple Mail draft:** use AppleScript. Body comes from the `.txt` file
-(avoid escape hell with multi-line content):
+**[o] Mail draft:** with `skills/mail-draft` present, hand the `.md` to it:
+`skills/mail-draft/mail-draft.sh compose --to <addr> --to <addr> --subject "<subject>"
+--body-file <path to .md>`. It picks the footer and greeting from the recipients'
+mail profile, verifies the draft landed in Drafts, and never sends
+([`docs/mail-draft.md`](../../../docs/mail-draft.md)). Without it, AppleScript;
+the body comes from the `.txt` file (avoid escape hell with multi-line content):
 
 ```bash
 osascript <<'APPLESCRIPT'

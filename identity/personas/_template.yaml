@@ -121,7 +121,8 @@ destinations:
 
 # ---------------------------------------------------------------------
 # Signature used for outgoing correspondence.
-# Referenced by invoice-generation + email-composer skills.
+# Plain fallback under a mail when no footer is chosen (skills/mail-draft);
+# structured footers live in identity/mail-footers/ and point here with persona_ref.
 # ---------------------------------------------------------------------
 signature: |
   Alex Example

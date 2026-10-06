@@ -1,0 +1,13 @@
+schema_version: 1
+scope: user
+id: acme
+type: company
+display_name: Acme Ltd
+persons:
+  - id: anna
+    display_name: Anna Schmidt
+    channels: {email: anna@acme.example}
+    defaults: {language: de}
+  - id: ben
+    display_name: Ben Ortiz
+    channels: {email: ben@acme.example}

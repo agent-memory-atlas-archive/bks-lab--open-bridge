@@ -1,0 +1,13 @@
+schema_version: 1
+scope: user
+id: everyday
+default: true
+footer: contact
+footer_style: compact
+theme: design
+masthead: false
+language: en
+address_form: informal
+greeting: {informal: "Hi {first_name},", formal: "Dear {name},", fallback: "Hello,"}
+sign_off: {informal: "Best,\n{sender_first_name}", formal: "Kind regards,\n{sender_name}"}
+greeting_words: [Hi, Hello, Dear, Hey]

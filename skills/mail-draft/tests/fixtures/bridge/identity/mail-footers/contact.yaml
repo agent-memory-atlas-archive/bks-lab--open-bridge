@@ -1,0 +1,27 @@
+schema_version: 1
+scope: user
+id: contact
+title: Full footer
+persona_ref: alex
+style: card
+language: en
+role: Independent consultant
+org: Example Studio
+website: https://example.com
+wordmark: {top: EX, bottom: STUDIO}
+links:
+  - {badge: in, label: LinkedIn, url: "https://www.linkedin.com/in/example", color: "#0A66C2"}
+  - {badge: A, label: My agent, url: "https://example.com/{visitor_query}#agent", color: link}
+cards:
+  - {kicker: Portfolio, title: Recent work, text: Three projects., url: "https://example.com/work"}
+  - {kicker: Talk, title: A short talk, text: Twenty minutes., url: "https://example.com/talk"}
+  - {kicker: Tool, title: An open tool, text: Free., url: "https://example.com/tool", wide: true}
+cta: {label: Book a call, url: "https://example.com/book"}
+notice: {text: "Away from 1 to 14 August.", from: 2026-07-25, until: 2026-08-14}
+tagline: {lead: "Currently:", name: a tool, text: that keeps notes together., url: "https://example.com/tool"}
+legal: ["Example Studio · 1 Example Street · VAT XX0"]
+visitor_params: {name: for, informal: "tone=casual"}
+variants:
+  de:
+    role: "[de] Consultant"
+    tagline: {lead: "[de] Currently:", name: "[de] a tool", text: "[de] that keeps notes together.", url: "https://example.com/de/tool"}

@@ -144,6 +144,21 @@ SURFACES = [
         "exclude_prefixes": ["_"],
     },
     {
+        # How a drafted mail is signed (skills/mail-draft). Holds contact data,
+        # so the schema refuses scope core.
+        "name": "mail-footer",
+        "schema": "identity/mail-footers/_schema.yaml",
+        "instances": "identity/mail-footers/*.yaml",
+        "exclude_prefixes": ["_"],
+    },
+    {
+        # An occasion for mail: footer, greeting, attachments, who it applies to.
+        "name": "mail-profile",
+        "schema": "workflow/mail-profiles/_schema.yaml",
+        "instances": "workflow/mail-profiles/*.yaml",
+        "exclude_prefixes": ["_"],
+    },
+    {
         "name": "calendar",
         "schema": "workflow/calendars/_schema.yaml",
         "instances": "workflow/calendars/*.yaml",

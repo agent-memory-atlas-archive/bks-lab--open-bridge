@@ -1,0 +1,176 @@
+# Mail Footer Schema: JSON Schema Draft 2020-12 in YAML
+#
+# Validates `identity/mail-footers/<id>.yaml`. A footer is the block under a
+# mail that says who wrote it and how to reach them: name, contact lines,
+# badges, cards, a button, a dated notice, small print. It is the presentation
+# of an identity, so it lives next to the personas and borrows from one
+# (`persona_ref`) instead of repeating its name and address.
+#
+# Several footers per person are the normal case: a full one for first
+# contact, a compact one for replies, a plain one for a mailing list, one per
+# company you write for. A team can share one through an org overlay and each
+# member `extends` it with their own name.
+#
+# Validation:
+#   skills/mail-draft/mail-draft.sh validate          # what CI runs
+#   check-jsonschema --schemafile identity/mail-footers/_schema.yaml \
+#                    identity/mail-footers/<id>.yaml
+#
+# Model and examples: docs/mail-draft.md.
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://bks-lab.github.io/open-bridge/schemas/mail-footer.yaml"
+title: Mail footer
+description: The block under a drafted mail that says who wrote it and how to reach them.
+
+type: object
+required: [schema_version, scope, id]
+# unevaluatedProperties, not additionalProperties: the content fields arrive
+# through allOf, and additionalProperties cannot see into allOf.
+unevaluatedProperties: false
+
+$defs:
+  url:
+    type: string
+    pattern: "^(https?://|mailto:|tel:)"
+    description: |
+      http(s), mailto or tel. May contain `{visitor_query}`, which becomes
+      `?for=<recipient first name>` (see visitor_params) or nothing.
+  color:
+    type: string
+    pattern: "^(#[0-9a-fA-F]{6}|[a-z][a-z0-9_-]*)$"
+    description: |
+      A hex value ONLY for someone else's brand (a chat service, a network).
+      Your own colours are a theme role (primary, link, success, info, warning,
+      danger) or any DESIGN.md colour token by name (secondary, accent, ...),
+      so they follow DESIGN.md instead of being picked here.
+  content:
+    type: object
+    properties:
+      style:
+        enum: [card, compact, minimal, text]
+        description: |
+          card     wordmark, contact block, badges, cards, button, tagline, legal
+          compact  one line of name and contacts, badges inline, legal; no cards
+          minimal  name and one contact line, nothing else
+          text     the plain-text rendering only, also in the HTML part
+      name: {type: string, description: "Defaults to the persona's display_name."}
+      role: {type: string}
+      org: {type: string}
+      website: {$ref: "#/$defs/url"}
+      phone: {type: string, description: "Defaults to the persona's first person's channels.phone."}
+      email: {type: string, format: email, description: "Defaults to the persona's first person's channels.email."}
+      sender:
+        type: string
+        format: email
+        description: |
+          The From address the draft is set to, where the mail client allows
+          it (Apple Mail does, Outlook for Mac does not). Defaults to `email`.
+      wordmark:
+        type: object
+        additionalProperties: false
+        properties:
+          top: {type: string}
+          bottom: {type: string}
+        description: A two-line text logo. Text, never an image (images are blocked or arrive as attachments).
+      links:
+        type: array
+        items:
+          type: object
+          required: [badge, label, url]
+          additionalProperties: false
+          properties:
+            badge: {type: string, maxLength: 4}
+            label: {type: string}
+            url: {$ref: "#/$defs/url"}
+            color: {$ref: "#/$defs/color"}
+      cards:
+        type: array
+        items:
+          type: object
+          required: [title, url]
+          additionalProperties: false
+          properties:
+            kicker: {type: string}
+            title: {type: string}
+            text: {type: string}
+            url: {$ref: "#/$defs/url"}
+            wide: {type: boolean, description: "Takes a full row; otherwise two cards share one."}
+      cta:
+        type: object
+        required: [label, url]
+        additionalProperties: false
+        properties:
+          label: {type: string}
+          url: {$ref: "#/$defs/url"}
+        description: One button, e.g. "Book a call". Renders in desktop Outlook too (VML).
+      notice:
+        type: object
+        required: [text]
+        additionalProperties: false
+        properties:
+          text: {type: string}
+          url: {$ref: "#/$defs/url"}
+          from: {type: string, format: date}
+          until: {type: string, format: date}
+        description: |
+          A dated line ("Away until 20 October", "Meet us at the fair").
+          Outside its from/until window it is left out, so a stale notice
+          never reaches a recipient.
+      tagline:
+        type: object
+        additionalProperties: false
+        properties:
+          lead: {type: string}
+          name: {type: string}
+          text: {type: string}
+          url: {$ref: "#/$defs/url"}
+        description: One line under a rule, e.g. what you are working on.
+      legal:
+        type: array
+        items: {type: string}
+        description: Small print, one entry per line (register, VAT id, address).
+      visitor_params:
+        type: object
+        additionalProperties: false
+        properties:
+          name: {type: string, description: "Query key for the recipient's first name. Default: for."}
+          informal: {type: string, pattern: "^[A-Za-z0-9_-]+(=[A-Za-z0-9_-]*)?$", description: "key=value added for informal address, e.g. tone=casual."}
+
+allOf:
+  - $ref: "#/$defs/content"
+
+properties:
+  schema_version: {const: 1}
+  scope:
+    enum: [org, personal, user, private]
+    description: |
+      A footer carries a name, an address and a phone number, so it is never
+      core. `org` is a shared team footer shipped by an org overlay.
+  id:
+    type: string
+    pattern: "^[a-z0-9][a-z0-9-]*$"
+    description: Matches the filename without .yaml.
+  title: {type: string, description: "What this footer is for, shown by `mail-draft list`."}
+  persona_ref:
+    type: string
+    pattern: "^[a-z][a-z0-9-]*$"
+    description: identity/personas/<id>.yaml to take name, email, phone and signature from.
+  extends:
+    type: string
+    pattern: "^[a-z0-9][a-z0-9-]*$"
+    description: Another footer this one starts from; fields here win. Lists replace, they do not append.
+  language:
+    type: string
+    pattern: "^[a-z]{2}(-[A-Z]{2})?$"
+    description: The language the fields above are written in. Default from bridge-config.yaml `mail.language`.
+  variants:
+    type: object
+    propertyNames: {pattern: "^[a-z]{2}(-[A-Z]{2})?$"}
+    additionalProperties:
+      $ref: "#/$defs/content"
+      unevaluatedProperties: false
+    description: |
+      Per-language overrides, picked by the recipient's language
+      (mandant person `defaults.language`, or `--lang`). Only the fields that
+      change: `en: {role: "...", tagline: {...}}`.

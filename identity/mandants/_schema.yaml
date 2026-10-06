@@ -75,6 +75,22 @@ properties:
     minLength: 1
     description: "Human-readable name shown in UI (Mandants tab)"
 
+  mail_profile:
+    type: string
+    pattern: "^[a-z0-9][a-z0-9-]*$"
+    description: |
+      workflow/mail-profiles/<id>.yaml every person here is written to with
+      (skills/mail-draft). A person's own mail_profile wins. docs/mail-draft.md.
+
+  language:
+    type: string
+    pattern: "^[a-z]{2}(-[A-Z]{2})?$"
+    description: "Default language for mail to this group; a person's defaults.language wins."
+
+  address_form:
+    enum: [formal, informal]
+    description: "Default form of address for mail to this group; a person's defaults.address_form wins."
+
   default_channel:
     type: string
     description: |
@@ -155,6 +171,10 @@ properties:
             imessage: {type: string, description: "iMessage handle (email or phone)"}
             telegram: {type: string, description: "Telegram username or chat-id"}
             whatsapp: {type: string}
+        mail_profile:
+          type: string
+          pattern: "^[a-z0-9][a-z0-9-]*$"
+          description: "workflow/mail-profiles/<id>.yaml for this person; wins over the mandant's."
         defaults:
           type: object
           additionalProperties: true
@@ -172,6 +192,9 @@ properties:
               description: "IANA timezone (Europe/Berlin, America/Los_Angeles, ...)"
             detail_level:
               enum: [minimal, summary, full]
+            address_form:
+              enum: [formal, informal]
+              description: "How mail to this person greets and signs off (skills/mail-draft)."
             preferred_time_of_day:
               enum: [morning, midday, evening, night]
             quiet_hours:
