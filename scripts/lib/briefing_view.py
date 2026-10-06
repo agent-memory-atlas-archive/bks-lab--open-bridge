@@ -1035,8 +1035,8 @@ def draw_report(view: dict) -> str:
         out += [f"**{labels['agenda_title']}:** {a['when']} {a['title']}", ""]
     elif agenda:
         out += _table([labels["col_when"], labels["col_what"], labels["col_note"]],
-                      [[a["when"], a["title"], labels["clashes"].format(title=a["clash"]) if a.get("clash") else ""]
-                       for a in agenda]) + [""]
+                      # the do row explains a clash; the table only marks it
+                      [[a["when"], a["title"], "⚠" if a.get("clash") else ""] for a in agenda]) + [""]
 
     rows = [(b, r) for b in view.get("buckets") or [] for r in b["items"]]
     n = 0

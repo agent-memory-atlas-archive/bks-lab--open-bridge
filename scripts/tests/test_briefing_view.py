@@ -831,3 +831,12 @@ def test_report_shortens_a_very_long_title():
     text = bv.draw(_report(None, [{"kind": "command", "id": "a", "argv": ["x"]}], _rsec("a", "A", [_ritem(1, long)])))
     line = next(l for l in text.splitlines() if l.startswith("1. "))
     assert len(line) < 160 and "…" in line
+
+
+def test_report_calendar_marks_a_clash_without_repeating_the_do_row():
+    text = bv.draw(_report(None, [{"kind": "calendar"}],
+                           _cal(("Weekly", "2026-10-06T18:00", "2026-10-06T18:45"),
+                                ("Ballet", "2026-10-06T18:05", "2026-10-06T19:05"))))
+    table = [l for l in text.splitlines() if l.startswith("| tomorrow")]
+    assert all(l.endswith("| ⚠ |") for l in table)
+    assert sum(1 for l in text.splitlines() if "overlap" in l) == 1     # the do row says it, once
