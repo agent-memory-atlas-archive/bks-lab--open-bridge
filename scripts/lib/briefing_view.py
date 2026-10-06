@@ -81,6 +81,7 @@ LABELS = {
     "clashes": "overlaps {title}",
     "clash_row": "{first} and {second} overlap ({when})",
     "all_clear": "{title}: all clear",
+    "owed": "Not in this profile, still yours to run: {streams} (briefing.py owed)",
 }
 BOARD_STATES = ("new", "ready", "in_progress", "review", "blocked")
 HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -632,6 +633,8 @@ def build(result: dict, profile: dict, style: str | None = None) -> dict:
     rows.sort(key=lambda r: (URGENCY[r["bucket"]], r["rank"], str(_when(r.get("due")) or "9999")))
 
     hygiene = list(data["hygiene"]) + [str(n) for n in result.get("housekeeping") or []]
+    if result.get("owed"):
+        hygiene.append(labels["owed"].format(streams=", ".join(result["owed"])))
     if data["no_next"]:
         hygiene.append(labels["no_next"].format(n=len(data["no_next"]), slugs=", ".join(data["no_next"])))
     if data["muted"]:

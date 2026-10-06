@@ -48,31 +48,44 @@ Then `python3 scripts/inbox.py list --json` is the source for the top of the out
 ## Phase 4 with a view: the script's shape is the output, not the whole briefing
 
 When the profile has `view.style` other than `sources` (or the person asked for
-`--style`), run `python3 scripts/briefing.py render [<id>] --file` and show its
-text as it is. The buckets, the order, the numbering, the Calendar block and the
-housekeeping are computed there (docs/briefings.md § Views); do not regroup,
-re-sort or drop rows. `--file` already opened today's day block, wrote the
-briefing's log row and regenerated the board; do not do those again.
+`--style`), run `python3 scripts/briefing.py render [<id>] --file`. The buckets,
+the order, the numbering, the Calendar block and the housekeeping are computed
+there (docs/briefings.md § Views). `--file` already opened today's day block,
+wrote the briefing's log row and regenerated the board; do not do those again.
 
-**The view is the shape of the output, not the end of the run.** It covers what
-the profile's sections cover and nothing else. Every stream in `workflow.md`
-that no section of this profile covers still runs (meeting deadlines and open
-debrief points, imports, backups and health, channels, upstream drift,
-applications), and what it finds is added below the view as rows in the same
-bucket words (`Tun`/`Do`, `Planen`/`Plan`, ...), numbered on from the view's
-last number. Green stays one sentence ("Backups: all clear"), never a row. The
-morning of 2026-10-06 showed why: the view looked complete, the streams were
-skipped, and a meeting at 16:00, a clash the next evening, a colleague's open PR
-and a disk at 99 % were missing from the briefing.
+**Show the rendered text verbatim**, in a code block at the top of your answer.
+The person does not see tool output: a table that summarises the view, or "see
+above", is a briefing they never got. Do not regroup, re-sort, shorten or drop
+rows.
+
+**Then the owed streams, and only those.** The view covers what the profile's
+sections cover. `python3 scripts/briefing.py owed [<id>]` names every stream
+that applies to this Bridge and that no section covers, each with the way to run
+it; housekeeping repeats the list. Run exactly those, the way `owed` says, and
+nothing else: a stream it does not name is covered or does not apply, and running
+it again by hand (a second PR search, your own config queries) only adds
+improvised commands that can fail. What an owed stream finds goes below the view
+as rows in the same bucket words, numbered on from the view's last number.
+
+**Never a second row for something the view shows.** A detail that sharpens a
+row (the disk is at 99 %, not just over 90 %) is a note on that row by its
+number ("zu 3: ..."), not a new row. Green stays one sentence ("Backups: all
+clear"). The morning of 2026-10-06 showed why both rules exist: first the view
+looked complete and the streams were skipped, then a test run listed the same
+disk twice and redid a PR search the profile already ran.
 
 **A finding about a run is yours to check, not the person's.** "Look at the
 first run of X" is never a row for the person: read the run's log or trace,
 then report the result in one sentence, and only a deviation becomes a row.
 Filing such a check needs a `closes_when`, or it is not filed.
 
-**Close with the receipt**, one line, so a skipped step is visible instead of
-silent: `Steps: inbox ✓ · view ✓ · <stream> ✓/skipped (why) · ...`. A stream
-the profile covers is not listed. Two things are yours besides:
+**Close with the receipt**, one line: `Steps: inbox ✓ · view ✓ · <owed stream>
+✓/skipped (why) · ...`, listing exactly the streams `owed` named. A stream the
+profile covers is not listed. A stream that runs by hand every morning belongs
+in the profile: propose a `command` section with `covers:` and `report_ok: true`
+after the second time.
+
+Two things are yours besides:
 
 - **Why the first row is first**, in one sentence under the headline, when the
   derived reason (due, back on, waiting N days) does not already say it.

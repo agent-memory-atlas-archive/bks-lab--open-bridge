@@ -46,6 +46,7 @@ python3 scripts/briefing.py render [<id>] --file  # the morning run: collect, fi
 python3 scripts/briefing.py render [<id>]         # collect + terminal text in the profile's view
 python3 scripts/briefing.py render --style plan   # another view for this one run
 python3 scripts/briefing.py collect --skip tracker --skip calendar   # the quick mode
+python3 scripts/briefing.py owed [<id>]           # streams the profile does not cover, and how to run them
 python3 scripts/briefing.py validate              # every profile; exit 1 on a problem
 ```
 
@@ -223,7 +224,7 @@ the person's language: `yours_today`, `free_until`, `free_rest`, `busy_until`,
 `no_next`, `muted`, `hidden`, `error`, `workplace`, `more`, `end`, `why`,
 `meanwhile`, `later`, `shutdown`, `activity_title`, `commits`, `boards_title`,
 `st_new`, `st_ready`, `st_in_progress`, `st_review`, `st_blocked`, `agenda_title`,
-`clashes`, `clash_row`, `all_clear`. Placeholders in braces stay as they are: a label may use only the placeholders
+`clashes`, `clash_row`, `all_clear`, `owed`. Placeholders in braces stay as they are: a label may use only the placeholders
 its default has (`validate` names them), and one that would not format falls
 back to the default wording instead of breaking the briefing.
 
@@ -238,6 +239,15 @@ shows the section with its count `(0)` instead. The same event from two
 calendars is listed once, and events that overlap in a chain (A with B, B with C)
 are one do row naming all of them; `plan` lays events out itself and gets no
 such row.
+
+**Owed streams.** A profile covers some of the playbook's streams; the rest
+are still run by the agent. `briefing.py owed [<id>]` names every stream that
+applies to this Bridge (`prs`, `meetings`, `imports`, `upstream`,
+`applications`, `channels`, `backups`) and that no section covers, each with how
+to run it, and the view repeats the list under housekeeping (label `owed`). A
+section declares what it covers with `covers: [meetings]`; a github tracker with
+`others_prs` covers `prs` by itself. So the agent runs exactly the gaps, instead
+of guessing which ones exist.
 
 **Bookkeeping.** `--file` also does what the playbook once left to the agent,
 because a step a run can skip is a step nobody did: it opens today's day block in

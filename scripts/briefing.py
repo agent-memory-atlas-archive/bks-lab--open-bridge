@@ -62,7 +62,7 @@ PROFILE_KEYS = {"schema_version", "scope", "id", "title", "for", "default", "off
                 "view", "mutes"}
 SECTION_KEYS = {"kind", "id", "title", "max", "to_inbox", "provider", "query", "account_ref", "state_map",
                 "status", "contexts", "days", "path", "argv", "exclude_calendars", "bucket",
-                "repos", "author", "all_branches", "summary", "report_ok"}
+                "repos", "author", "all_branches", "summary", "report_ok", "covers"}
 # A profile is committed and often shared: a value under one of these names is
 # a credential, and credentials only ever travel as references (account_ref).
 SECRET_NAME = re.compile(r"(token|secret|password|passwd|api[_-]?key|private[_-]?key)", re.I)
@@ -375,6 +375,8 @@ def _section_types(s: dict) -> list:
     for key in ("all_branches", "summary", "report_ok"):
         if key in s and not isinstance(s[key], bool):
             out.append(f"{key} must be true or false")
+    if "covers" in s and not (_is_str_list(s["covers"]) and set(s["covers"]) <= set(STREAMS)):
+        out.append(f"covers must be a list of {', '.join(STREAMS)}")
     if "bucket" in s and s["bucket"] not in (*_view().BUCKETS, "none"):
         out.append(f"bucket must be one of {', '.join(_view().BUCKETS)} or none")
     return out
@@ -986,6 +988,77 @@ def load_snapshot(root: Path, pid: str) -> dict | None:
         return None
 
 
+# ---------------------------------------------------------------- owed streams
+
+# The playbook's streams a profile section may not cover (skills/briefing/references/
+# workflow.md). Each: when it applies to this Bridge, and how to run it by hand.
+STREAMS = {
+    "prs": ("Open pull requests across the orgs",
+            "a github tracker section with `others_prs: N` covers this; else workflow.md § Open PRs"),
+    "meetings": ("Meeting obligations and open debrief points",
+                 "python3 skills/briefing/scripts/meeting-obligations.py; then work/tasks/_meetings/*/triage.md "
+                 "with status: pending-triage (workflow.md Stream A 5, 5b)"),
+    "imports": ("Files waiting in the imports directory",
+                "list them by type; transcripts are offered to /debrief (workflow.md Stream C 2, 3)"),
+    "upstream": ("Inbound drift from CORE and org overlays",
+                 "references/upstream-summary.md: python3 scripts/overlay.py status <name>, and "
+                 "git rev-list --count HEAD..<remote>/<branch> for CORE"),
+    "applications": ("Application pipeline thresholds",
+                     "workflow.md Stream C 5, thresholds from the applications standing order"),
+    "channels": ("Channel activity", "workflow.md Stream D"),
+    "backups": ("Backup health", "the backup executor's health check (infra/backups/README.md)"),
+}
+
+
+def _imports_waiting(root: Path, cfg: dict) -> bool:
+    raw = str((cfg.get("work") or {}).get("imports_dir") or "work/imports")
+    base = Path(raw).expanduser()
+    base = base if base.is_absolute() else root / base
+    try:
+        return any(p.is_file() and p.name not in (".gitkeep", ".DS_Store") and "_debriefed" not in p.parts
+                   for p in base.rglob("*"))
+    except OSError:
+        return False
+
+
+def _channels_active(root: Path, cfg: dict) -> bool:
+    for p in (root / "infra" / "channels").glob("*.yaml"):
+        if p.name.startswith("_"):
+            continue
+        try:
+            data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError):
+            continue
+        if isinstance(data, dict) and (data.get("checkin") or {}).get("enabled") is True:
+            return True
+    sources = (cfg.get("integrations") or {}).get("context_sources") or {}
+    return any(isinstance(v, dict) and v.get("enabled") and {"chat", "calls"} & set(v.get("provides") or [])
+               for v in sources.values())
+
+
+def owed(root: Path, cfg: dict, profile: dict) -> list:
+    """Streams that apply to this Bridge and that no section of the profile covers."""
+    sections = [s for s in profile.get("sections") or [] if isinstance(s, dict)]
+    covered = {c for s in sections for c in (s.get("covers") or []) if isinstance(c, str)}
+    for s in sections:
+        q = s.get("query") if isinstance(s.get("query"), dict) else {}
+        if s.get("kind") == "tracker" and s.get("provider") == "github" and q.get("others_prs"):
+            covered.add("prs")
+    integrations = cfg.get("integrations") or {}
+    applies = {
+        "prs": bool((integrations.get("github") or {}).get("enabled")) or any(
+            s.get("provider") in ("github", "github-board") for s in sections),
+        "meetings": (root / "work" / "tasks" / "_meetings").is_dir(),
+        "imports": _imports_waiting(root, cfg),
+        "upstream": bool(cfg.get("upstreams")),
+        "applications": bool((cfg.get("applications") or {}).get("enabled")),
+        "channels": _channels_active(root, cfg),
+        "backups": (root / "infra" / "backups" / "topology.yaml").is_file(),
+    }
+    return [{"id": sid, "title": title, "how": how} for sid, (title, how) in STREAMS.items()
+            if applies[sid] and sid not in covered]
+
+
 # ---------------------------------------------------------------- housekeeping
 
 # The same day heading scripts/worklog.py reads: any token, then DD.MM at the end.
@@ -1197,8 +1270,11 @@ def render(result: dict) -> str:
         for b in [b for b in s.get("summary") or [] if b.get("open")]:
             counts = " · ".join(f"{n} {st.replace('_', ' ')}" for st, n in b["counts"].items() if n)
             out.append(f"  #{b.get('number')} {b['name']}: {counts or 'empty'}")
-    if result.get("housekeeping"):
-        out += ["", "── Housekeeping"] + [f"  · {n}" for n in result["housekeeping"]]
+    notes = list(result.get("housekeeping") or [])
+    if result.get("owed"):
+        notes.append(f"not in this profile, still yours to run: {', '.join(result['owed'])} (briefing.py owed)")
+    if notes:
+        out += ["", "── Housekeeping"] + [f"  · {n}" for n in notes]
     return "\n".join(out)
 
 
@@ -1222,6 +1298,9 @@ def main(argv=None) -> int:
     p_show.add_argument("id", nargs="?")
     p_offer = sub.add_parser("offer")
     p_offer.add_argument("text")
+    p_owed = sub.add_parser("owed", help="streams this profile does not cover, and how to run them")
+    p_owed.add_argument("id", nargs="?")
+    p_owed.add_argument("--json", action="store_true")
     for name in ("collect", "render"):
         p = sub.add_parser(name)
         p.add_argument("id", nargs="?")
@@ -1283,9 +1362,21 @@ def main(argv=None) -> int:
         print(f"# from {profile.get('_path')}")
         return 0
 
+    if args.cmd == "owed":
+        found = owed(root, cfg, profile)
+        if args.json:
+            print(json.dumps(found, ensure_ascii=False, indent=1))
+        else:
+            for o in found:
+                print(f"{o['id']}: {o['title']}\n    {o['how']}")
+            if not found:
+                print("nothing owed: the profile covers every stream that applies here")
+        return 0
+
     ctx = Context(root, cfg=cfg)
     previous = load_snapshot(root, profile["id"])
     result = collect(root, profile, ctx, previous=previous, skip=tuple(args.skip), style=args.style)
+    result["owed"] = [o["id"] for o in owed(root, cfg, profile)]
     if args.file:
         box = _inbox().Inbox(root / "work" / "inbox", actor="briefing")
         filed, closed = file_to_inbox(box, profile, result)

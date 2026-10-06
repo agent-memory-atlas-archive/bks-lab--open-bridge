@@ -104,7 +104,7 @@ $defs:
       labels:
         type: object
         propertyNames:
-          enum: [activity_title, agenda_title, all_clear, back_on, boards_title, busy_until, capped, clash_row, clashes, collides, commits, due, end, error, free_rest, free_until, hidden, housekeeping, later, meanwhile, more, muted, new, next_date, no_next, nudge, only_you, repos_skipped, shutdown, since, st_blocked, st_in_progress, st_new, st_ready, st_review, task, today, tomorrow, waiting_days, why, with, workplace, yours_today]
+          enum: [activity_title, agenda_title, all_clear, back_on, boards_title, busy_until, capped, clash_row, clashes, collides, commits, owed, due, end, error, free_rest, free_until, hidden, housekeeping, later, meanwhile, more, muted, new, next_date, no_next, nudge, only_you, repos_skipped, shutdown, since, st_blocked, st_in_progress, st_new, st_ready, st_review, task, today, tomorrow, waiting_days, why, with, workplace, yours_today]
         additionalProperties: {type: string}
         description: |
           Any word the reader sees, by label name (docs/briefings.md lists them). A
@@ -191,6 +191,12 @@ $defs:
       all_branches:
         type: boolean
         description: "commits: count every local branch (`--branches`), not only the checked-out one; no stash, no remotes."
+      covers:
+        type: array
+        items: {enum: [prs, meetings, imports, upstream, applications, channels, backups]}
+        description: |
+          Playbook streams this section takes care of, so `briefing.py owed` stops
+          naming them (a github tracker with others_prs covers prs by itself).
       report_ok:
         type: boolean
         description: |
