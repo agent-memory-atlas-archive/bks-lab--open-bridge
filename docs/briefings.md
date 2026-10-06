@@ -290,6 +290,9 @@ so a mute never makes something disappear without a trace.
 
 The time limit (`timeout_sec`, default 30 s) covers a whole section, all of
 its calls together, so a slow tracker costs at most that.
+A `gh` call that fails on a GitHub rate limit is tried again after 5 and then
+15 seconds, as long as the wait still fits that limit: such errors come in
+bursts when several sessions query at once, and clear within seconds.
 
 Each run is compared with the previous run of the same profile on the same
 machine (`.bridge/briefings/<id>.last.json`, derived, not committed). Rows
