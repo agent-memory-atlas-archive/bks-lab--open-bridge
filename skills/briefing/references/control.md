@@ -45,13 +45,34 @@ calendar the collision check is skipped, everything else runs. Thresholds:
 
 Then `python3 scripts/inbox.py list --json` is the source for the top of the output.
 
-## Phase 4 with a view: the script's shape is the output
+## Phase 4 with a view: the script's shape is the output, not the whole briefing
 
 When the profile has `view.style` other than `sources` (or the person asked for
 `--style`), run `python3 scripts/briefing.py render [<id>] --file` and show its
-text as it is. The buckets, the order, the numbering and the housekeeping are
-computed there (docs/briefings.md § Views); do not regroup, re-sort or drop
-rows, and do not add the sections below on top. Two things are yours:
+text as it is. The buckets, the order, the numbering, the Calendar block and the
+housekeeping are computed there (docs/briefings.md § Views); do not regroup,
+re-sort or drop rows. `--file` already opened today's day block, wrote the
+briefing's log row and regenerated the board; do not do those again.
+
+**The view is the shape of the output, not the end of the run.** It covers what
+the profile's sections cover and nothing else. Every stream in `workflow.md`
+that no section of this profile covers still runs (meeting deadlines and open
+debrief points, imports, backups and health, channels, upstream drift,
+applications), and what it finds is added below the view as rows in the same
+bucket words (`Tun`/`Do`, `Planen`/`Plan`, ...), numbered on from the view's
+last number. Green stays one sentence ("Backups: all clear"), never a row. The
+morning of 2026-10-06 showed why: the view looked complete, the streams were
+skipped, and a meeting at 16:00, a clash the next evening, a colleague's open PR
+and a disk at 99 % were missing from the briefing.
+
+**A finding about a run is yours to check, not the person's.** "Look at the
+first run of X" is never a row for the person: read the run's log or trace,
+then report the result in one sentence, and only a deviation becomes a row.
+Filing such a check needs a `closes_when`, or it is not filed.
+
+**Close with the receipt**, one line, so a skipped step is visible instead of
+silent: `Steps: inbox ✓ · view ✓ · <stream> ✓/skipped (why) · ...`. A stream
+the profile covers is not listed. Two things are yours besides:
 
 - **Why the first row is first**, in one sentence under the headline, when the
   derived reason (due, back on, waiting N days) does not already say it.
@@ -61,6 +82,11 @@ rows, and do not add the sections below on top. Two things are yours:
   (a nudge is a DRAFT for the person, never sent), drop `a park · b keep`
   (park = `status: backlog`). A profile may rename the options; their order
   keeps these meanings.
+
+A stream that runs every morning belongs in the profile, not in this list: a
+`command` section with `report_ok: true` turns it into rows and an all-clear
+line the engine computes. Propose that when the same stream is added by hand on
+two runs.
 
 "Not this again" on a row is a `mutes:` entry in the profile matching that row
 (`{section: <id>, when: {...}}`): propose the entry, write it on a yes, run

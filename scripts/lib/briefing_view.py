@@ -27,7 +27,7 @@ import textwrap
 
 STYLES = ("sources", "triage", "brevity", "plan")
 BUCKETS = ("do", "plan", "delegate", "waiting", "drop")
-VIEW_KEYS = {"style", "headline", "dayline", "since_last", "lookahead_days", "max_items", "answer_keys", "hygiene", "color",
+VIEW_KEYS = {"style", "headline", "dayline", "agenda", "since_last", "lookahead_days", "max_items", "answer_keys", "hygiene", "color",
              "width", "labels", "buckets", "plan"}
 BUCKET_KEYS = {"id", "title", "options", "nudge_after_days"}
 DEFAULT_BUCKETS = {
@@ -77,6 +77,10 @@ LABELS = {
     "st_blocked": "blocked",
     "capped": "(first {n} cards)",
     "repos_skipped": "{n} repositories not readable: {names}",
+    "agenda_title": "Calendar",
+    "clashes": "overlaps {title}",
+    "clash_row": "{first} and {second} overlap ({when})",
+    "all_clear": "{title}: all clear",
 }
 BOARD_STATES = ("new", "ready", "in_progress", "review", "blocked")
 HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -132,7 +136,7 @@ def problems(view, mutes) -> list:
             out.append(f"unknown view key {key}")
         if view.get("style", "sources") not in STYLES:
             out.append(f"view.style must be one of {', '.join(STYLES)}")
-        for key in ("headline", "dayline", "since_last", "answer_keys"):
+        for key in ("headline", "dayline", "agenda", "since_last", "answer_keys"):
             if key in view and not isinstance(view[key], bool):
                 out.append(f"view.{key} must be true or false")
         if "max_items" in view and not _pos_int(view["max_items"]):
@@ -365,7 +369,7 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
             nudge_days = _int(b.get("nudge_after_days"), nudge_days, 1)
 
     out = {"rows": {}, "order": [], "hygiene": [], "no_next": [], "muted": 0, "events": [], "workplace": None,
-           "activity": [], "boards": []}
+           "activity": [], "boards": [], "clear": []}
 
     def items_of(s):
         # The section's own `max:` still caps what it contributes.
@@ -431,6 +435,10 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
         if not usable(s):
             continue
         forced = cfg.get("bucket") if cfg.get("bucket") in BUCKETS else None
+        if cfg.get("report_ok") is True and not any(
+                not muted(sid, i) and i.get("state") not in ("done", "removed") for i in items_of(s)):
+            # Green says so: an empty source is otherwise indistinguishable from one that never ran.
+            out["clear"].append(labels["all_clear"].format(title=s.get("title") or sid))
         if kind == "calendar":
             out["events"] += items_of(s)
             continue
@@ -577,6 +585,45 @@ def build(result: dict, profile: dict, style: str | None = None) -> dict:
     shown, hidden_ids = _bucket_cfg(view)
     titles = {b: DEFAULT_BUCKETS[b]["title"] for b in BUCKETS} | {b["id"]: b["title"] for b in shown}
 
+    events = _events(data["events"], now)
+    agenda = []
+    if view.get("agenda", True) is not False:
+        horizon = dt.datetime.combine(now.date() + dt.timedelta(days=_int(view.get("lookahead_days"), 1) + 1),
+                                      dt.time())
+        seen = set()
+        for s_, e_, t_ in events:
+            if e_ > now and s_ < horizon and (s_, e_, t_) not in seen:   # one event from two calendars
+                seen.add((s_, e_, t_))
+                agenda.append({"start": s_, "end": e_, "title": t_})
+        # Overlaps as clusters: A-B-C overlapping is one decision, not three.
+        cluster, reach = [], None
+        for a in agenda + [None]:
+            if a is not None and reach is not None and a["start"] < reach:
+                cluster.append(a)
+                reach = max(reach, a["end"])
+                continue
+            if len(cluster) > 1:
+                names = [c["title"] for c in cluster]
+                for c in cluster:
+                    c["clash"] = ", ".join(n for n in names if n != c["title"]) or c["title"]
+                key = f"clash:{cluster[0]['start']:%Y%m%d%H%M}:" + "|".join(names)
+                if style != "plan" and key not in data["rows"]:
+                    data["rows"][key] = {
+                        "title": labels["clash_row"].format(
+                            first=", ".join(names[:-1]), second=names[-1],
+                            when=_fmt_when(cluster[0]["start"].isoformat(timespec="minutes"), now, labels)),
+                        "bucket": "do", "forced": False, "why": [], "sources": ["calendar"],
+                        "rank": 0, "url": None, "task": None, "new": False, "changed": False}
+                    data["order"].append(key)
+            cluster, reach = ([a], a["end"]) if a is not None else ([], None)
+
+        def day(when):
+            return _fmt_when(when.date().isoformat(), now, labels)
+        for a in agenda:
+            tail = f"{a['end']:%H:%M}" if a["end"].date() == a["start"].date() else f"{day(a['end'])} {a['end']:%H:%M}"
+            a["when"] = f"{day(a['start'])} {a['start']:%H:%M}-{tail}"
+            a["start"], a["end"] = a["start"].isoformat(timespec="minutes"), a["end"].isoformat(timespec="minutes")
+
     rows = [data["rows"][k] for k in data["order"]]
     if not result.get("previous_at"):
         # A first run has nothing to compare with: every row would say "new".
@@ -584,7 +631,7 @@ def build(result: dict, profile: dict, style: str | None = None) -> dict:
             r["new"] = r["changed"] = False
     rows.sort(key=lambda r: (URGENCY[r["bucket"]], r["rank"], str(_when(r.get("due")) or "9999")))
 
-    hygiene = list(data["hygiene"])
+    hygiene = list(data["hygiene"]) + [str(n) for n in result.get("housekeeping") or []]
     if data["no_next"]:
         hygiene.append(labels["no_next"].format(n=len(data["no_next"]), slugs=", ".join(data["no_next"])))
     if data["muted"]:
@@ -595,7 +642,6 @@ def build(result: dict, profile: dict, style: str | None = None) -> dict:
         hygiene.append(labels["hidden"].format(n=len(hidden), ids=", ".join(ids)))
     visible = [r for r in rows if r["bucket"] not in hidden_ids]
 
-    events = _events(data["events"], now)
     plan_cfg: dict = view["plan"] if isinstance(view.get("plan"), dict) else {}
     workday: dict = plan_cfg["workday"] if isinstance(plan_cfg.get("workday"), dict) else {}
     day_start, day_end = workday.get("start", "08:00"), workday.get("end", "18:00")
@@ -611,7 +657,7 @@ def build(result: dict, profile: dict, style: str | None = None) -> dict:
            "color": view.get("color", "auto"), "width": width if _pos_int(width) and width >= 40 else 100,
            "labels": labels,
            "activity": data["activity"],
-           "boards": data["boards"]}
+           "boards": data["boards"], "agenda": agenda if style != "plan" else [], "clear": data["clear"]}
 
     if view.get("headline", True) is not False:
         out["headline"] = _headline(visible, events, now, labels, day_end)
@@ -752,6 +798,15 @@ def draw(view: dict, color: bool = False, width: int | None = None) -> str:
         out += wrap(view["since"], style="2")
     if view.get("dayline"):
         out.append(c("2", view["dayline"]) if use else view["dayline"])
+    for line in view.get("clear") or []:
+        out += wrap(f"✓ {line}", style="2")
+    if view.get("agenda"):
+        out.append("")
+        out += wrap(f"── {labels['agenda_title']} ──", style="1")
+        for a in view["agenda"]:
+            clash = f"  ({labels['clashes'].format(title=a['clash'])})" if a.get("clash") else ""
+            out += wrap(f"{a['when']}  {a['title']}{clash}", indent="  ", hang="    ",
+                        style="31" if clash else None)
 
     if view["style"] == "brevity":
         for r in view.get("top", []):

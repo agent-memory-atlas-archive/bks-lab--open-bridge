@@ -186,7 +186,11 @@ person it is for (several are fine: morning, one per customer, weekly).
    names them; ask which, once. `python3 scripts/briefing.py list` shows them
    with their `offer_on` phrases; when a user's words match one
    (`briefing.py offer "<text>"`), offer that profile by name.
-2. **Collect.** `python3 scripts/briefing.py collect [<id>] --json --file`.
+2. **Collect.** With a view (`view.style` other than `sources`): `python3
+   scripts/briefing.py render [<id>] --file` is the ONE filing call; it collects,
+   files, does the bookkeeping and prints the view. Need the JSON as well? Add
+   `collect --json --no-save` without `--file`, so the snapshot and the "since"
+   line stay the morning's. Without a view: `python3 scripts/briefing.py collect [<id>] --json --file`.
    `--quick` adds `--skip tracker --skip calendar`; `--skip-trackers` adds
    `--skip tracker`. A skipped section is listed as skipped and closes nothing.
    It runs every section in the profile's order with a time limit, marks rows
@@ -196,9 +200,14 @@ person it is for (several are fine: morning, one per customer, weekly).
 3. **Render in the profile's order**, with the advice on top
    (`references/control.md`). Do not drop, reorder or add sections the person
    did not ask for; what they asked for is the file.
-4. **Fill the gaps the profile does not cover yet**: the board drift sweep and
-   meeting obligations of Stream A, Stream C beyond the calendar, Stream D. The
-   streams below describe these, and what each section kind means.
+4. **Fill the gaps the profile does not cover yet. This step is not optional,
+   also not with a view**: meeting obligations of Stream A, Stream C beyond the
+   calendar, Stream D, the open PRs if no section has `others_prs`. A view
+   renders only the sections; everything else is this step. Findings join the
+   view as rows in its bucket words, green is one sentence, and the run ends with
+   the receipt line (`references/control.md` § Phase 4 with a view).
+   `render --file` already did Phase 2's board regeneration and Phase 3's log
+   row and day block.
 
 **Start the remaining streams simultaneously.** Collect results, then render output.
 
@@ -471,6 +480,10 @@ sub-steps before rendering Phase 4.
    counts (Doing/Review/Backlog/Streams/Done) from the filesystem.
 
 ## Phase 3: Log Entry
+
+`briefing.py render|collect --file` writes this row itself (rows per bucket,
+failed sections named) and opens today's day block first. Write it by hand only
+when the engine did not run.
 
 ```
 | {TIMESTAMP} | 📋 | bridge | /briefing completed |

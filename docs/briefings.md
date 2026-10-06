@@ -42,6 +42,7 @@ python3 scripts/briefing.py list                  # the profiles, the default, t
 python3 scripts/briefing.py show [<id>]           # the resolved profile (also the built-in one)
 python3 scripts/briefing.py offer "<text>"        # profiles whose offer_on matches the text
 python3 scripts/briefing.py collect [<id>] --json --file
+python3 scripts/briefing.py render [<id>] --file  # the morning run: collect, file, bookkeeping, view
 python3 scripts/briefing.py render [<id>]         # collect + terminal text in the profile's view
 python3 scripts/briefing.py render --style plan   # another view for this one run
 python3 scripts/briefing.py collect --skip tracker --skip calendar   # the quick mode
@@ -92,7 +93,7 @@ against recorded answers (`scripts/tests/fixtures/briefing/<provider>/`).
 
 | provider | Reaches it through | `query` keys |
 |---|---|---|
-| `github` | `gh search` (gh's own login) | `assignee` (default `@me`), `owners`, `repos`, `kinds` (issues, prs), `state`, `labels`, `review_requested`, `limit` |
+| `github` | `gh search` (gh's own login) | `assignee` (default `@me`), `owners`, `repos`, `kinds` (issues, prs), `state`, `labels`, `review_requested`, `authored` (true: your own open PRs, with their age), `others_prs` (N: colleagues' open, non-draft PRs in `owners`/`repos` updated in the last N days, bots and your own left out), `limit` |
 | `github-board` | `gh project item-list`, boards from `github_projects:` in the ecosystem files, state maps from `workflow/projects/` (the same code as `scripts/tracker-sync.py`). With `summary: true` on the section, also one line per board with its open cards per state, counted before `assigned_to_me` and the other filters, with the section's `state_map` applied; a status no map knows (Parked, Canceled) is not open work, and a board that filled `limit` says so | `boards`, `assigned_to_me`, `states`, `include_done`, `limit` |
 | `gitlab` | `glab issue list` | `repos` (required), `assignee`, `state`, `labels`, `limit` |
 | `ado` | `az boards query` (WIQL) | `wiql`, `organization`, `project`, `limit` |
@@ -142,6 +143,7 @@ view:
   style: triage            # sources | triage | brevity | plan
   headline: true           # one bottom line on top: yours today, free until, next hard date
   dayline: true            # the workday as one line: · free, █ busy, ▲ now (not in brevity)
+  agenda: true             # Calendar block: every event from now through the lookahead, overlaps marked
   since_last: true         # "since 07:18: 2 new, 1 changed"
   lookahead_days: 1        # due within today + 1 day counts as now; deferred items coming back show
   max_items: 12            # the whole briefing, then "+N more" and an explicit end
@@ -198,7 +200,8 @@ which agent renders it:
 | advice `collision` | do · `wip`: housekeeping · `blocked`, `waiting`, `due`: carried by their row |
 | tracker row in review or `category: qa` | do · `blocked`: waiting · done/removed: left out · else plan |
 | a section that failed | housekeeping, with its reason |
-| calendar | the headline and the plan; activity: the since line; workplace: one line |
+| calendar | the headline, the Calendar block and the plan; activity: the since line; workplace: one line |
+| two calendar events within the lookahead that overlap | do ("A and B overlap"), and both are marked in the Calendar block |
 
 When two sources carry the same thing, the row takes the more urgent bucket of
 the two, unless a section forces its own. Only ids that name their repository
@@ -219,9 +222,31 @@ the person's language: `yours_today`, `free_until`, `free_rest`, `busy_until`,
 `collides`, `waiting_days`, `with`, `task`, `nudge`, `new`, `housekeeping`,
 `no_next`, `muted`, `hidden`, `error`, `workplace`, `more`, `end`, `why`,
 `meanwhile`, `later`, `shutdown`, `activity_title`, `commits`, `boards_title`,
-`st_new`, `st_ready`, `st_in_progress`, `st_review`, `st_blocked`. Placeholders in braces stay as they are: a label may use only the placeholders
+`st_new`, `st_ready`, `st_in_progress`, `st_review`, `st_blocked`, `agenda_title`,
+`clashes`, `clash_row`, `all_clear`. Placeholders in braces stay as they are: a label may use only the placeholders
 its default has (`validate` names them), and one that would not format falls
 back to the default wording instead of breaking the briefing.
+
+**Calendar and all clear.** "Free until 16:00" alone hides what is at 16:00, so
+the Calendar block lists every event from now through `lookahead_days`, and two
+events that overlap are marked there and become one do row. A section with
+`report_ok: true` says `<title>: all clear` under the headline when it completed
+with nothing open: a green source must read differently from one that never ran.
+A failed or skipped section never claims it; its failure is housekeeping. Rows
+the person muted count as nothing open. The line belongs to the views; `sources`
+shows the section with its count `(0)` instead. The same event from two
+calendars is listed once, and events that overlap in a chain (A with B, B with C)
+are one do row naming all of them; `plan` lays events out itself and gets no
+such row.
+
+**Bookkeeping.** `--file` also does what the playbook once left to the agent,
+because a step a run can skip is a step nobody did: it opens today's day block in
+`work/log.md` when missing, writes the briefing's log row into today's block (inside its table, wherever the
+block stands; a second filing run within 30 minutes replaces the row instead of
+adding one),
+regenerates `work/board.md` through `scripts/gen-board.py`, and names an overdue
+archive (`scripts/archive-buckets.py`) under housekeeping. A step that fails is a
+housekeeping line, never an abort.
 
 **Feedback.** "Not this again" on a row becomes a `mutes:` entry matching it
 (same matching as `to_inbox`). The briefing still says how many rows it hid,

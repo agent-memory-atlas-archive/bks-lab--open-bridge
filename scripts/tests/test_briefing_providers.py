@@ -408,3 +408,92 @@ def test_gitlab_marks_mine_by_my_login_not_by_the_query(tmp_path):
     section = {**GL_SECTION, "query": {"repos": ["example-org/x"], "assignee": "bob"}}
     items = {i["title"]: i["assigned_to_me"] for i in run_section(make_root(tmp_path), section, run=run)["items"]}
     assert items == {"Bob's": False, "Mine": True}
+
+
+# others_prs: a colleague's open pull request on your repositories needs your eyes even
+# when nobody requested a review. Bots and your own PRs are not that, and a PR nobody
+# touched for weeks is not news every morning.
+
+OTHERS = json.dumps([
+    {"number": 60, "title": "feat: timetracking", "url": "https://github.com/acme/conf/pull/60", "state": "open",
+     "updatedAt": "2026-10-05T12:00:00Z", "labels": [], "assignees": [], "isDraft": False,
+     "repository": {"nameWithOwner": "acme/conf"}, "author": {"login": "colleague"}},
+    {"number": 61, "title": "bump urllib3", "url": "https://github.com/acme/conf/pull/61", "state": "open",
+     "updatedAt": "2026-10-05T12:00:00Z", "labels": [], "assignees": [], "isDraft": False,
+     "repository": {"nameWithOwner": "acme/conf"}, "author": {"login": "app/dependabot", "is_bot": True}},
+    {"number": 62, "title": "my own", "url": "https://github.com/acme/conf/pull/62", "state": "open",
+     "updatedAt": "2026-10-05T12:00:00Z", "labels": [], "assignees": [], "isDraft": False,
+     "repository": {"nameWithOwner": "acme/conf"}, "author": {"login": "alice"}},
+    {"number": 63, "title": "draft by colleague", "url": "https://github.com/acme/conf/pull/63", "state": "open",
+     "updatedAt": "2026-10-05T12:00:00Z", "labels": [], "assignees": [], "isDraft": True,
+     "repository": {"nameWithOwner": "acme/conf"}, "author": {"login": "colleague"}},
+])
+
+
+def _others_run():
+    return FakeRun({("gh", "api", "user"): json.dumps({"login": "alice"}),
+                    ("gh", "search", "issues"): "[]",
+                    ("gh", "search", "prs", "--assignee"): "[]",
+                    ("gh", "search", "prs", "--owner"): OTHERS})
+
+
+def test_github_others_prs_lists_colleagues_open_prs_only(tmp_path):
+    section = {"kind": "tracker", "provider": "github", "query": {"owners": ["acme"], "others_prs": 14}}
+    run = _others_run()
+    items = by_id(run_section(make_root(tmp_path), section, run=run))
+    assert set(items) == {"acme/conf#60"}
+    pr = items["acme/conf#60"]
+    # plan, not do: a colleague's PR is worth a look, not an order for today
+    assert pr["state"] == "ready" and pr["raw_state"] == "by colleague" and pr["assigned_to_me"] is False
+    argv = next(c for c in run.calls if c[:4] == ["gh", "search", "prs", "--owner"])
+    assert argv[argv.index("--updated") + 1] == ">=2026-09-20"
+    assert "author" in argv[argv.index("--json") + 1]
+    assert argv[argv.index("--sort") + 1] == "updated"
+
+
+def test_github_others_prs_off_by_default(tmp_path):
+    run = _others_run()
+    run_section(make_root(tmp_path), {"kind": "tracker", "provider": "github", "query": {"owners": ["acme"]}}, run=run)
+    assert not any(c[:4] == ["gh", "search", "prs", "--owner"] for c in run.calls)
+
+
+def test_github_others_prs_drops_bots_by_type_too(tmp_path):
+    bot = json.loads(OTHERS)[0] | {"number": 70, "author": {"login": "renovate", "type": "Bot", "is_bot": False}}
+    run = FakeRun({("gh", "api", "user"): json.dumps({"login": "alice"}), ("gh", "search", "issues"): "[]",
+                   ("gh", "search", "prs", "--assignee"): "[]", ("gh", "search", "prs", "--owner"): json.dumps([bot])})
+    section = {"kind": "tracker", "provider": "github", "query": {"owners": ["acme"], "others_prs": 14}}
+    assert run_section(make_root(tmp_path), section, run=run)["items"] == []
+
+
+# authored: your own open PR that nobody assigned to you never showed up anywhere,
+# however long it waited for a merge.
+
+def test_github_authored_lists_your_open_prs(tmp_path):
+    mine = json.loads(OTHERS)[2] | {"updatedAt": "2026-09-28T09:00:00Z", "createdAt": "2026-09-28T09:00:00Z"}
+    run = FakeRun({("gh", "api", "user"): json.dumps({"login": "alice"}), ("gh", "search", "issues"): "[]",
+                   ("gh", "search", "prs", "--assignee"): "[]",
+                   ("gh", "search", "prs", "--author"): json.dumps([mine])})
+    section = {"kind": "tracker", "provider": "github", "query": {"owners": ["acme"], "authored": True}}
+    items = by_id(run_section(make_root(tmp_path), section, run=run))
+    pr = items["acme/conf#62"]
+    assert pr["state"] == "in_progress" and pr["raw_state"] == "your PR, open 6 days"
+    argv = next(c for c in run.calls if c[:4] == ["gh", "search", "prs", "--author"])
+    assert argv[4] == "@me"
+
+
+def test_github_others_prs_never_searches_all_of_github(tmp_path):
+    run = _others_run()
+    run_section(make_root(tmp_path), {"kind": "tracker", "provider": "github", "query": {"others_prs": 14}}, run=run)
+    assert not any("--updated" in c for c in run.calls)
+    p = {"schema_version": 1, "scope": "user", "id": "m",
+         "sections": [{"kind": "tracker", "provider": "github", "query": {"others_prs": 14}}]}
+    assert any("others_prs" in m for m in bf.profile_problems(p, "m"))
+
+
+def test_github_authored_keeps_a_blocked_label(tmp_path):
+    mine = json.loads(OTHERS)[2] | {"labels": [{"name": "blocked"}], "createdAt": "2026-09-28T09:00:00Z"}
+    run = FakeRun({("gh", "api", "user"): json.dumps({"login": "alice"}), ("gh", "search", "issues"): "[]",
+                   ("gh", "search", "prs", "--assignee"): "[]",
+                   ("gh", "search", "prs", "--author"): json.dumps([mine])})
+    section = {"kind": "tracker", "provider": "github", "query": {"owners": ["acme"], "authored": True}}
+    assert by_id(run_section(make_root(tmp_path), section, run=run))["acme/conf#62"]["state"] == "blocked"

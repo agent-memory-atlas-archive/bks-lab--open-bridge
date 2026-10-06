@@ -679,3 +679,176 @@ def test_workplace_section_names_a_failing_driver(tmp_path):
     assert sec["items"][0]["state"] == "warning"
     assert "unknown" in sec["items"][0]["title"].lower()
     assert sec["plan"]["driver_error"]
+
+
+# ---------------------------------------------------------------- housekeeping (--file)
+# The steps the playbook used to leave to the agent (today's day block, the log row,
+# regenerating the board, noticing an overdue archive) were skipped the morning the
+# view looked complete. A step a run can skip is a step nobody did: the engine does them.
+
+LOG = """# Week 41
+
+## Mon 05.10
+
+| Timestamp | Type | Context | What |
+|---|---|---|---|
+| 2026-10-05 07:18 | 📋 | bridge | earlier |
+"""
+
+
+def _hk_root(tmp_path, log=LOG):
+    root = tmp_path / "bridge"
+    (root / "work" / "inbox").mkdir(parents=True)
+    (root / "work" / "log.md").write_text(log, encoding="utf-8")
+    (root / "bridge-config.yaml").write_text("work:\n  enabled: true\n", encoding="utf-8")
+    return root
+
+
+def test_housekeeping_opens_todays_day_block_and_writes_the_log_row(tmp_path):
+    root = _hk_root(tmp_path)
+    now = dt.datetime(2026, 10, 6, 7, 38)
+    notes = bf.housekeep(root, now, summary="Do 1 · Plan 6", profile_id="morning", run=lambda *a, **k: "")
+    text = (root / "work" / "log.md").read_text(encoding="utf-8")
+    assert "\n## " in text.split("2026-10-05 07:18")[1] and " 06.10" in text
+    assert text.rstrip().endswith("| 2026-10-06 07:38 | 📋 | bridge | /briefing (morning): Do 1 · Plan 6 |")
+    assert text.count(" 06.10") == 1
+    bf.housekeep(root, now.replace(minute=50), summary="Do 0", profile_id="morning", run=lambda *a, **k: "")
+    text = (root / "work" / "log.md").read_text(encoding="utf-8")
+    assert text.count(" 06.10\n") == 1 and text.rstrip().endswith("/briefing (morning): Do 0 |")
+    assert isinstance(notes, list)
+
+
+def test_housekeeping_regenerates_the_board_when_the_generator_exists(tmp_path):
+    root = _hk_root(tmp_path)
+    (root / "scripts").mkdir()
+    (root / "scripts" / "gen-board.py").write_text("", encoding="utf-8")
+    calls = []
+    bf.housekeep(root, NOW, summary="x", profile_id="p", run=lambda argv, **k: calls.append(argv) or "")
+    assert any(str(a).endswith("gen-board.py") for c in calls for a in c)
+
+
+def test_housekeeping_names_an_overdue_archive(tmp_path):
+    root = _hk_root(tmp_path)
+    (root / "scripts").mkdir()
+    (root / "scripts" / "archive-buckets.py").write_text("", encoding="utf-8")
+    plan = json.dumps({"buckets": [{"label": "Week 40", "closed": True, "archive": True},
+                                   {"label": "Week 41", "closed": False, "archive": False}]})
+    notes = bf.housekeep(root, NOW, summary="x", profile_id="p",
+                         run=lambda argv, **k: plan if any("archive-buckets" in str(a) for a in argv) else "")
+    assert any("Week 40" in n and "/archive" in n for n in notes)
+
+
+def test_housekeeping_failure_is_a_note_never_an_abort(tmp_path):
+    root = _hk_root(tmp_path)
+    (root / "scripts").mkdir()
+    (root / "scripts" / "gen-board.py").write_text("", encoding="utf-8")
+
+    def boom(argv, **k):
+        raise bf.SourceError("exit 1")
+    notes = bf.housekeep(root, NOW, summary="x", profile_id="p", run=boom)
+    assert any("gen-board" in n for n in notes)
+
+
+def test_housekeeping_without_a_log_does_nothing_to_it(tmp_path):
+    root = _hk_root(tmp_path)
+    (root / "work" / "log.md").unlink()
+    bf.housekeep(root, NOW, summary="x", profile_id="p", run=lambda *a, **k: "")
+    assert not (root / "work" / "log.md").exists()
+
+
+TEMPLATE_LOG = """# Week 41
+
+## Mon 05.10
+
+<details>
+<summary>Worklog (1)</summary>
+
+| Timestamp        | Glyph | Context | What |
+|------------------|-------|---------|------|
+| 2026-10-05 07:18 | 📋 | bridge | earlier |
+
+</details>
+"""
+
+DAY_TEMPLATE = """<!--
+comment
+-->
+
+## {Weekday} DD.MM
+
+<details open>
+<summary>Worklog (0)</summary>
+
+| Timestamp        | Glyph | Context | What |
+|------------------|-------|---------|------|
+
+</details>
+"""
+
+
+def _row_lines(text):
+    return [l for l in text.splitlines() if l.startswith("| 2026-")]
+
+
+def test_housekeeping_follows_the_day_template_and_stays_inside_the_table(tmp_path):
+    root = _hk_root(tmp_path, TEMPLATE_LOG)
+    (root / "work" / "templates").mkdir()
+    (root / "work" / "templates" / "day.md").write_text(DAY_TEMPLATE, encoding="utf-8")
+    now = dt.datetime(2026, 10, 6, 7, 38)
+    bf.housekeep(root, now, summary="Do 1", profile_id="morning", run=lambda *a, **k: "", weekday="Tue")
+    text = (root / "work" / "log.md").read_text(encoding="utf-8")
+    today = text[text.index("## Tue 06.10"):]
+    assert "<summary>Worklog (1)</summary>" in today
+    assert today.index("/briefing (morning)") < today.index("</details>")
+    assert "comment" not in today and "{Weekday}" not in today
+
+
+def test_housekeeping_finds_today_in_a_newest_first_log(tmp_path):
+    log = ("# Week 41\n\n## Tue 06.10\n\n| Timestamp | Glyph | Context | What |\n|---|---|---|---|\n"
+           "| 2026-10-06 07:00 | 📋 | x | first |\n\n## Mon 05.10\n\n| Timestamp | Glyph | Context | What |\n"
+           "|---|---|---|---|\n| 2026-10-05 07:18 | 📋 | bridge | earlier |\n")
+    root = _hk_root(tmp_path, log)
+    bf.housekeep(root, dt.datetime(2026, 10, 6, 7, 38), summary="Do 1", profile_id="m", run=lambda *a, **k: "")
+    text = (root / "work" / "log.md").read_text(encoding="utf-8")
+    assert text.count("06.10\n") == 1
+    rows = _row_lines(text)
+    assert rows[1].startswith("| 2026-10-06 07:38") and rows[2].startswith("| 2026-10-05")
+
+
+def test_housekeeping_twice_in_one_run_writes_one_row(tmp_path):
+    root = _hk_root(tmp_path)
+    for minute in (38, 39):
+        bf.housekeep(root, dt.datetime(2026, 10, 6, 7, minute), summary=f"Do {minute}", profile_id="morning",
+                     run=lambda *a, **k: "")
+    rows = [r for r in _row_lines((root / "work" / "log.md").read_text(encoding="utf-8")) if "/briefing" in r]
+    assert len(rows) == 1 and rows[0].startswith("| 2026-10-06 07:39") and "Do 39" in rows[0]
+
+
+def test_housekeeping_escapes_a_pipe_in_the_summary(tmp_path):
+    root = _hk_root(tmp_path)
+    bf.housekeep(root, NOW, summary="A | B", profile_id="m", run=lambda *a, **k: "")
+    row = _row_lines((root / "work" / "log.md").read_text(encoding="utf-8"))[-1]
+    assert row.count("|") == 5
+
+
+def test_summary_counts_rows_in_every_style(tmp_path):
+    sections = [{"kind": "inbox"}]
+    item = {"id": "1", "title": "x", "state": "open", "urgency": "today", "kind": "decision", "gate": "your-yes",
+            "due": None, "task": None}
+    result = {"profile": "p", "collected_at": "2026-10-06T07:38", "sections": [
+        {"id": "inbox", "kind": "inbox", "title": "Inbox", "status": "ok", "items": [item], "all": [item], "total": 1}]}
+    for style in ("triage", "plan", "brevity"):
+        assert "1" in bf._summary(result, {"id": "p", "sections": sections, "view": {"style": style}}, None)
+
+
+def test_render_file_end_to_end_writes_one_row_and_shows_housekeeping(tmp_path, capsys):
+    root = _hk_root(tmp_path)
+    prof = {"schema_version": 1, "scope": "user", "id": "morning", "default": True,
+            "sections": [{"kind": "inbox"}], "view": {"style": "triage"}}
+    (root / "workflow" / "briefings").mkdir(parents=True)
+    (root / "workflow" / "briefings" / "morning.yaml").write_text(yaml.safe_dump(prof), encoding="utf-8")
+    for _ in range(2):   # collect --file then render --file, as a playbook might
+        assert bf.main(["--root", str(root), "render", "--file"]) == 0
+    text = (root / "work" / "log.md").read_text(encoding="utf-8")
+    assert sum(1 for l in text.splitlines() if "/briefing (morning)" in l) == 1
+    assert "/briefing (morning): nothing open" in text

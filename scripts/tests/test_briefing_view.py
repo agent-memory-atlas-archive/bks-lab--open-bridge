@@ -565,3 +565,121 @@ def test_without_a_previous_run_nothing_is_marked_new():
     assert "FRESH" not in bv.draw(bv.build(r, p))
     r["previous_at"] = "2026-10-05T07:18"
     assert "FRESH" in bv.draw(bv.build(r, p))
+
+
+# ---------------------------------------------------------------- agenda, clashes, all clear
+# A briefing that only says "free until 16:00" hides what is at 16:00, and a clash
+# tomorrow evening was invisible because nothing compared the events with each other.
+# A source that is green must be able to SAY so: silence reads the same as "never ran".
+
+def _cal(*events):
+    return sec("calendar", "calendar", [{"id": f"e{n}", "title": t, "start": s, "end": e}
+                                        for n, (t, s, e) in enumerate(events)])
+
+
+def test_agenda_lists_events_from_now_through_the_lookahead():
+    r = result(_cal(("Standup", "2026-10-05T07:00", "2026-10-05T07:15"),
+                    ("Review", "2026-10-05T16:00", "2026-10-05T16:45"),
+                    ("Weekly", "2026-10-06T18:00", "2026-10-06T18:45"),
+                    ("Far away", "2026-10-09T10:00", "2026-10-09T11:00")))
+    v = bv.build(r, profile(view={"style": "triage", "lookahead_days": 1}))
+    assert [a["title"] for a in v["agenda"]] == ["Review", "Weekly"]
+    assert v["agenda"][0]["when"] == "today 16:00-16:45"
+    assert v["agenda"][1]["when"] == "tomorrow 18:00-18:45"
+    text = bv.draw(v)
+    assert "── Calendar ──" in text and "today 16:00-16:45  Review" in text
+
+
+def test_running_event_stays_in_the_agenda():
+    r = result(_cal(("Call", "2026-10-05T07:30", "2026-10-05T08:30")))
+    v = bv.build(r, profile(view={"style": "triage"}))
+    assert [a["title"] for a in v["agenda"]] == ["Call"]
+
+
+def test_overlapping_events_become_a_do_row_and_are_marked_in_the_agenda():
+    r = result(_cal(("Weekly", "2026-10-06T18:00", "2026-10-06T18:45"),
+                    ("Ballet", "2026-10-06T18:05", "2026-10-06T19:05")))
+    v = bv.build(r, profile(view={"style": "triage", "lookahead_days": 1}))
+    marks = {a["title"]: a.get("clash") for a in v["agenda"]}
+    assert marks == {"Weekly": "Ballet", "Ballet": "Weekly"}
+    do = next(b for b in v["buckets"] if b["id"] == "do")
+    assert any("Weekly" in i["title"] and "Ballet" in i["title"] for i in do["items"])
+    assert "overlaps Ballet" in bv.draw(v)
+
+
+def test_back_to_back_events_do_not_clash():
+    r = result(_cal(("A", "2026-10-05T10:00", "2026-10-05T11:00"),
+                    ("B", "2026-10-05T11:00", "2026-10-05T12:00")))
+    v = bv.build(r, profile(view={"style": "triage"}))
+    assert not any(a.get("clash") for a in v["agenda"])
+
+
+def test_agenda_can_be_switched_off_and_relabelled():
+    r = result(_cal(("Review", "2026-10-05T16:00", "2026-10-05T16:45")))
+    off = bv.build(r, profile(view={"style": "triage", "agenda": False}))
+    assert off["agenda"] == [] and "Calendar" not in bv.draw(off)
+    de = bv.build(r, profile(view={"style": "triage", "labels": {"agenda_title": "Termine"}}))
+    assert "── Termine ──" in bv.draw(de)
+
+
+def test_report_ok_section_says_all_clear_when_empty():
+    sections = [{"kind": "inbox"}, {"kind": "command", "id": "systems", "title": "Systems", "argv": ["x"],
+                                    "report_ok": True}]
+    r = result(sec("inbox", "inbox", []), sec("systems", "command", [], title="Systems"))
+    v = bv.build(r, profile(view={"style": "triage"}, sections=sections))
+    assert v["clear"] == ["Systems: all clear"]
+    assert "Systems: all clear" in bv.draw(v)
+
+
+def test_report_ok_section_with_findings_is_not_all_clear():
+    sections = [{"kind": "command", "id": "systems", "title": "Systems", "argv": ["x"], "report_ok": True}]
+    item = {"id": "disk", "title": "Disk 99% full", "state": "in_progress", "raw_state": "warn"}
+    r = result(sec("systems", "command", [item], title="Systems"))
+    v = bv.build(r, profile(view={"style": "triage"}, sections=sections))
+    assert v["clear"] == []
+    assert any(i["title"] == "Disk 99% full" for b in v["buckets"] for i in b["items"])
+
+
+def test_report_ok_never_claims_clear_for_a_failed_or_skipped_section():
+    sections = [{"kind": "command", "id": "systems", "title": "Systems", "argv": ["x"], "report_ok": True}]
+    for status in ("error", "skipped"):
+        r = result(sec("systems", "command", [], status=status, title="Systems", reason="boom"))
+        assert bv.build(r, profile(view={"style": "triage"}, sections=sections))["clear"] == []
+
+
+def test_profile_accepts_report_ok_and_agenda():
+    p = profile(view={"style": "triage", "agenda": True},
+                sections=[{"kind": "command", "id": "s", "argv": ["x"], "report_ok": True}])
+    assert bf.profile_problems(p, "morning") == []
+    bad = profile(view={"agenda": "yes"}, sections=[{"kind": "command", "id": "s", "argv": ["x"], "report_ok": 1}])
+    msgs = bf.profile_problems(bad, "morning")
+    assert any("report_ok" in m for m in msgs) and any("agenda" in m for m in msgs)
+
+
+
+def test_plan_style_makes_no_clash_work_slot():
+    r = result(_cal(("A", "2026-10-05T10:00", "2026-10-05T11:00"), ("B", "2026-10-05T10:30", "2026-10-05T11:30")))
+    v = bv.build(r, profile(view={"style": "plan"}))
+    assert not any("overlap" in s["title"] for s in v["plan"]["slots"] if s["kind"] == "work")
+
+
+def test_the_same_event_from_two_calendars_is_no_clash():
+    r = result(_cal(("A", "2026-10-05T10:00", "2026-10-05T11:00"), ("A", "2026-10-05T10:00", "2026-10-05T11:00")))
+    v = bv.build(r, profile(view={"style": "triage"}))
+    assert len(v["agenda"]) == 1 and not v["agenda"][0].get("clash")
+
+
+def test_three_overlapping_events_are_one_row_naming_all():
+    r = result(_cal(("A", "2026-10-05T10:00", "2026-10-05T11:00"), ("B", "2026-10-05T10:30", "2026-10-05T11:30"),
+                    ("C", "2026-10-05T10:45", "2026-10-05T12:00")))
+    v = bv.build(r, profile(view={"style": "triage"}))
+    do = next(b for b in v["buckets"] if b["id"] == "do")["items"]
+    clash = [i for i in do if "overlap" in i["title"]]
+    assert len(clash) == 1 and all(t in clash[0]["title"] for t in "ABC")
+    assert {a["title"]: a["clash"] for a in v["agenda"]}["C"] == "A, B"
+
+
+def test_an_event_past_midnight_names_its_end_day():
+    r = result(_cal(("Night", "2026-10-05T23:30", "2026-10-06T00:30")))
+    v = bv.build(r, profile(view={"style": "triage"}))
+    assert v["agenda"][0]["when"] == "today 23:30-tomorrow 00:30"
