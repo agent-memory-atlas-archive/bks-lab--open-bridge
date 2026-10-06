@@ -168,16 +168,23 @@ def _default_secret(ref: str) -> str:
         raise SourceError(f"cannot read {ref}: {exc.__class__.__name__}") from None
 
 
+# A GitHub rate-limit error during a burst (several sessions at once) clears within
+# seconds; the token's quota is rarely what ran out. Wait, then try again, twice.
+GH_RETRY_WAITS = (5, 15)
+GH_RATE_LIMIT = re.compile(r"rate limit|secondary rate|abuse detection", re.I)
+
+
 class Context:
     """What a section may use. Tests replace run/http/secret with recorded answers."""
 
     def __init__(self, root: Path, *, now: dt.datetime | None = None, run=None, http=None, secret=None,
-                 cfg: dict | None = None, timeout: int = DEFAULT_TIMEOUT):
+                 cfg: dict | None = None, timeout: int = DEFAULT_TIMEOUT, sleep=None):
         self.root = Path(root)
         self.now = now or dt.datetime.now()
         self._run = run or _default_run
         self._http = http
         self._secret = secret or _default_secret
+        self._sleep = sleep or time.sleep
         self._revealed: list = []
         self.cfg = cfg if cfg is not None else read_config(self.root)
         self.timeout = timeout
@@ -195,8 +202,17 @@ class Context:
         return min(float(self.timeout), left)
 
     def run(self, argv, timeout=None, cwd=None) -> str:
-        limit = self.remaining()
-        return self._run(argv, timeout=min(float(timeout), limit) if timeout else limit, cwd=cwd)
+        waits = list(GH_RETRY_WAITS) if argv and argv[0] == "gh" else []
+        while True:
+            limit = self.remaining()
+            try:
+                return self._run(argv, timeout=min(float(timeout), limit) if timeout else limit, cwd=cwd)
+            except SourceError as exc:
+                # Only a rate-limit burst, only gh, and only when the wait still fits
+                # the section's time limit; anything else fails as before.
+                if not (waits and GH_RATE_LIMIT.search(str(exc)) and waits[0] < self.remaining() - 1):
+                    raise
+                self._sleep(waits.pop(0))
 
     def http(self, method: str, url: str, headers: dict | None = None, body=None):
         limit = self.remaining()

@@ -927,3 +927,52 @@ def test_render_file_writes_the_overview_and_names_it(tmp_path, capsys):
     out = capsys.readouterr().out
     path = root / ".bridge" / "briefings" / "morning.overview.txt"
     assert path.is_file() and str(path.relative_to(root)) in out
+
+
+# ---------------------------------------------------------------- gh rate-limit retry
+# On 2026-10-06 the GitHub sections failed with "API rate limit already exceeded"
+# while the token had used 103 of 5000 points: bursts from several sessions at once,
+# not an empty quota. A short wait and one more try is the right answer to a burst.
+
+class Flaky:
+    def __init__(self, failures, message="gh: GraphQL: API rate limit already exceeded for user ID 1."):
+        self.failures, self.message, self.calls = failures, message, 0
+
+    def __call__(self, argv, timeout=30, cwd=None):
+        self.calls += 1
+        if self.calls <= self.failures:
+            raise bf.SourceError(self.message)
+        return "ok"
+
+
+def test_gh_rate_limit_is_retried_after_a_wait(tmp_path):
+    waits = []
+    ctx = bf.Context(tmp_path, now=NOW, run=Flaky(2), cfg={}, sleep=waits.append)
+    assert ctx.run(["gh", "search", "issues"]) == "ok"
+    assert waits == list(bf.GH_RETRY_WAITS)
+
+
+def test_gh_rate_limit_gives_up_after_the_retries(tmp_path):
+    ctx = bf.Context(tmp_path, now=NOW, run=Flaky(9), cfg={}, sleep=lambda s: None)
+    with pytest.raises(bf.SourceError, match="rate limit"):
+        ctx.run(["gh", "search", "issues"])
+
+
+def test_other_errors_and_other_tools_are_not_retried(tmp_path):
+    waits = []
+    flaky = Flaky(1, message="gh: not logged in")
+    with pytest.raises(bf.SourceError):
+        bf.Context(tmp_path, now=NOW, run=flaky, cfg={}, sleep=waits.append).run(["gh", "api", "user"])
+    other = Flaky(1)
+    with pytest.raises(bf.SourceError):
+        bf.Context(tmp_path, now=NOW, run=other, cfg={}, sleep=waits.append).run(["glab", "issue", "list"])
+    assert waits == [] and flaky.calls == 1 and other.calls == 1
+
+
+def test_no_retry_when_the_wait_would_exceed_the_section_limit(tmp_path):
+    waits = []
+    ctx = bf.Context(tmp_path, now=NOW, run=Flaky(1), cfg={}, sleep=waits.append, timeout=3)
+    ctx.deadline = __import__("time").monotonic() + 3
+    with pytest.raises(bf.SourceError):
+        ctx.run(["gh", "search", "issues"])
+    assert waits == []
