@@ -410,6 +410,9 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
             for k in ("due", "nudge", "estimate"):
                 if row.get(k) and not have.get(k):
                     have[k] = row[k]
+            if have.get("filed") and not row.get("filed"):
+                have["title"] = row["title"]   # the source's wording today, not the day it was filed
+                have["filed"] = False
             have["new"] = have["new"] or row["new"]
             have["changed"] = have["changed"] or row["changed"]
             return
@@ -499,7 +502,8 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
                 filed = str(item.get("key") or "").split(":", 3)
                 if filed[0] == "briefing" and len(filed) == 4:
                     key = _item_key(filed[2], filed[3])
-                add(key, row(sid, item, forced or bucket, item.get("title"), why, rank, due=item.get("due")))
+                add(key, row(sid, item, forced or bucket, item.get("title"), why, rank, due=item.get("due"),
+                             filed=key != f"inbox:{iid}"))
             elif kind == "advise":
                 check = item.get("check")
                 if check == "wip":
