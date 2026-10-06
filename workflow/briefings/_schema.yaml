@@ -91,6 +91,12 @@ $defs:
           A Calendar block after the headline: every event from now through the
           lookahead, with overlapping events marked and turned into a do row.
           Default true; not in plan (which lays the events out itself).
+      overview:
+        enum: [inline, file]
+        description: |
+          Where Boards and Activity go. inline (default): below the buckets.
+          file: `render` writes them to .bridge/briefings/<id>.overview.txt and
+          housekeeping names the file, so the text an agent copies into a chat stays short.
       since_last: {type: boolean, description: "Say what is new since the previous run. Default true."}
       lookahead_days:
         type: integer
@@ -104,7 +110,7 @@ $defs:
       labels:
         type: object
         propertyNames:
-          enum: [activity_title, agenda_title, all_clear, back_on, boards_title, busy_until, capped, clash_row, clashes, collides, commits, owed, due, end, error, free_rest, free_until, hidden, housekeeping, later, meanwhile, more, muted, new, next_date, no_next, nudge, only_you, repos_skipped, shutdown, since, st_blocked, st_in_progress, st_new, st_ready, st_review, task, today, tomorrow, waiting_days, why, with, workplace, yours_today]
+          enum: [activity_title, agenda_title, all_clear, back_on, boards_title, busy_until, capped, clash_row, clashes, collides, commits, owed, overview_file, due, end, error, free_rest, free_until, hidden, housekeeping, later, meanwhile, more, muted, new, next_date, no_next, nudge, only_you, repos_skipped, shutdown, since, st_blocked, st_in_progress, st_new, st_ready, st_review, task, today, tomorrow, waiting_days, why, with, workplace, yours_today]
         additionalProperties: {type: string}
         description: |
           Any word the reader sees, by label name (docs/briefings.md lists them). A

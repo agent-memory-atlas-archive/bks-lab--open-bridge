@@ -144,6 +144,7 @@ view:
   style: triage            # sources | triage | brevity | plan
   headline: true           # one bottom line on top: yours today, free until, next hard date
   dayline: true            # the workday as one line: · free, █ busy, ▲ now (not in brevity)
+  overview: inline         # inline | file: Boards and Activity below the buckets, or in a file
   agenda: true             # Calendar block: every event from now through the lookahead, overlaps marked
   since_last: true         # "since 07:18: 2 new, 1 changed"
   lookahead_days: 1        # due within today + 1 day counts as now; deferred items coming back show
@@ -175,7 +176,11 @@ profile copied from the template starts with `triage`; a profile without a
 Two overview blocks sit below the buckets, never in them, since they say what
 moved rather than what to do: **Boards** (one line per board of a `github-board`
 section with `summary: true`, boards without open cards left out) and
-**Activity** (the `commits` sections' sparklines). `brevity` leaves both out.
+**Activity** (the `commits` sections' sparklines). `brevity` leaves both out. With
+`view.overview: file` they leave the printed text altogether: `render` writes them
+to `.bridge/briefings/<id>.overview.txt` and housekeeping names the file (label
+`overview_file`). Meant for a briefing an agent copies into a chat by hand, where
+a long block is the part that gets copied wrong.
 
 Small aids for reading at a glance: each bucket header says how many rows it
 holds (`── Plan · 4 ──`, also when `max_items` shows fewer), the day line puts
@@ -224,7 +229,7 @@ the person's language: `yours_today`, `free_until`, `free_rest`, `busy_until`,
 `no_next`, `muted`, `hidden`, `error`, `workplace`, `more`, `end`, `why`,
 `meanwhile`, `later`, `shutdown`, `activity_title`, `commits`, `boards_title`,
 `st_new`, `st_ready`, `st_in_progress`, `st_review`, `st_blocked`, `agenda_title`,
-`clashes`, `clash_row`, `all_clear`, `owed`. Placeholders in braces stay as they are: a label may use only the placeholders
+`clashes`, `clash_row`, `all_clear`, `owed`, `overview_file`. Placeholders in braces stay as they are: a label may use only the placeholders
 its default has (`validate` names them), and one that would not format falls
 back to the default wording instead of breaking the briefing.
 

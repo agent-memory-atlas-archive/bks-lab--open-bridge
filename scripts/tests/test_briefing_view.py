@@ -694,3 +694,31 @@ def test_a_filed_row_shows_the_sources_current_title_not_the_filed_one():
     v = bv.build(r, profile(view={"style": "triage"}, sections=sections))
     titles = [i["title"] for b in v["buckets"] for i in b["items"]]
     assert titles == ["Disk over 90% (measured 99)"]
+
+
+# ---------------------------------------------------------------- overview: file
+# An agent copies the view into the chat by hand, and a long overview block is where a
+# copy went wrong (a line invented, five dropped). `overview: file` keeps Boards and
+# Activity out of the printed text; the engine writes them to a file and names it.
+
+def _with_overview(view):
+    sections = [{"kind": "commits", "id": "commits"}]
+    rows = [{"id": "repo-a", "branch": "main", "spark": "▁▃█", "total": 4, "counts": [1, 1, 2]}]
+    r = result(sec("commits", "commits", rows))
+    return bv.build(r, profile(view=view, sections=sections))
+
+
+def test_overview_inline_by_default():
+    text = bv.draw(_with_overview({"style": "triage"}))
+    assert "repo-a" in text
+
+
+def test_overview_file_leaves_it_out_of_the_text_and_draws_it_separately():
+    v = _with_overview({"style": "triage", "overview": "file"})
+    text = bv.draw(v)
+    assert "repo-a" not in text
+    assert "repo-a" in bv.draw_overview(v)
+
+
+def test_overview_value_is_validated():
+    assert any("overview" in m for m in bv.problems({"overview": "elsewhere"}, None))

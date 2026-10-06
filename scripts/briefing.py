@@ -1383,6 +1383,16 @@ def main(argv=None) -> int:
         result["inbox"] = {"filed": filed, "closed": closed}
         result["housekeeping"] = housekeep(root, ctx.now, summary=_summary(result, profile, args.style),
                                            profile_id=profile["id"])
+    if args.cmd == "render" and _view().style_of(profile, args.style) != "sources":
+        view_cfg = profile.get("view") if isinstance(profile.get("view"), dict) else {}
+        if view_cfg.get("overview") == "file":
+            # Long blocks are where a hand copy into the chat goes wrong: they live in a file.
+            path = root / SNAPSHOTS / f"{profile['id']}.overview.txt"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            built = _view().build(result, profile, args.style)
+            path.write_text(_view().draw_overview(built), encoding="utf-8")
+            note = built["labels"]["overview_file"].format(path=path.relative_to(root))
+            result["housekeeping"] = list(result.get("housekeeping") or []) + [note]
     if not args.no_save:
         save_snapshot(root, result, previous)
     if args.cmd == "collect":
