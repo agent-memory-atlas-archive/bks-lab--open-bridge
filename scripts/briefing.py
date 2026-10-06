@@ -1001,8 +1001,8 @@ STREAMS = {
     "imports": ("Files waiting in the imports directory",
                 "list them by type; transcripts are offered to /debrief (workflow.md Stream C 2, 3)"),
     "upstream": ("Inbound drift from CORE and org overlays",
-                 "references/upstream-summary.md: python3 scripts/overlay.py status <name>, and "
-                 "git rev-list --count HEAD..<remote>/<branch> for CORE"),
+                 "python3 skills/briefing/scripts/upstream_items.py (or make it a command section "
+                 "with covers: [upstream]); detail: references/upstream-summary.md"),
     "applications": ("Application pipeline thresholds",
                      "workflow.md Stream C 5, thresholds from the applications standing order"),
     "channels": ("Channel activity", "workflow.md Stream D"),

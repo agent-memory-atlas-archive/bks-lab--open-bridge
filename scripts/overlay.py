@@ -53,6 +53,7 @@ import argparse
 import base64
 import getpass
 import hashlib
+import json
 import importlib.util
 import os
 import re
@@ -2090,74 +2091,95 @@ def cmd_apply(consumer: Consumer, args) -> int:
     return rc
 
 
+def status_data(consumer: Consumer, name: str, lock: dict) -> dict:
+    """One overlay's state as data: what `status` prints, and what a briefing reads."""
+    entry = (lock.get("overlays") or {}).get(name)
+    sub = find_subscription(consumer, name)
+    out = {"name": name, "subscribed": sub is not None, "materialized": entry is not None}
+    if entry is None:
+        return out
+    cache = cache_dir(consumer, name)
+    head = resolved_sha(cache) if os.path.isdir(os.path.join(cache, ".git")) else None
+    out.update(resolved_sha=entry.get("resolved_sha"), cache_head=head,
+               cache_ahead=bool(head and head != entry.get("resolved_sha")),
+               interval_days=(sub or {}).get("pull_interval_days", 7), count_lock=len(entry.get("files", [])))
+    last = entry.get("last_synced")
+    out["last_synced"] = last
+    if last:
+        try:
+            when = datetime.strptime(last, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+            out["days_since_sync"] = (datetime.now(timezone.utc) - when).days
+            out["stale"] = out["days_since_sync"] > out["interval_days"]
+        except ValueError:
+            pass
+    run = consumer.load_unattended().get(name)
+    out["last_unattended"] = run if isinstance(run, dict) else None
+    counts = {"clean": 0, "locally-modified": 0, "upstream-ahead": 0, "conflict": 0, "orphan": 0}
+    if os.path.isdir(os.path.join(cache, ".git")):
+        try:
+            manifest, _ = read_manifest(cache)
+            defaults = manifest_defaults(manifest)
+            params = _resolve_overlay_params(consumer, name) if sub else \
+                {"select": ["**"], "precedence": entry.get("precedence", 0)}
+            items, prune = build_plan(
+                consumer, cache, manifest, defaults, params["select"], name,
+                params["precedence"], lock, entry.get("resolved_sha"), False)
+            for it in items:
+                if it.state == "skip":
+                    counts["clean"] += 1
+                elif it.state == "upstream-ahead":
+                    counts["upstream-ahead"] += 1
+                elif it.state == "local-edit":
+                    counts["locally-modified"] += 1
+                elif it.state in ("core-refused", "leak-refused"):
+                    counts.setdefault(it.state, 0)
+                    counts[it.state] += 1
+            counts["orphan"] = len(prune)
+        except OverlayError as exc:
+            out["plan_error"] = str(exc)
+    out["files"] = counts
+    return out
+
+
 def cmd_status(consumer: Consumer, args) -> int:
     names = [args.name] if args.name else [
         u["name"] for u in consumer.org_overlay_upstreams()]
+    lock = consumer.load_lock()
+    data = [status_data(consumer, name, lock) for name in names]
+    if getattr(args, "json", False):
+        print(json.dumps(data, indent=1))
+        return 0
     if not names:
         print("No org overlays subscribed.")
         return 0
-    lock = consumer.load_lock()
-    for name in names:
-        entry = (lock.get("overlays") or {}).get(name)
-        sub = find_subscription(consumer, name)
-        print(f"\n■ {name}")
-        if sub is None:
+    for d in data:
+        print(f"\n■ {d['name']}")
+        if not d["subscribed"]:
             print("  (not in upstreams[] — orphaned lock entry)")
-        if entry is None:
+        if not d["materialized"]:
             print("  (subscribed but never materialized)")
             continue
-        cache = cache_dir(consumer, name)
-        head = resolved_sha(cache) if os.path.isdir(
-            os.path.join(cache, ".git")) else None
-        print(f"  resolved_sha : {entry.get('resolved_sha','?')[:12]}")
+        print(f"  resolved_sha : {(d.get('resolved_sha') or '?')[:12]}")
+        head = d.get("cache_head")
         print(f"  cache HEAD   : {head[:12] if head else '(no cache — offline)'}")
-        if head and head != entry.get("resolved_sha"):
+        if d.get("cache_ahead"):
             print("  ↑ cache is AHEAD of lock — run 'sync'")
-        last = entry.get("last_synced")
-        if last:
-            try:
-                dt = datetime.strptime(last, "%Y-%m-%dT%H:%M:%SZ").replace(
-                    tzinfo=timezone.utc)
-                days = (datetime.now(timezone.utc) - dt).days
-                interval = (sub or {}).get("pull_interval_days", 7)
-                flag = "  (stale)" if days > interval else ""
-                print(f"  last_synced  : {last}  ({days}d ago){flag}")
-            except ValueError:
-                print(f"  last_synced  : {last}")
-        run = consumer.load_unattended().get(name)
-        if isinstance(run, dict):
+        last = d.get("last_synced")
+        if last and "days_since_sync" in d:
+            flag = "  (stale)" if d.get("stale") else ""
+            print(f"  last_synced  : {last}  ({d['days_since_sync']}d ago){flag}")
+        elif last:
+            print(f"  last_synced  : {last}")
+        run = d.get("last_unattended")
+        if run:
             print(f"  last unattended: {run.get('at', '?')}  {run.get('outcome', '?')}"
                   + (f" ({run['detail']})" if run.get("detail") else ""))
         else:
             print("  last unattended: never")
-        # per-file state counts
-        counts = {"clean": 0, "locally-modified": 0, "upstream-ahead": 0,
-                  "conflict": 0, "orphan": 0}
-        if os.path.isdir(os.path.join(cache, ".git")):
-            try:
-                manifest, _ = read_manifest(cache)
-                defaults = manifest_defaults(manifest)
-                params = _resolve_overlay_params(consumer, name) if sub else \
-                    {"select": ["**"], "precedence": entry.get("precedence", 0)}
-                items, prune = build_plan(
-                    consumer, cache, manifest, defaults, params["select"], name,
-                    params["precedence"], lock, entry.get("resolved_sha"), False)
-                for it in items:
-                    if it.state == "skip":
-                        counts["clean"] += 1
-                    elif it.state == "upstream-ahead":
-                        counts["upstream-ahead"] += 1
-                    elif it.state == "local-edit":
-                        counts["locally-modified"] += 1
-                    elif it.state in ("core-refused", "leak-refused"):
-                        counts.setdefault(it.state, 0)
-                        counts[it.state] += 1
-                counts["orphan"] = len(prune)
-            except OverlayError as exc:
-                print(f"  (plan error: {exc})")
-        print("  files        : " + "  ".join(
-            f"{k}={v}" for k, v in counts.items()))
-        print(f"  count(lock)  : {len(entry.get('files', []))}")
+        if d.get("plan_error"):
+            print(f"  (plan error: {d['plan_error']})")
+        print("  files        : " + "  ".join(f"{k}={v}" for k, v in d["files"].items()))
+        print(f"  count(lock)  : {d['count_lock']}")
     return 0
 
 
@@ -2392,6 +2414,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.set_defaults(func=cmd_apply)
 
     st = sub.add_parser("status", help="resolved_sha vs cache HEAD + file counts")
+    st.add_argument("--json", action="store_true", help="the same state as data")
     st.add_argument("name", nargs="?", help="overlay name (default: all)")
     st.set_defaults(func=cmd_status)
 
