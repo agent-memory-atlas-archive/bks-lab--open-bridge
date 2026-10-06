@@ -27,7 +27,7 @@ import textwrap
 
 STYLES = ("sources", "triage", "brevity", "plan", "report")
 BUCKETS = ("do", "plan", "delegate", "waiting", "drop")
-VIEW_KEYS = {"style", "headline", "dayline", "agenda", "overview", "since_last", "lookahead_days", "max_items", "answer_keys", "hygiene", "color",
+VIEW_KEYS = {"style", "headline", "dayline", "agenda", "overview", "report", "since_last", "lookahead_days", "max_items", "answer_keys", "hygiene", "color",
              "width", "labels", "buckets", "plan"}
 BUCKET_KEYS = {"id", "title", "options", "nudge_after_days"}
 DEFAULT_BUCKETS = {
@@ -84,23 +84,17 @@ LABELS = {
     "owed": "Not in this profile, still yours to run: {streams} (briefing.py owed)",
     "overview_file": "Boards and activity: {path}",
     "report_title": "Briefing {date}",
-    "status_title": "Status",
-    "act_title": "To act on",
-    "col_area": "Area",
-    "col_state": "State",
+    "lage": "Status",
+    "first_title": "First",
+    "bucket_more": "+{n} more",
     "col_when": "When",
     "col_what": "What",
     "col_note": "Note",
-    "col_why": "Why",
     "col_board": "Board",
     "col_repo": "Repository",
     "col_branch": "Branch",
     "col_days": "{days} days",
     "col_commits": "Commits",
-    "st_open": "{n} open",
-    "st_clear": "✓ all clear",
-    "st_failed": "✗ failed: {reason}",
-    "st_skipped": "skipped: {reason}",
 }
 BOARD_STATES = ("new", "ready", "in_progress", "review", "blocked")
 HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -166,6 +160,10 @@ def problems(view, mutes) -> list:
         if "lookahead_days" in view and _int(view["lookahead_days"], -1) < 0 or \
                 isinstance(view.get("lookahead_days"), (str, bool, float)):
             out.append("view.lookahead_days must be a whole number of days, 0 or more")
+        rcfg = view.get("report", {})
+        if not isinstance(rcfg, dict) or set(rcfg) - {"top", "per_bucket"} or \
+                any(not _pos_int(rcfg[k]) for k in ("top", "per_bucket") if k in rcfg):
+            out.append("view.report takes top and per_bucket, each a positive integer")
         if view.get("overview", "inline") not in ("inline", "file"):
             out.append("view.overview must be inline or file")
         if view.get("hygiene", "bottom") not in ("bottom", "hide"):
@@ -457,7 +455,8 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
         if s.get("status") in ("error", "skipped") and kind not in ("calendar", "activity", "commits", "workplace",
                                                                     "advise"):
             out["status"].append({"title": s.get("title") or sid, "status": s["status"],
-                                  "reason": s.get("reason", "")})
+                                  "reason": s.get("reason", ""),
+                                  "health": sections_cfg.get(sid, {}).get("report_ok") is True})
         if s.get("status") == "error":
             out["hygiene"].append(labels["error"].format(title=s.get("title") or sid, reason=s.get("reason", "")))
             continue
@@ -469,7 +468,7 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
             if title == sid:
                 title = str(sid).replace("-", " ").capitalize()
             n = sum(1 for i in items_of(s) if not muted(sid, i) and i.get("state") not in ("done", "removed"))
-            out["status"].append({"title": title, "count": n})
+            out["status"].append({"title": title, "count": n, "health": cfg.get("report_ok") is True})
         if cfg.get("report_ok") is True and not any(
                 not muted(sid, i) and i.get("state") not in ("done", "removed") for i in items_of(s)):
             # Green says so: an empty source is otherwise indistinguishable from one that never ran.
@@ -695,7 +694,8 @@ def build(result: dict, profile: dict, style: str | None = None) -> dict:
            "color": view.get("color", "auto"), "width": width if _pos_int(width) and width >= 40 else 100,
            "labels": labels,
            "activity": data["activity"],
-           "boards": data["boards"], "overview": view.get("overview", "inline"), "status": data["status"], "agenda": agenda if style != "plan" else [], "clear": data["clear"]}
+           "boards": data["boards"], "overview": view.get("overview", "inline"), "status": data["status"],
+           "report": view.get("report") if isinstance(view.get("report"), dict) else {}, "agenda": agenda if style != "plan" else [], "clear": data["clear"]}
 
     if view.get("headline", True) is not False:
         out["headline"] = _headline(visible, events, now, labels, day_end)
@@ -973,32 +973,98 @@ def _table(head: list, rows: list) -> list:
     return out
 
 
+def _why(r: dict, labels: dict) -> str:
+    """The reason, not the plumbing: an id that names nothing a person can open goes,
+    an issue or PR id becomes its link."""
+    ref, url = r.get("ref"), str(r.get("url") or "")
+    extras = []
+    for w in r["why"]:
+        if w and w == ref:
+            if GLOBAL_ID.match(str(ref)):
+                extras.append(f"[{ref}]({url})" if url.startswith(("https://", "http://")) else ref)
+            continue
+        extras.append(w)
+    if r.get("nudge"):
+        extras.append(labels["nudge"])
+    if r["new"]:
+        extras.append(labels["new"])
+    return " · ".join(e for e in extras if e)
+
+
+def _mix(rows: list, k: int) -> list:
+    """The first k rows taken in turn from each source, order kept within a source:
+    a capped bucket shows a mix instead of k rows of whichever source came first."""
+    queues: dict = {}
+    for r in rows:
+        queues.setdefault(r["sources"][0] if r.get("sources") else "", []).append(r)
+    picked = []
+    while len(picked) < k and any(queues.values()):
+        for q in queues.values():
+            if q and len(picked) < k:
+                picked.append(q.pop(0))
+    order = {id(r): i for i, r in enumerate(rows)}
+    return sorted(picked, key=lambda r: order[id(r)])
+
+
 def draw_report(view: dict) -> str:
-    """Markdown in three levels: status of every source, the details as tables, then
-    what to act on. For chats that render Markdown; colour and width do not apply."""
+    """Markdown that reads like a report, by exception: one status line naming only
+    what failed or needs a look, the first few things in bold, short lists per bucket
+    with the rest counted, tables only where rows compare (calendar, boards, activity)."""
     labels = view["labels"]
+    rcfg = view.get("report") or {}
+    top, per_bucket = _int(rcfg.get("top"), 3, 1), _int(rcfg.get("per_bucket"), 5, 1)
     when = _when(view.get("collected_at"))
     out = [f"## {labels['report_title'].format(date=f'{when:%d.%m. %H:%M}' if when else '')}".rstrip(), ""]
     if view.get("headline"):
         out += [f"**{view['headline']}**", ""]
-    if view.get("since"):
-        out += [f"*{view['since']}*", ""]
-    rows = []
-    for st in view.get("status") or []:
-        if st.get("status") == "error":
-            state = labels["st_failed"].format(reason=st.get("reason", ""))
-        elif st.get("status") == "skipped":
-            state = labels["st_skipped"].format(reason=st.get("reason", ""))
-        else:
-            state = labels["st_open"].format(n=st["count"]) if st["count"] else labels["st_clear"]
-        rows.append([st["title"], state])
-    if rows:
-        out += [f"### {labels['status_title']}", ""] + _table([labels["col_area"], labels["col_state"]], rows) + [""]
-    if view.get("agenda"):
-        out += [f"### {labels['agenda_title']}", ""]
+
+    failed = [st for st in view.get("status") or [] if st.get("status") == "error"]
+    warn = [st for st in view.get("status") or [] if st.get("health") and not st.get("status") and st["count"]]
+    clear = [st["title"] for st in view.get("status") or [] if st.get("health") and not st.get("status")
+             and not st["count"]]
+    parts = [f"✗ {st['title']} ({_short(st.get('reason', ''), 50)})" for st in failed]
+    parts += [f"⚠ {st['title']} ({st['count']})" for st in warn]
+    if clear:
+        parts.append("✓ " + ", ".join(clear))
+    if parts:
+        out += [f"**{labels['lage']}:** " + " · ".join(parts), ""]
+
+    agenda = view.get("agenda") or []
+    if len(agenda) == 1:
+        a = agenda[0]
+        out += [f"**{labels['agenda_title']}:** {a['when']} {a['title']}", ""]
+    elif agenda:
         out += _table([labels["col_when"], labels["col_what"], labels["col_note"]],
                       [[a["when"], a["title"], labels["clashes"].format(title=a["clash"]) if a.get("clash") else ""]
-                       for a in view["agenda"]]) + [""]
+                       for a in agenda]) + [""]
+
+    rows = [(b, r) for b in view.get("buckets") or [] for r in b["items"]]
+    n = 0
+    if rows:
+        out += [f"### {labels['first_title']}", ""]
+        for b, r in rows[:top]:
+            n += 1
+            why = _why(r, labels)
+            out.append(f"{n}. **{_short(r['title'], 120)}**" + (f" ({why})" if why else ""))
+        out.append("")
+    shown_first = {id(r) for _, r in rows[:top]}
+    for b in view.get("buckets") or []:
+        rest = [r for r in b["items"] if id(r) not in shown_first]
+        if not rest:
+            continue
+        head = f"### {b['title']} · {b.get('total', len(b['items']))}"
+        if view.get("answer_keys") and b.get("options"):
+            head += "  *(" + " · ".join(f"{'abcdefghij'[i]} {o}" for i, o in enumerate(b["options"][:10])) + ")*"
+        out += [head, ""]
+        for r in _mix(rest, per_bucket):
+            n += 1
+            why = _why(r, labels)
+            out.append(f"{n}. {_short(r['title'], 120)}" + (f" ({why})" if why else ""))
+        hidden = len(rest) - per_bucket + (b.get("total", len(b["items"])) - len(b["items"]))
+        if hidden > 0:
+            out.append(f"\n*{labels['bucket_more'].format(n=hidden)}*")
+        out.append("")
+
     if view.get("overview", "inline") != "file":
         if view.get("boards"):
             out += [f"### {labels['boards_title']}", ""]
@@ -1013,37 +1079,9 @@ def draw_report(view: dict) -> str:
                            labels["col_commits"]],
                           [[r.get("id"), r.get("branch") or "", r.get("spark", ""), str(r.get("total", 0))]
                            for r in act["rows"]]) + [""]
-    if view.get("buckets"):
-        out += [f"### {labels['act_title']}", ""]
-        n = 0
-        for b in view["buckets"]:
-            head = f"#### {b['title']} · {b.get('total', len(b['items']))}"
-            if view.get("answer_keys") and b.get("options"):
-                head += "  (" + " · ".join(f"{'abcdefghij'[i]} {o}" for i, o in enumerate(b["options"][:10])) + ")"
-            body = []
-            for r in b["items"]:
-                n += 1
-                # A reader needs the reason, not the plumbing: an id that names nothing a
-                # person can open goes, an issue or PR id becomes its link.
-                ref, url = r.get("ref"), str(r.get("url") or "")
-                extras = []
-                for w in r["why"]:
-                    if w and w == ref:
-                        if GLOBAL_ID.match(str(ref)):
-                            extras.append(f"[{ref}]({url})" if url.startswith(("https://", "http://")) else ref)
-                        continue
-                    extras.append(w)
-                if r.get("nudge"):
-                    extras.append(labels["nudge"])
-                if r["new"]:
-                    extras.append(labels["new"])
-                body.append([str(n), r["title"], " · ".join(e for e in extras if e)])
-            out += [head, ""] + _table(["#", labels["col_what"], labels["col_why"]], body) + [""]
     if view.get("workplace"):
         out += [view["workplace"], ""]
     if view.get("show_hygiene", True) and view.get("hygiene"):
-        out += [f"### {labels['housekeeping']}", ""] + [f"- {h}" for h in view["hygiene"]] + [""]
-    if view.get("more"):
-        out.append(f"*{labels['more'].format(n=view['more'])}*")
+        out += [f"*{labels['housekeeping']}:* " + " · ".join(view["hygiene"]), ""]
     out.append(f"*{labels['end']}*")
     return "\n".join(out)
