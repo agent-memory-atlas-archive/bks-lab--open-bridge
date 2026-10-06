@@ -138,13 +138,14 @@ reader sees it, and every person picks their own:
 | `triage` | Every row sorted by what to do with it: **do** (you, now), **plan** (you, no date), **delegate** (the Bridge does it), **waiting** (on someone else, with how long), **drop** (park it?). A thing two sources carry (the same issue on GitHub and on a board) is one row naming both. Housekeeping comes last. |
 | `brevity` | The bottom line, then the top three with why each matters, then how many more. For a phone or a busy day. |
 | `plan` | Your rows laid into today's free calendar gaps, what the Bridge does meanwhile, and when the day ends. |
-| `report` | Markdown that reads like a report, in three levels: a **status** table (every source with its open count, all clear, or why it failed), the **details** as tables (calendar, boards, activity), and at the bottom **what to act on**, one table per bucket with number, what and why. Issue and PR ids are links; internal ids stay out. For chats that render Markdown. |
+| `report` | Markdown that reads like a report, by exception: one **status** line naming only what failed (✗) or needs a look (⚠, a `report_ok` section with rows) and the green ones in one go (✓), the calendar (a table from two events on), the **first** rows in bold, then each bucket as a short numbered list. A bucket shows `view.report.per_bucket` rows (default 5), taken in turn from each source so one source cannot fill it, and counts the rest. Tables only where rows compare. Issue and PR ids are links; internal ids stay out. |
 
 ```yaml
 view:
   style: triage            # sources | triage | brevity | plan | report
   headline: true           # one bottom line on top: yours today, free until, next hard date
   dayline: true            # the workday as one line: · free, █ busy, ▲ now (not in brevity)
+  report: {top: 3, per_bucket: 5}   # style report: rows in bold first, rows per bucket
   overview: inline         # inline | file: Boards and Activity below the buckets, or in a file
   agenda: true             # Calendar block: every event from now through the lookahead, overlaps marked
   since_last: true         # "since 07:18: 2 new, 1 changed"
@@ -230,7 +231,7 @@ the person's language: `yours_today`, `free_until`, `free_rest`, `busy_until`,
 `no_next`, `muted`, `hidden`, `error`, `workplace`, `more`, `end`, `why`,
 `meanwhile`, `later`, `shutdown`, `activity_title`, `commits`, `boards_title`,
 `st_new`, `st_ready`, `st_in_progress`, `st_review`, `st_blocked`, `agenda_title`,
-`clashes`, `clash_row`, `all_clear`, `owed`, `overview_file`, and for `report` the headings and columns `report_title`, `status_title`, `act_title`, `col_area`, `col_state`, `col_when`, `col_what`, `col_note`, `col_why`, `col_board`, `col_repo`, `col_branch`, `col_days`, `col_commits`, `st_open`, `st_clear`, `st_failed`, `st_skipped`. Placeholders in braces stay as they are: a label may use only the placeholders
+`clashes`, `clash_row`, `all_clear`, `owed`, `overview_file`, and for `report` `report_title`, `lage`, `first_title`, `bucket_more` and the table columns `col_when`, `col_what`, `col_note`, `col_board`, `col_repo`, `col_branch`, `col_days`, `col_commits`. Placeholders in braces stay as they are: a label may use only the placeholders
 its default has (`validate` names them), and one that would not format falls
 back to the default wording instead of breaking the briefing.
 

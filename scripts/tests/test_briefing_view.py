@@ -733,27 +733,57 @@ def _report(view=None, sections=None, *secs):
     return bv.build(result(*secs), profile(view=v, sections=sections))
 
 
-def test_report_has_status_details_and_actions_in_that_order():
-    sections = [{"kind": "inbox"}, {"kind": "command", "id": "systems", "title": "Systems", "argv": ["x"]},
-                {"kind": "command", "id": "pipeline", "title": "Pipeline", "argv": ["x"]},
-                {"kind": "calendar"}]
-    text = bv.draw(_report(None, sections,
-                           sec("inbox", "inbox", [inbox_item("i1", "Answer the client", due="2026-10-05")]),
-                           sec("systems", "command", [], title="Systems"),
-                           sec("pipeline", "command", [], status="error", title="Pipeline", reason="timeout"),
-                           _cal(("Review", "2026-10-05T16:00", "2026-10-05T16:45"))))
-    assert text.index("### Status") < text.index("### Calendar") < text.index("### To act on")
-    assert "| Systems | ✓ all clear |" in text
-    assert "| Pipeline | ✗ failed: timeout |" in text
-    assert "| Inbox | 1 open |" in text
-    assert "| today 16:00-16:45 | Review |" in text
-    assert "| 1 | Answer the client |" in text
+def _rsec(sid, title, items, **kw):
+    return sec(sid, "command", items, title=title, **kw)
 
 
-def test_report_escapes_pipes_in_cells():
-    sections = [{"kind": "inbox"}]
-    text = bv.draw(_report(None, sections, sec("inbox", "inbox", [inbox_item("i1", "A | B", urgency="today")])))
-    assert "A \\| B" in text
+def _ritem(n, title, state="ready", **kw):
+    return {"id": f"x{n}", "title": title, "state": state, **kw}
+
+
+HEALTH = [{"kind": "inbox"},
+          {"kind": "command", "id": "systems", "title": "Systems", "argv": ["x"], "report_ok": True},
+          {"kind": "command", "id": "pipeline", "title": "Pipeline", "argv": ["x"], "report_ok": True},
+          {"kind": "command", "id": "upstream", "title": "Upstream", "argv": ["x"], "report_ok": True},
+          {"kind": "command", "id": "work", "title": "Work", "argv": ["x"]}, {"kind": "calendar"}]
+
+
+def test_report_states_the_situation_in_one_line_by_exception():
+    # A whole table to say "8 open" was the complaint: only what deviates is named.
+    text = bv.draw(_report(None, HEALTH,
+                           sec("inbox", "inbox", [inbox_item("i1", "Answer the client")]),
+                           _rsec("systems", "Systems", [_ritem(1, "Disk 99% full", "in_progress")]),
+                           _rsec("pipeline", "Pipeline", [], status="error", reason="timeout"),
+                           _rsec("upstream", "Upstream", []),
+                           _rsec("work", "Work", [_ritem(2, "Write the spec")])))
+    lage = next(l for l in text.splitlines() if l.startswith("**Status:**"))
+    assert "✗ Pipeline (timeout)" in lage and "⚠ Systems (1)" in lage and "✓ Upstream" in lage
+    assert "Work" not in lage and "Inbox" not in lage        # inputs, not health: their rows speak
+    assert "| Area |" not in text
+
+
+def test_report_leads_with_the_first_three_in_bold_then_lists():
+    items = [inbox_item(f"i{n}", f"Thing {n}", urgency="now" if n < 3 else "today") for n in range(1, 6)]
+    text = bv.draw(_report(None, [{"kind": "inbox"}], sec("inbox", "inbox", items)))
+    first = text.index("### First")
+    assert text.index("1. **Thing", first) < text.index("3. **Thing", first)
+    assert "4. Thing" in text and "**Thing 4" not in text
+
+
+def test_report_caps_each_bucket_and_counts_the_rest():
+    items = [_ritem(n, f"Plan item {n}") for n in range(8)]
+    text = bv.draw(_report({"report": {"top": 1, "per_bucket": 5}}, [{"kind": "command", "id": "w", "argv": ["x"]}],
+                           _rsec("w", "Work", items)))
+    assert sum(1 for l in text.splitlines() if "Plan item" in l) == 6     # one first, five in the bucket
+    assert "+2 more" in text
+
+
+def test_report_calendar_is_a_table_only_when_there_is_more_than_one_event():
+    one = bv.draw(_report(None, [{"kind": "calendar"}], _cal(("Review", "2026-10-05T16:00", "2026-10-05T16:45"))))
+    assert "**Calendar:** today 16:00-16:45 Review" in one and "| When |" not in one
+    two = bv.draw(_report(None, [{"kind": "calendar"}], _cal(("A | x", "2026-10-05T16:00", "2026-10-05T16:45"),
+                                                            ("B", "2026-10-06T09:00", "2026-10-06T10:00"))))
+    assert "| When | What | Note |" in two and "A \\| x" in two
 
 
 def test_report_draws_boards_and_activity_as_tables_unless_in_a_file():
@@ -766,11 +796,13 @@ def test_report_draws_boards_and_activity_as_tables_unless_in_a_file():
 
 
 def test_report_is_a_valid_style_and_its_labels_relabel():
-    assert bf.profile_problems(profile(view={"style": "report"}), "morning") == []
-    v = _report({"labels": {"status_title": "Lage", "act_title": "Angehen"}}, [{"kind": "inbox"}],
-                sec("inbox", "inbox", []))
+    assert bf.profile_problems(profile(view={"style": "report", "report": {"top": 3, "per_bucket": 5}}),
+                               "morning") == []
+    assert any("report" in m for m in bf.profile_problems(profile(view={"report": {"top": 0}}), "morning"))
+    v = _report({"labels": {"lage": "Lage", "first_title": "Zuerst"}}, HEALTH,
+                _rsec("systems", "Systems", [_ritem(1, "Disk", "in_progress")]))
     text = bv.draw(v)
-    assert "### Lage" in text and "Angehen" not in text or "### Angehen" in text
+    assert "**Lage:**" in text and "### Zuerst" in text
 
 
 def test_report_why_has_no_internal_ids_and_links_issue_refs():
@@ -781,5 +813,30 @@ def test_report_why_has_no_internal_ids_and_links_issue_refs():
           "url": "https://github.com/acme/app/pull/7"}
     text = bv.draw(_report(None, sections, sec("up", "command", [up]), sec("gh", "tracker", [pr])))
     assert "upstream:bks" not in text
-    assert "| Overlay bks: sync due | drift |" in text
-    assert "[acme/app#7](https://github.com/acme/app/pull/7) · your PR, open 8 days" in text
+    assert "**Overlay bks: sync due** (drift)" in text
+    assert "**Fix it** ([acme/app#7](https://github.com/acme/app/pull/7) · your PR, open 8 days)" in text
+
+
+def test_report_bucket_shows_a_mix_of_sources_not_the_first_one_only():
+    sections = [{"kind": "command", "id": "a", "argv": ["x"]}, {"kind": "command", "id": "b", "argv": ["x"]}]
+    a = [_ritem(n, f"A{n}") for n in range(6)]
+    b = [_ritem(n, f"B{n}") for n in range(2)]
+    text = bv.draw(_report({"report": {"top": 1, "per_bucket": 4}}, sections, _rsec("a", "A", a), _rsec("b", "B", b)))
+    bucket = text[text.index("### Plan"):]
+    assert "B0" in bucket and "B1" in bucket
+
+
+def test_report_shortens_a_very_long_title():
+    long = "word " * 60
+    text = bv.draw(_report(None, [{"kind": "command", "id": "a", "argv": ["x"]}], _rsec("a", "A", [_ritem(1, long)])))
+    line = next(l for l in text.splitlines() if l.startswith("1. "))
+    assert len(line) < 160 and "…" in line
+
+
+def test_report_calendar_marks_a_clash_without_repeating_the_do_row():
+    text = bv.draw(_report(None, [{"kind": "calendar"}],
+                           _cal(("Weekly", "2026-10-06T18:00", "2026-10-06T18:45"),
+                                ("Ballet", "2026-10-06T18:05", "2026-10-06T19:05"))))
+    table = [l for l in text.splitlines() if l.startswith("| tomorrow")]
+    assert all(l.endswith("| ⚠ |") for l in table)
+    assert sum(1 for l in text.splitlines() if "overlap" in l) == 1     # the do row says it, once
