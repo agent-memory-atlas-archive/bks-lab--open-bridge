@@ -1308,7 +1308,7 @@ def main(argv=None) -> int:
         p.add_argument("--no-save", action="store_true", help="do not update the last-run snapshot")
         p.add_argument("--skip", action="append", default=[], choices=SECTION_KINDS, metavar="KIND",
                        help="leave out sections of this kind (repeatable; --quick: tracker and calendar)")
-        p.add_argument("--style", choices=("sources", "triage", "brevity", "plan"),
+        p.add_argument("--style", choices=("sources", "triage", "brevity", "plan", "report"),
                        help="show this run in another view than the profile's view.style")
         if name == "collect":
             p.add_argument("--json", action="store_true")

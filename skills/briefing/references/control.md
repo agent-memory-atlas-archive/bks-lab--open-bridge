@@ -58,7 +58,8 @@ the order, the numbering, the Calendar block and the housekeeping are computed
 there (docs/briefings.md § Views). `--file` already opened today's day block,
 wrote the briefing's log row and regenerated the board; do not do those again.
 
-**Show the rendered text verbatim**, in a code block at the top of your answer.
+**Show the rendered text verbatim** at the top of your answer: in a code block,
+except for `style: report`, whose Markdown goes in as it is so its tables render.
 The person does not see tool output: a table that summarises the view, or "see
 above", is a briefing they never got. Do not regroup, re-sort, shorten or drop
 rows. With `view.overview: file` the Boards and Activity blocks are in the file

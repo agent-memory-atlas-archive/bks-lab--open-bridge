@@ -39,7 +39,7 @@ def _run(argv, cwd=None, timeout=30) -> str:
 
 
 def _row(name: str, title: str, state: str = "ready") -> dict:
-    return {"id": f"upstream:{name}", "title": title, "state": state, "raw_state": "upstream", "type": "task",
+    return {"id": f"upstream:{name}", "title": title, "state": state, "raw_state": "drift", "type": "task",
             "url": "", "changed_at": dt.datetime.now().isoformat(timespec="minutes"), "tracker": "upstream",
             "category": "open"}
 
