@@ -91,7 +91,7 @@ Read the matching `_template.yaml` and `_schema.yaml` first
 | client | draft | sender | notes |
 |---|---|---|---|
 | `apple-mail` | real draft, read back from Drafts (sender, attachments) | set from the footer, read back | default on macOS |
-| `outlook` | open window; in Drafts once Outlook stores it (Cmd+S) | NOT settable, reported | no `--hide`; Outlook for Mac |
+| `outlook` | open window; counted in Drafts where Outlook lets scripts see it | NOT settable, reported | no `--hide`; the new Outlook hides account folders from scripts, so its drafts read as unverified |
 | `eml` | `.eml` with `X-Unsent: 1` | in the file | any OS; opens as a draft in Outlook and Thunderbird |
 | `none` | only the bundle | n/a | for review or another tool |
 

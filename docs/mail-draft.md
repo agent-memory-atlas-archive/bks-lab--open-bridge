@@ -185,7 +185,7 @@ of its window, a missing language variant, Outlook's sender, the profile's
 | `client` | Result | Sender | Limits |
 |---|---|---|---|
 | `apple-mail` | a real draft, read back from Drafts: sender and attachments as saved | set from the footer's `sender`/`email`, read back | needs a Mail account with that address; gets the HTML without dark-mode rules (below) |
-| `outlook` | an open compose window, counted in Drafts once Outlook stores it | Outlook's default account | no `--hide` (without a window Outlook stores nothing); the sender cannot be set by script; both reported every time |
+| `outlook` | an open compose window; counted in Drafts where scripts can see the folder | Outlook's default account | no `--hide` (without a window Outlook stores nothing); the new Outlook shows scripts only its local folders, not the account's Drafts, so the draft is reported as an open, unverified window; the sender cannot be set by script |
 | `eml` | a `.eml` with `X-Unsent: 1` | in the file | Outlook and Thunderbird open it as a draft; Apple Mail opens it read-only |
 | `none` | only the bundle | | for review or another tool |
 
@@ -197,7 +197,10 @@ white. So Apple Mail gets the same mail without dark-mode rules (the recipient's
 client still applies its own dark handling); `outlook`, `eml` and the preview
 keep them. Mail also accepts any sender without an error and keeps its default
 account when none has that address, so the sender, like the attachments, is
-read back from the saved draft, and the report says what is really in it.
+read back from the saved draft, and the report says what is really in it. On an
+Exchange account Mail sometimes keeps both its own autosave of the new window
+and the explicit save; when one run adds more than one draft with its subject,
+the older copies created during that run are removed, never an older draft.
 
 Footer values are not trusted at compose time either: a link that is not
 http(s), mailto or tel becomes `#` and stops the draft, a badge colour that is

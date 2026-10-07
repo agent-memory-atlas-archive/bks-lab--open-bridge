@@ -15,6 +15,7 @@ re-saving it into Drafts until it quits.
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from . import Handoff, answer_fields, osascript, write_inputs
@@ -132,7 +133,38 @@ end run
 '''
 
 
+DEDUPE = r'''
+on run argv
+    set s to item 1 of argv
+    set windowSeconds to (item 2 of argv) as integer
+    set cutoff to (current date) - windowSeconds
+    tell application "Mail"
+        set ms to (messages of drafts mailbox whose subject is s)
+        if (count of ms) < 2 then return "0"
+        set best to item 1 of ms
+        repeat with m in ms
+            set dm to date received of m
+            set db to date received of best
+            if dm > db then set best to m
+        end repeat
+        set bestId to id of best
+        set removed to 0
+        repeat with m in ms
+            set dm to date received of m
+            set mid to id of m
+            if mid is not bestId and dm ≥ cutoff then
+                delete m
+                set removed to removed + 1
+            end if
+        end repeat
+    end tell
+    return removed as string
+end run
+'''
+
+
 def handoff(d, workdir: Path, show: bool = True) -> Handoff:
+    started = time.monotonic()
     before = inspect(d.subject)
     before_count = before[0] if before else 0
     # Apple Mail converts the HTML under the current system appearance and keeps
@@ -162,6 +194,18 @@ def handoff(d, workdir: Path, show: bool = True) -> Handoff:
     if count <= before_count:
         notes.append(f"Drafts holds {count} with this subject, as before ({before_count}): the new one was not saved")
         return Handoff(False, "apple-mail", ", ".join(notes), verified=False)
+    if count > before_count + 1:
+        # Measured 2026-10-07 on an Exchange account: one run left two drafts
+        # five seconds apart (Mail's own autosave of the new window, then the
+        # explicit save), and Exchange kept both. Only copies with this subject
+        # created during THIS run are removed, never an older draft.
+        window = int(time.monotonic() - started) + 5
+        done = osascript(DEDUPE, [d.subject, str(window)], timeout=60)
+        removed = (done.stdout or "").strip()
+        if removed.isdigit() and int(removed):
+            notes.append(f"removed {removed} duplicate(s) Mail saved during this run")
+            found = inspect(d.subject) or found
+            count, saved = found
     expected = sorted(p.name for p in d.attachments if p.is_file())
     if sorted(saved["attachments"]) != expected:
         notes.append(f"attachments in the saved draft: {saved['attachments'] or 'none'}, "
