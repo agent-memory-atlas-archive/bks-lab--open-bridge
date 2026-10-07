@@ -1,0 +1,7 @@
+schema_version: 1
+scope: org
+id: team
+extends: contact
+title: Team footer, compact
+style: compact
+cards: []

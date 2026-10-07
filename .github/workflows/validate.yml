@@ -149,6 +149,17 @@ jobs:
       - name: Run cmux skill test suite
         run: python3 -m pytest -q skills/cmux/tests
 
+      # The mail-draft engine (skills/mail-draft). Hermetic: osascript is
+      # replaced in every client test, so nothing reaches a mail client. The
+      # mutation battery proves each guard (body never in argv, draft verified,
+      # stale notice hidden, ...) has a test that notices it being softened.
+      - name: Run mail-draft skill suite and mutation battery
+        run: |
+          pip install jsonschema
+          bash skills/mail-draft/run-tests.sh
+          bash skills/mail-draft/run-tests.sh --mutate
+          MAIL_DRAFT_ROOT=skills/mail-draft/tests/fixtures/bridge skills/mail-draft/mail-draft.sh validate
+
       - name: Validate briefing profiles
         run: python3 scripts/briefing.py validate && python3 scripts/briefing.py --root examples/portfolio validate
 

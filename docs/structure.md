@@ -67,6 +67,9 @@ Every config type lives in **`<wrapper>/<types>/`** — a plural folder with tem
 | `identity/mandants/_template.yaml` | CORE | Mandant template |
 | `identity/mandants/_schema.yaml` | CORE | Mandant schema |
 | `identity/mandants/<id>.yaml` | USER | One recipient group |
+| `identity/mail-footers/_template.yaml` | CORE | Mail footer template |
+| `identity/mail-footers/_schema.yaml` | CORE | Mail footer schema |
+| `identity/mail-footers/<id>.yaml` | USER | One way of signing a mail (org when an overlay ships a team footer) |
 | `identity/contracts/_template.yaml` | CORE | Contract template |
 | `identity/contracts/_schema.yaml` | CORE | Contract schema |
 | `identity/contracts/<id>.yaml` | USER | One recurring financial obligation (utility, telco, insurance, SaaS) |
@@ -119,6 +122,9 @@ Every config type lives in **`<wrapper>/<types>/`** — a plural folder with tem
 | `workflow/briefings/_schema.yaml` | CORE | Briefing profile schema |
 | `workflow/briefings/_template.yaml` | CORE | Briefing profile template |
 | `workflow/briefings/<id>.yaml` | USER | One briefing: ordered sections, tracker queries, inbox rules (org when an overlay ships it) |
+| `workflow/mail-profiles/_schema.yaml` | CORE | Mail profile schema |
+| `workflow/mail-profiles/_template.yaml` | CORE | Mail profile template |
+| `workflow/mail-profiles/<id>.yaml` | USER | One occasion for mail: footer, theme, greeting, attachments, who it applies to (org when an overlay ships it) |
 | `workflow/calendars/_template.yaml` | CORE | Calendar template |
 | `workflow/calendars/_schema.yaml` | CORE | Calendar schema |
 | `workflow/calendars/entries.yaml` | USER | Master calendar (all scheduled outbound) |

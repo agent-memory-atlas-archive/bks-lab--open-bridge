@@ -1,0 +1,63 @@
+# yaml-language-server: $schema=./_schema.yaml
+#
+# Mail profile: one occasion for writing mail.
+#
+# Copy to workflow/mail-profiles/<id>.yaml on your user/* branch, one file per
+# occasion: everyday, application, status report, family, invoice. A profile
+# decides everything about a draft that is not the message: footer, theme,
+# greeting, sign-off, default attachments, mail client, and for which
+# recipients it is picked on its own.
+#
+#   skills/mail-draft/mail-draft.sh list                     # profiles, footers, who maps where
+#   skills/mail-draft/mail-draft.sh explain --to <who>       # which profile a recipient gets, and why
+#   skills/mail-draft/mail-draft.sh validate                 # check every file
+#
+# Placeholders in subject, greeting, sign_off and preheader:
+#   {first_name} {last_name} {name} {group} {sender_name} {sender_first_name} {subject} {date}
+
+schema_version: 1
+scope: user
+id: everyday
+title: "Everyday mail"
+description: "Replies and short notes to people I already know."
+default: true
+
+footer: contact              # identity/mail-footers/contact.yaml; false = none
+footer_style: compact        # a reply wants less than a first contact
+theme: design                # design | minimal | plain
+masthead: false              # no title block for a note
+
+language: en
+address_form: informal
+
+greeting:
+  informal: "Hi {first_name},"
+  formal: "Dear {name},"
+  fallback: "Hello,"
+sign_off:
+  informal: "Best,\n{sender_first_name}"
+  formal: "Kind regards,\n{sender_name}"
+greeting_words: ["Hi", "Hello", "Dear", "Good morning"]
+
+# applies_to:                # picked without --profile for these recipients
+#   types: [friends, colleagues]
+#   mandants: [team]
+#   tags: [informal]
+
+# client: apple-mail         # apple-mail | outlook | eml | none
+# attachments: []
+# cc: []
+
+# A second occasion usually starts from this one:
+#
+#   id: application
+#   extends: everyday
+#   footer: contact
+#   footer_style: card
+#   masthead: true
+#   address_form: formal
+#   subject: "Application: {subject}"
+#   attachments: ["~/Documents/cv.pdf"]
+#   require: {attachments: true}
+#   snippets:
+#     availability: "I am available from the first of next month, remote or on site."

@@ -1,0 +1,20 @@
+schema_version: 1
+scope: user
+id: application
+extends: everyday
+footer_style: card
+masthead: true
+eyebrow: Application
+address_form: formal
+subject: "Application: {subject}"
+require: {attachments: true}
+snippets:
+  availability: "I am available from **1 November**, remote or on site."
+labels: {done: FINISHED}
+applies_to: {types: [company]}
+variants:
+  de:
+    subject: "[de] Application: {subject}"
+    greeting: {formal: "[de] Dear {name},"}
+    sign_off: {formal: "[de] Kind regards,\n{sender_name}"}
+    attachment_words: ["[de] attached"]

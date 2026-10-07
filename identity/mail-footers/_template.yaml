@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=./_schema.yaml
+#
+# Mail footer: who wrote the mail and how to reach them.
+#
+# Copy to identity/mail-footers/<id>.yaml on your user/* branch. Keep as many
+# as you need: a full one for first contact, a compact one for replies, one per
+# company you write for. A profile in workflow/mail-profiles/ picks one; so can
+# `mail-draft compose --footer <id>`.
+#
+#   skills/mail-draft/mail-draft.sh list                  # footers and profiles
+#   skills/mail-draft/mail-draft.sh signature <id>        # preview, or paste into a client
+#   skills/mail-draft/mail-draft.sh validate              # check every file
+#
+# Every field is optional. Name, email and phone come from the persona when
+# left out here. No images: text renders everywhere, images do not.
+
+schema_version: 1
+scope: user                  # a footer holds contact data: never core
+id: contact
+title: "Full footer for first contact"
+persona_ref: alex            # identity/personas/alex.yaml
+style: card                  # card | compact | minimal | text
+language: en
+
+role: "Independent consultant"
+org: "Example Studio"
+website: "https://example.com"
+# name / email / phone: from the persona unless set here
+# sender: alex@example.com   # From address where the client allows setting it
+
+wordmark: {top: "EX", bottom: "STUDIO"}
+
+links:
+  - {badge: "in", label: "LinkedIn", url: "https://www.linkedin.com/in/example", color: "#0A66C2"}
+  - {badge: "@", label: "Write me", url: "mailto:alex@example.com", color: primary}
+
+# cards:                     # two per row, wide: true takes a row
+#   - kicker: "Portfolio"
+#     title: "Recent work"
+#     text: "Three projects from this year."
+#     url: "https://example.com/work{visitor_query}"
+
+# cta: {label: "Book a call", url: "https://example.com/book"}
+
+# notice:                    # hidden outside its window
+#   text: "Away from 1 to 14 August, replies after that."
+#   from: 2026-07-25
+#   until: 2026-08-14
+
+tagline:
+  lead: "Currently working on:"
+  name: "a small open tool"
+  text: "that keeps notes and code together."
+  url: "https://example.com/tool"
+
+legal:
+  - "Example Studio · 1 Example Street, 12345 Example City · VAT ID: XX000000000"
+
+# visitor_params: {name: for}          # {visitor_query} -> ?for=<first name>
+
+# variants:                  # picked by the recipient's language; only what changes
+#   de:
+#     role: "<role, written in German>"
+#     tagline: {lead: "<...>", text: "<...>", url: "https://example.com/de/tool"}

@@ -1,0 +1,13 @@
+schema_version: 1
+scope: user
+id: alex
+type: individual
+role: self
+display_name: Alex Example
+persons:
+  - id: alex
+    display_name: Alex Example
+    channels: {email: alex@example.com, phone: "+1 555 0100"}
+signature: |
+  Alex Example
+  alex@example.com
