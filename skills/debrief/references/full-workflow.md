@@ -393,6 +393,14 @@ discussion topics — NOT the full transcript), written to the context's wiki
   surfaces it as a missing org protocol (workflow Stream A 5b) so it is never lost.
   Same model for tasks: extracted now (Phase 5) → `tasks: { status: done }`, deferred
   → `tasks: { status: pending }` + a `triage.md`, which /briefing also surfaces.
+  **Closing is part of the debrief, not a later chore.** A triage.md is closed by
+  `status: triaged`, the one value written (`done` and `decided` are older spellings,
+  still read, never written). Write it at creation when the file holds no open point,
+  and the moment the last open point is ticked, whoever ticks it. An open point is a
+  `- [ ]` row (or `☐`), or a table row whose status cell reads `offen`. Nothing else
+  is open: a list of omissions or plain notes is closed from birth. A file left
+  `pending-triage` with every row ticked is the dead weight that taught the briefing
+  to be ignored.
 
 This is the answer to "debrief = capture, briefing = remind": a debrief MAY go deep
 (Phase 5 tasks + Phase 6 protocol) or stay shallow (capture + set both statuses
@@ -557,9 +565,11 @@ Summary:
      sharing is a deliberate, audience-filtered step. **Never fuse
      summary+transcript into one repo file** (old behaviour).
    - **Tasks → triage**: `{home_dir}/{YYYY-MM-DD}-{slug}/{triage_file}`
-     (`work.meetings.triage_file`, i.e. `…/triage.md`, `status: pending-triage`).
-     A debrief CAPTURES; the **/briefing** surfaces the open points and is where
-     you DECIDE them — do not force task decisions here.
+     (`work.meetings.triage_file`, i.e. `…/triage.md`), action items as `- [ ]` rows,
+     `status: pending-triage` only if at least one row is open, otherwise
+     `status: triaged` straight away. A debrief CAPTURES; the **/briefing** surfaces
+     the open points and is where you DECIDE them. Do not force task decisions here.
+     Every decided point becomes `- [x]`; the last one flips the file to `triaged`.
    **Never trash the source audio**: always MOVE the mp3/m4a
    into the PARA archive, even when the worker holds a copy. The naked transcript
    often survives only on the worker bundle (`transcript-raw.md`) — `scp` it into

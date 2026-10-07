@@ -244,16 +244,19 @@ If `zombie` or `orphan` count > 0 → emit Phase 4 warning
    filename come from `work.meetings.home_dir` + `triage_file` in bridge-config
    (the central meeting-layout SoT). For each
    `{work.meetings.home_dir}/*/{triage_file}` (i.e. `work/tasks/_meetings/*/triage.md`)
-   whose frontmatter is `status: pending-triage`,
-   surface its unchecked (`☐`) action-item rows as an **„Offene Debrief-Punkte"**
-   block:
+   whose frontmatter status is not a closing value (`triaged`; `done` and `decided`
+   are older spellings of the same) and which still holds an open point, surface its
+   open action-item rows as an **„Offene Debrief-Punkte"** block. An open point is a
+   `- [ ]` row (what the debrief writes), a `☐`, or a table row whose status cell
+   reads `offen`; a `- [x]` row, a list of omissions or plain notes is never open:
    ```
    Offene Debrief-Punkte:
      • <meeting> — N offene Punkte → entscheiden: work/tasks/_meetings/<slug>/triage.md
    ```
-   Count unchecked rows in the `| … | ☐ |` table; show the meeting + count + path
-   (not every row — the user opens triage.md to decide). Drop a meeting from the
-   surface once `status: triaged` or all rows are checked (`☑`). This is what lets
+   Show the meeting + count of open points + path (not every row; the user opens
+   triage.md to decide). A meeting drops from the surface once its status closes or
+   no open point is left, whichever comes first; a decision taken here ticks the row
+   (`- [x]`) and the last tick sets `status: triaged`. This is what lets
    the user "decide the open points later at the briefing" instead of mid-debrief.
 
 5b. **tasks/_meetings/*/summary.md → offene Pflichten** (the second debrief→briefing
