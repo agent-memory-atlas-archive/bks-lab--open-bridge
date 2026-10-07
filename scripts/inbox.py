@@ -61,6 +61,11 @@ SCHEMA_VERSION = 1
 KINDS = ("decision", "question", "finding", "draft", "result")
 GATES = ("free", "your-yes", "only-you")
 URGENCIES = ("now", "today", "later")
+#: Who ends an item when it has no probe. `reporter`: the job that filed it closes it when the
+#: condition is gone (by key). `person`: only a person can say it is done. `bot`: a watcher acts
+#: on it and closes it. An item with neither a probe nor a closer is the one that stays open for
+#: ever, which is what the inbox exists to prevent (2026-10-07: 51 of 62 items had no way out).
+CLOSERS = ("probe", "reporter", "person", "bot")
 VERBS = ("seen", "note", "approve", "reject", "drop", "defer", "close", "executed", "failed")
 TERMINAL = {"close": "done", "executed": "done", "reject": "dropped", "drop": "dropped"}
 ACTIVE_STATES = ("open", "approved", "waiting")
@@ -209,7 +214,7 @@ class Item:
             seen = [e.data.get("summary") for e in self.events if e.verb == "seen" and e.data.get("summary")]
             return seen[-1] if seen else self.data.get("summary")
         if key in ("kind", "gate", "urgency", "task", "source", "created", "key",
-                   "action", "closes_when", "detail", "due"):
+                   "action", "closes_when", "detail", "due", "closer"):
             return self.data.get("from" if key == "source" else key)
         raise AttributeError(key)
 
@@ -372,7 +377,7 @@ class Inbox:
     def add(self, *, source: str, kind: str, summary: str, task: str | None = None,
             gate: str = "your-yes", urgency: str = "today", detail: str | None = None,
             action: dict | None = None, closes_when: dict | None = None, key: str | None = None,
-            due: str | None = None) -> str:
+            due: str | None = None, closer: str | None = None) -> str:
         if kind not in KINDS:
             raise ValueError(f"kind must be one of {KINDS}")
         if gate not in GATES:
@@ -383,6 +388,8 @@ class Inbox:
             raise ValueError("summary is required")
         if closes_when is not None and not isinstance(closes_when, dict):
             raise ValueError("closes_when must be a probe mapping")
+        if closer is not None and closer not in CLOSERS:
+            raise ValueError(f"closer must be one of {CLOSERS}")
         _check_action(action)
         if due is not None:
             _parse_when(due)            # raises ValueError on a date nobody can read
@@ -408,9 +415,14 @@ class Inbox:
         data = {"schema_version": SCHEMA_VERSION, "created": now.isoformat(timespec="minutes"),
                 "from": source, "kind": kind, "summary": summary.strip(), "urgency": urgency, "gate": gate}
         for name, value in (("task", task), ("due", due), ("detail", detail), ("key", key),
-                            ("action", action), ("closes_when", closes_when)):
+                            ("action", action), ("closes_when", closes_when), ("closer", closer)):
             if value:
                 data[name] = value
+        if kind in ("finding", "question") and not closes_when and not closer:
+            # A warning, not a refusal: filers run unattended and swallow errors, so a refusal
+            # would lose the finding. Pass --closes-when-json or --closer to say how it ends.
+            _warn(f"{summary.strip()[:60]!r}: no way to close (neither closes_when nor closer); "
+                  f"it stays open until a person closes it")
         _dump(self.root / item_id / "item.yaml", data)
         (self.root / item_id / "events").mkdir(exist_ok=True)
         return item_id
@@ -445,6 +457,16 @@ class Inbox:
 
     def close(self, item_id: str, note: str | None = None) -> None:
         self.event(item_id, "close", text=note)
+
+    def close_by_key(self, key: str, note: str | None = None) -> list:
+        """Close every live item filed under `key`. For a reporter that learns the condition is
+        gone: it knows its key, not the item id. A dropped item stays dropped."""
+        closed = []
+        for item in self.items():
+            if key and item.key == key and item.state not in ("done", "dropped"):
+                self.close(item.id, note=note)
+                closed.append(item.id)
+        return closed
 
     # -------------------------------------------------- acting on the live source
     def check(self) -> list:
@@ -591,6 +613,8 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--key", help="dedup key: a watcher that fires again adds no second item")
     a.add_argument("--action-json")
     a.add_argument("--closes-when-json")
+    a.add_argument("--closer", choices=CLOSERS,
+                   help="who ends it when there is no probe: reporter, person or bot")
 
     ls = sub.add_parser("list", help="open items, most urgent first")
     ls.add_argument("--all", action="store_true")
@@ -604,8 +628,10 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--text", help="release an edited version of a draft")
     for name in ("reject", "close", "drop"):
         sp = sub.add_parser(name)
-        sp.add_argument("id")
+        sp.add_argument("id", nargs="?" if name == "close" else None)
         sp.add_argument("--note")
+        if name == "close":
+            sp.add_argument("--key", help="close every live item filed under this key instead of one id")
     df = sub.add_parser("defer")
     df.add_argument("id")
     df.add_argument("--until", required=True, help="YYYY-MM-DD")
@@ -664,6 +690,12 @@ def _sync(root: Path, actor: str, push: bool) -> int:
         print(f"inbox sync: unpushed commits touch files outside {INBOX_PATH}/ "
               f"({', '.join(outside[:3])}); push them yourself, not pushing", file=sys.stderr)
         return 1
+    # The view is derived, so a local rendering is thrown away rather than
+    # autostashed: put back on top of a moved upstream copy it conflicts, and a
+    # conflicting autostash pop leaves the index unmerged, which blocks every
+    # later stash and rebase on this checkout (2026-10-07, hours of exit 65/75).
+    if git("ls-files", "--error-unmatch", "--", "work/inbox.md").returncode == 0:
+        git("checkout", "--", "work/inbox.md")
     done = git("rebase", "--autostash", "@{u}")
     if done.returncode != 0:
         git("rebase", "--abort")
@@ -694,7 +726,8 @@ def main(argv=None) -> int:
         if args.cmd == "add":
             print(box.add(source=args.source, kind=args.kind, summary=args.summary, task=args.task,
                           gate=args.gate, urgency=args.urgency, detail=args.detail, key=args.key, due=args.due,
-                          action=_json_arg(args.action_json), closes_when=_json_arg(args.closes_when_json)))
+                          action=_json_arg(args.action_json), closes_when=_json_arg(args.closes_when_json),
+                          closer=args.closer))
         elif args.cmd == "list":
             items = box.items() if args.all else box.open_items()
             if args.json:
@@ -714,7 +747,12 @@ def main(argv=None) -> int:
                 print(f"  {e.at}  {e.by:12} {e.verb:9} {json.dumps(e.data, ensure_ascii=False) if e.data else ''}")
         elif args.cmd == "approve":
             box.approve(box.resolve(args.id), when=_json_arg(args.when_json), text=args.text)
+        elif args.cmd == "close" and getattr(args, "key", None):
+            for item_id in box.close_by_key(args.key, note=args.note):
+                print(f"closed {item_id}")
         elif args.cmd in ("reject", "close", "drop"):
+            if not args.id:
+                raise ValueError(f"{args.cmd} needs an id" + (" or --key" if args.cmd == "close" else ""))
             box.event(box.resolve(args.id), args.cmd, text=args.note)
         elif args.cmd == "defer":
             dt.date.fromisoformat(args.until)

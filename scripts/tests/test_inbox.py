@@ -453,6 +453,33 @@ def test_sync_refuses_to_push_commits_outside_the_inbox(tmp_path):
     assert "other.txt" not in git(origin, "ls-tree", "-r", "--name-only", "main").stdout
 
 
+def test_sync_does_not_leave_the_index_unmerged_when_the_generated_view_diverged(tmp_path):
+    """2026-10-07: the runner's local work/inbox.md (a view) met a changed upstream copy,
+    the autostash pop conflicted and left unmerged index entries. Every later stash and
+    rebase on that checkout then failed for hours until somebody ran `git reset`."""
+    origin = tmp_path / "origin.git"
+    git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
+    repo = tmp_path / "repo"
+    other = tmp_path / "other"
+    git(tmp_path, "clone", "-q", str(origin), str(repo))
+    (repo / "work").mkdir()
+    (repo / "work" / "inbox.md").write_text("view v1\n")
+    git(repo, "add", "-A"); git(repo, "commit", "-q", "-m", "init"); git(repo, "push", "-q", "origin", "HEAD:main")
+    git(tmp_path, "clone", "-q", str(origin), str(other))
+    (other / "work" / "inbox.md").write_text("view v2 from upstream\n")
+    git(other, "commit", "-q", "-am", "view moved"); git(other, "push", "-q", "origin", "HEAD:main")
+    (repo / "work" / "inbox.md").write_text("view v1 rendered locally\n")
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1",
+           "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    subprocess.run([sys.executable, str(SCRIPT), "--root", str(repo), "--by", "t", "add", "--from", "x",
+                    "--kind", "finding", "--summary", "disk full"], capture_output=True, text=True, env=env)
+    done = subprocess.run([sys.executable, str(SCRIPT), "--root", str(repo), "--by", "t", "sync"],
+                          capture_output=True, text=True, env=env)
+    assert done.returncode == 0, done.stderr
+    assert git(repo, "ls-files", "-u").stdout.strip() == "", "index must not stay unmerged"
+    assert git(repo, "stash", "list").stdout.strip() == "", "no autostash may be left behind"
+
+
 def test_a_dry_run_elsewhere_lists_what_waits_for_the_runner(tmp_path):
     """The briefing on a machine that is not the runner shows "ready, waiting for <runner>"."""
     laptop = inbox.Inbox(tmp_path / "work" / "inbox", actor="laptop", clock=lambda: NOW, runner="homebox")
@@ -461,3 +488,54 @@ def test_a_dry_run_elsewhere_lists_what_waits_for_the_runner(tmp_path):
     assert report["ran"] == [item_id]
     assert "homebox" in report["skipped"]
     assert laptop.run_report()["ran"] == []
+
+
+# ---------------------------------------------------------------- closing by key, closer
+# 2026-10-07: an alarm became an item, the alarm ended, the item stayed open for hours.
+# The reporter that knows "it is over" knows the key, not the item id.
+
+def test_close_by_key_closes_every_live_item_with_that_key(box):
+    a = box.add(source="m/notify", kind="finding", summary="puller failed", key="notify:abc")
+    b = box.add(source="m/x", kind="finding", summary="other", key="other")
+    closed = box.close_by_key("notify:abc", note="recovered")
+    assert closed == [a]
+    assert box.get(a).state == "done"
+    assert box.get(b).state == "open"
+
+
+def test_close_by_key_leaves_a_dropped_item_dropped(box):
+    a = box.add(source="m/notify", kind="finding", summary="noise", key="k")
+    box.event(a, "drop", text="not interesting")
+    assert box.close_by_key("k") == []
+    assert box.get(a).state == "dropped"
+
+
+def test_close_by_key_without_a_match_is_an_empty_answer(box):
+    assert box.close_by_key("nothing") == []
+
+
+def test_cli_close_with_key(tmp_path):
+    r = run_cli(tmp_path, "add", "--from", "m", "--kind", "finding", "--summary", "s", "--key", "k1")
+    assert r.returncode == 0, r.stderr
+    done = run_cli(tmp_path, "close", "--key", "k1", "--note", "recovered")
+    assert done.returncode == 0, done.stderr
+    assert "closed" in done.stdout
+    assert "Nothing waits." in run_cli(tmp_path, "list", "--short").stdout
+
+
+def test_closer_is_stored_and_validated(box):
+    a = box.add(source="m", kind="finding", summary="s", closer="person")
+    assert box.get(a).closer == "person"
+    with pytest.raises(ValueError):
+        box.add(source="m", kind="finding", summary="s2", closer="somebody")
+
+
+def test_a_finding_without_a_way_to_close_warns(box, capsys):
+    box.add(source="m", kind="finding", summary="nobody will ever close me")
+    assert "no way to close" in capsys.readouterr().err
+
+
+def test_a_finding_with_a_probe_or_a_closer_does_not_warn(box, capsys):
+    box.add(source="m", kind="finding", summary="a", closes_when={"after": "2026-10-09"})
+    box.add(source="m", kind="finding", summary="b", closer="reporter")
+    assert "no way to close" not in capsys.readouterr().err

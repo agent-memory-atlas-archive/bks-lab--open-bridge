@@ -440,7 +440,7 @@ class OneKeyPerAppointment(DispatchBase):
 
     def test_the_morning_backoff_does_not_silence_the_midday_alarm(self):
         self.once(self.finding(appointment="morning"))
-        self.once(self.finding(appointment="midday"))
+        self.once(self.finding(appointment="morning"), self.finding(appointment="midday"))
         self.assertEqual(
             len(self.sent), 2,
             "one key per declaration lets the morning alarm bury the midday one "
@@ -475,6 +475,112 @@ class OnlyStoppedNeedsASecondLook(DispatchBase):
         self.assertEqual(self.sent, [], "one live reading is a flicker, not an outage")
         self.once(f, workloads=[w])
         self.assertEqual(len(self.sent), 1, "two in a row is the outage")
+
+
+class AnAlarmThatWasToldIsAlsoToldWhenItEnds(DispatchBase):
+    """2026-10-07: a puller failed for hours, the alarm arrived mid-way, and the
+    all-clear never did. The reader had to open the workloads page to learn the
+    trouble was gone."""
+
+    def test_a_delivered_alarm_that_resolves_sends_one_all_clear(self):
+        self.once(self.finding())
+        self.once()
+        self.assertEqual(len(self.sent), 2, "alarm, then all-clear")
+        self.assertIn("recovered", self.sent[1]["what"])
+        self.assertIn("midday", self.sent[1]["detail"])
+        self.assertIn("ended with 1", self.sent[1]["detail"],
+                      "the all-clear names what was wrong, so it can be matched to the alarm")
+
+    def test_the_all_clear_names_the_alarm_exactly(self):
+        """The inbox closes the alarm's item by a key made of the alarm's title, so the
+        all-clear must carry that title verbatim behind a fixed prefix."""
+        self.once(self.finding())
+        self.once()
+        self.assertEqual(self.sent[1]["what"], notify.RECOVERED_PREFIX + self.sent[0]["what"])
+        self.assertEqual(self.sent[1]["where"], self.sent[0]["where"])
+
+    def test_two_alarms_end_as_two_all_clears(self):
+        self.once(self.finding(appointment="morning"))
+        self.once(self.finding(appointment="morning"),
+                  self.finding(appointment="midday", detail="midday broke differently"),
+                  now=self.at(hour=18))
+        self.once(now=self.at(hour=19))
+        clears = [s for s in self.sent if s["what"].startswith(notify.RECOVERED_PREFIX)]
+        self.assertEqual(sorted(c["what"] for c in clears),
+                         sorted(notify.RECOVERED_PREFIX + s["what"] for s in self.sent
+                                if not s["what"].startswith(notify.RECOVERED_PREFIX)))
+
+    def test_only_the_titles_not_yet_cleared_are_retried(self):
+        self.once(self.finding(appointment="morning"))
+        self.once(self.finding(appointment="morning"),
+                  self.finding(appointment="midday", detail="midday broke differently"),
+                  now=self.at(hour=18))
+        calls = []
+
+        def flaky(**kw):
+            calls.append(kw)
+            ok = len(calls) == 1                      # first all-clear arrives, second does not
+            return notify.Sent(ok, "" if ok else "exit 1")
+        notify.dispatch(self.rep(), [load("twice-daily-report")], state_path=self.state,
+                        now=self.at(hour=19), sender=flaky)
+        self.sent.clear()
+        self.once(now=self.at(hour=20))
+        self.assertEqual(self.sent, [], "a failed all-clear waits for the backoff")
+        self.once(now=self.at(hour=19 + notify.BACKOFF_HOURS))
+        self.assertEqual([s["what"] for s in self.sent], [calls[1]["what"]],
+                         "the title already cleared must not be cleared twice")
+
+    def test_the_all_clear_is_sent_once(self):
+        self.once(self.finding())
+        self.once()
+        self.once()
+        self.assertEqual(len(self.sent), 2)
+
+    def test_an_alarm_that_never_arrived_has_no_all_clear(self):
+        self.once(self.finding(), rc=1)
+        self.once()
+        self.assertEqual(len(self.sent), 1, "only the failed attempt, nothing to retract")
+
+    def test_a_finding_that_was_never_alarmed_has_no_all_clear(self):
+        w = load("watched-daemon")
+        f = self.finding(state=model.WorkloadState.stopped, wid=w.id, appointment="")
+        self.once(f, workloads=[w])          # first pass: still waiting for a second look
+        self.once(workloads=[w])
+        self.assertEqual(self.sent, [])
+
+    def test_an_unreachable_pass_is_not_an_all_clear(self):
+        self.once(self.finding())
+        self.once(self.finding(state=model.WorkloadState.unknown, detail="host-a did not answer"))
+        self.assertEqual(len(self.sent), 1)
+
+    def test_an_all_clear_that_did_not_arrive_is_tried_again_after_the_backoff(self):
+        self.once(self.finding())
+        self.once(rc=1, now=self.at(hour=13))
+        self.once(now=self.at(hour=14))
+        self.assertEqual(len(self.sent), 2, "a failed all-clear is not retried every pass")
+        self.once(now=self.at(hour=13 + notify.BACKOFF_HOURS))
+        self.assertEqual([s["what"] for s in self.sent].count(self.sent[1]["what"]), 2)
+        self.once(now=self.at(hour=23))
+        self.assertEqual(len(self.sent), 3, "delivered on the retry, then quiet")
+
+    def test_no_all_clear_while_another_run_under_the_same_title_still_fails(self):
+        """Review 07.10.: a bundled alarm "X (a) and 1 more" covers a and b. a recovers while b
+        still fails: the all-clear for that title would close its inbox item too early."""
+        a = self.finding(appointment="morning")
+        b = self.finding(appointment="midday", detail="midday broke too")
+        self.once(a, b)
+        self.once(b, now=self.at(hour=13))
+        self.assertEqual(len(self.sent), 1, "b still carries the title, nothing has ended")
+        self.once(now=self.at(hour=14))
+        self.assertEqual(len(self.sent), 2)
+        self.assertEqual(self.sent[1]["what"], notify.RECOVERED_PREFIX + self.sent[0]["what"])
+
+    def test_an_all_clear_counts_against_the_daily_cap(self):
+        for i in range(notify.DAILY_CAP - 1):
+            self.once(self.finding(appointment=f"a{i}", detail=f"d{i}"), now=self.at(hour=8 + i))
+        self.once(now=self.at(hour=8 + notify.DAILY_CAP))
+        delivered = len(self.sent)
+        self.assertLessEqual(delivered, notify.DAILY_CAP, "all-clears must not double the day's messages")
 
 
 class UnknownNeitherStartsNorEndsAnEpisode(DispatchBase):
