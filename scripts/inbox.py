@@ -66,7 +66,7 @@ URGENCIES = ("now", "today", "later")
 #: on it and closes it. An item with neither a probe nor a closer is the one that stays open for
 #: ever, which is what the inbox exists to prevent (2026-10-07: 51 of 62 items had no way out).
 CLOSERS = ("probe", "reporter", "person", "bot")
-VERBS = ("seen", "note", "approve", "reject", "drop", "defer", "close", "executed", "failed")
+VERBS = ("seen", "note", "approve", "reject", "drop", "defer", "close", "executed", "failed", "urgency")
 TERMINAL = {"close": "done", "executed": "done", "reject": "dropped", "drop": "dropped"}
 ACTIVE_STATES = ("open", "approved", "waiting")
 ACTION_KEYS = {"argv", "label"}
@@ -213,7 +213,12 @@ class Item:
         if key == "summary":
             seen = [e.data.get("summary") for e in self.events if e.verb == "seen" and e.data.get("summary")]
             return seen[-1] if seen else self.data.get("summary")
-        if key in ("kind", "gate", "urgency", "task", "source", "created", "key",
+        if key == "urgency":
+            # The last `urgency` event wins; item.yaml keeps the urgency it was filed with.
+            set_by = [e.data.get("value") for e in self.events
+                      if e.verb == "urgency" and e.data.get("value") in URGENCIES]
+            return set_by[-1] if set_by else self.data.get("urgency")
+        if key in ("kind", "gate", "task", "source", "created", "key",
                    "action", "closes_when", "detail", "due", "closer"):
             return self.data.get("from" if key == "source" else key)
         raise AttributeError(key)
@@ -267,7 +272,7 @@ class Item:
 
     def as_dict(self) -> dict:
         return {"id": self.id, "state": self.state, **{k: v for k, v in self.data.items()
-                                                      if k != "schema_version"}}
+                                                      if k != "schema_version"}, "urgency": self.urgency}
 
 
 def _warn(text: str) -> None:
@@ -452,6 +457,14 @@ class Inbox:
                 raise ValueError("when must be a probe mapping")
         self.event(item_id, "approve", when=when, text=text)
 
+    def set_urgency(self, item_id: str, value: str) -> None:
+        if value not in URGENCIES:
+            raise ValueError(f"urgency must be one of {URGENCIES}")
+        state = self.get(item_id).state
+        if state in ("done", "dropped"):
+            raise ValueError(f"{item_id} is closed ({state}); its urgency no longer matters")
+        self.event(item_id, "urgency", value=value)
+
     def reject(self, item_id: str, note: str | None = None) -> None:
         self.event(item_id, "reject", text=note)
 
@@ -635,6 +648,9 @@ def build_parser() -> argparse.ArgumentParser:
     df = sub.add_parser("defer")
     df.add_argument("id")
     df.add_argument("--until", required=True, help="YYYY-MM-DD")
+    ur = sub.add_parser("urgency", help="re-prioritise an open item")
+    ur.add_argument("id")
+    ur.add_argument("value", choices=URGENCIES)
     nt = sub.add_parser("note")
     nt.add_argument("id")
     nt.add_argument("text")
@@ -757,6 +773,9 @@ def main(argv=None) -> int:
         elif args.cmd == "defer":
             dt.date.fromisoformat(args.until)
             box.event(box.resolve(args.id), "defer", until=args.until)
+        elif args.cmd == "urgency":
+            box.set_urgency(box.resolve(args.id), args.value)
+            (args.root / "work" / "inbox.md").write_text(box.render(), encoding="utf-8")
         elif args.cmd == "note":
             box.note(box.resolve(args.id), args.text)
         elif args.cmd == "check":
