@@ -275,4 +275,28 @@ MUTATIONS = (
         test="tests.test_review.Root.test_root_is_the_skills_own_tree_not_the_cwd",
         scar="run from inside another instance, the engine read that instance's mandants and footers",
     ),
+    Mutation(
+        name="duplicate-draft-kept",
+        file=APPLE,
+        search="    if count > before_count + 1:",
+        replace="    if False:",
+        test="tests.test_envelope.ClientHandoff.test_duplicate_from_this_run_is_removed",
+        scar="an Exchange account kept Mail's autosave and the explicit save: two drafts of one mail",
+    ),
+    Mutation(
+        name="dedupe-touches-older-drafts",
+        file=APPLE,
+        search="    if count > before_count + 1:",
+        replace="    if count > before_count:",
+        test="tests.test_envelope.ClientHandoff.test_no_dedupe_when_one_draft_was_added",
+        scar="an older draft with the same subject belongs to the person and must never be deleted",
+    ),
+    Mutation(
+        name="outlook-zero-taken-as-missing",
+        file=OUTLOOK,
+        search="    if windows > before[1]:",
+        replace="    if False:",
+        test="tests.test_envelope.ClientHandoff.test_outlook_open_window_is_unverified_not_missing",
+        scar="the new Outlook hides account folders from scripts; both drafts were there and were reported missing",
+    ),
 )

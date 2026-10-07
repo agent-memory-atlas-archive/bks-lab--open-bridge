@@ -74,7 +74,8 @@ class ClientHandoff(BridgeCase):
         calls = []
         script_answer = ("OK|sender=yes|to=1|attachments=0|closed=yes|from=alex@example.com"
                          if module_name == "apple_mail" else "OK|attachments=0")
-        fake_run = fake_osascript(script_answer, ["0", "1"], calls)
+        verify = ["0", "1"] if module_name == "apple_mail" else ["0|0", "1|1"]
+        fake_run = fake_osascript(script_answer, verify, calls)
         with mock.patch("engine.clients.subprocess.run", side_effect=fake_run):
             result = client.handoff(d, Path(self._tmp) / "handoff", show=True)
         return d, calls, result
@@ -110,6 +111,29 @@ class ClientHandoff(BridgeCase):
         self.assertFalse(result.ok)
         self.assertIn("attach them by hand", result.detail)
 
+    def test_duplicate_from_this_run_is_removed(self):
+        """Exchange kept two drafts of one run five seconds apart (2026-10-07)."""
+        from engine.clients import apple_mail
+        d = self.build(to=["family/sam"])
+        calls = []
+        with mock.patch("engine.clients.subprocess.run",
+                        side_effect=fake_osascript("OK|sender=yes|to=1|attachments=0|from=alex@example.com",
+                                                   ["0", "2", "1", "1"], calls)):
+            result = apple_mail.handoff(d, Path(self._tmp) / "h", show=False)
+        self.assertTrue(any("delete m" in script for _, script in calls))
+        self.assertIn("removed 1 duplicate", result.detail)
+        self.assertTrue(result.ok)
+
+    def test_no_dedupe_when_one_draft_was_added(self):
+        from engine.clients import apple_mail
+        d = self.build(to=["family/sam"])
+        calls = []
+        with mock.patch("engine.clients.subprocess.run",
+                        side_effect=fake_osascript("OK|sender=yes|to=1|attachments=0|from=alex@example.com",
+                                                   ["1", "2", "0", "2"], calls)):
+            apple_mail.handoff(d, Path(self._tmp) / "h", show=False)
+        self.assertFalse(any("delete m" in script for _, script in calls))
+
     def test_sender_that_did_not_stick_is_reported(self):
         from engine.clients import apple_mail
         d = self.build(to=["someone@else.example"])
@@ -141,14 +165,27 @@ class ClientHandoff(BridgeCase):
         self.assertFalse(result.ok)
         run.assert_not_called()
 
-    def test_outlook_window_not_in_drafts_says_so(self):
+    def outlook_run(self, before: str, after: str):
         from engine.clients import outlook
         d = self.build(to=["family/sam"])
         with mock.patch("engine.clients.subprocess.run",
-                        side_effect=fake_osascript("OK|attachments=0", ["0", "0"])):
-            result = outlook.handoff(d, Path(self._tmp) / "h", show=True)
-        self.assertFalse(result.verified)
-        self.assertIn("Cmd+S", result.detail)
+                        side_effect=fake_osascript("OK|attachments=0", [before, after])):
+            return outlook.handoff(d, Path(self._tmp) / "h", show=True)
+
+    def test_outlook_open_window_is_unverified_not_missing(self):
+        """The new Outlook shows scripts only its local folders; a zero in Drafts
+        there is no evidence, the drafts were in the account's Drafts."""
+        result = self.outlook_run("0|0", "0|1")
+        self.assertTrue(result.ok)
+        self.assertIsNone(result.verified)
+        self.assertIn("cannot be checked", result.detail)
+
+    def test_outlook_nothing_created_fails(self):
+        result = self.outlook_run("0|0", "0|0")
+        self.assertFalse(result.ok)
+
+    def test_outlook_draft_seen_is_verified(self):
+        self.assertTrue(self.outlook_run("0|0", "1|1").verified)
 
     def test_no_client_script_can_send(self):
         from engine.clients import apple_mail, outlook
