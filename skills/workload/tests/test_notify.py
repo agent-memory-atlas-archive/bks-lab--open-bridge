@@ -428,11 +428,14 @@ class TheBackoffIsBoundToDelivery(DispatchBase):
     def test_a_new_incident_speaks_through_the_silence(self):
         from datetime import timedelta
         self.once(self.finding())
-        self.once(self.finding(detail="the midday run ended with 1 at 2026-08-24T18:40:00Z"),
-                  now=self.at() + timedelta(hours=6))
+        # INSIDE the backoff window, and genuinely different (another exit code). Since
+        # stamps are blanked for failures, a new stamp alone is the same incident on
+        # purpose; only a changed sentence is new news, and it must not wait.
+        self.once(self.finding(detail="the midday run ended with 2 at 2026-08-24T13:40:00Z"),
+                  now=self.at() + timedelta(hours=1))
         self.assertEqual(
             len(self.sent), 2,
-            "the run failed AGAIN, six hours later. A wall clock backoff alone "
+            "the run failed DIFFERENTLY an hour later. A wall clock backoff alone "
             "would swallow the second failure as though it were the first one "
             "still standing")
 

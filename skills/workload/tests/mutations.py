@@ -2663,10 +2663,18 @@ MUTATIONS = (
     Mutation(
         name="every-incident-looks-like-the-same-one",
         file="engine/notify.py",
-        search='    return hashlib.sha256(str(getattr(finding, "detail", "")).encode("utf-8")).hexdigest()[:16]',
+        search='    return hashlib.sha256(detail.encode("utf-8")).hexdigest()[:16]',
         replace='    return "constant"',
         test="tests.test_notify.TheBackoffIsBoundToDelivery.test_a_new_incident_speaks_through_the_silence",
         scar="a second, genuinely new failure inside the backoff window is swallowed as though the first one were still standing",
+    ),
+    Mutation(
+        name="every-pass-of-a-failing-run-is-a-new-incident",
+        file="engine/notify.py",
+        search='    if getattr(finding, "state", None) in WAKES_ON_FAILURE:',
+        replace='    if False:',
+        test="tests.test_notify.AFailingRunThatKeepsRunningIsOneIncident.test_new_stamps_with_the_same_exit_code_are_told_once_per_backoff_not_every_pass",
+        scar="a run that fails every pass writes a new stamp each time, so neither the backoff nor the repeat cap ever applies",
     ),
     # REMOVED 2026-08-27 with the code it pointed at, and the battery is what
     # found it: the anchor matched zero times, so it had stopped proving
