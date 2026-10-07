@@ -490,6 +490,38 @@ def test_a_dry_run_elsewhere_lists_what_waits_for_the_runner(tmp_path):
     assert laptop.run_report()["ran"] == []
 
 
+# ---------------------------------------------------------------- urgency verb
+
+def test_urgency_event_changes_the_effective_urgency_and_the_order(box):
+    a = add(box, summary="first", urgency="today")
+    b = add(box, summary="second", urgency="later")
+    box.event(b, "urgency", value="now")
+    assert box.get(b).urgency == "now"
+    assert [i.id for i in box.open_items()][0] == b
+    assert box.get(a).urgency == "today"
+    assert box.get(b).as_dict()["urgency"] == "now"
+
+
+def test_cli_urgency_sets_value_accepts_prefix_and_renders(tmp_path):
+    r = run_cli(tmp_path, "add", "--from", "cli", "--kind", "finding", "--summary", "disk 91 %")
+    item_id = r.stdout.strip()
+    r = run_cli(tmp_path, "urgency", item_id[:15], "now")
+    assert r.returncode == 0, r.stderr
+    assert json.loads(run_cli(tmp_path, "list", "--json").stdout)[0]["urgency"] == "now"
+    assert "| now |" in (tmp_path / "repo" / "work" / "inbox.md").read_text(encoding="utf-8")
+    assert (tmp_path / "repo" / "work" / "inbox" / item_id / "item.yaml").read_text().count("urgency: today") == 1
+
+
+def test_cli_urgency_refuses_bad_value_closed_item_and_unknown_id(tmp_path):
+    item_id = run_cli(tmp_path, "add", "--from", "cli", "--kind", "finding", "--summary", "x").stdout.strip()
+    assert run_cli(tmp_path, "urgency", item_id, "soon").returncode == 2   # argparse choices
+    run_cli(tmp_path, "close", item_id)
+    r = run_cli(tmp_path, "urgency", item_id, "now")
+    assert r.returncode == 1 and "closed" in r.stderr
+    r = run_cli(tmp_path, "urgency", "nope", "now")
+    assert r.returncode == 1 and "inbox:" in r.stderr
+
+
 # ---------------------------------------------------------------- closing by key, closer
 # 2026-10-07: an alarm became an item, the alarm ended, the item stayed open for hours.
 # The reporter that knows "it is over" knows the key, not the item id.

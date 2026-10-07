@@ -44,7 +44,7 @@ work/inbox.md                      GENERATED view (python3 scripts/inbox.py rend
 annotated example: [`work/templates/inbox-item.yaml`](../work/templates/inbox-item.yaml).
 
 Every change is a **new event file**, never an edit. Verbs: `seen`, `note`,
-`approve`, `reject`, `drop`, `defer`, `close`, `executed`, `failed`. Two machines
+`approve`, `reject`, `drop`, `defer`, `urgency`, `close`, `executed`, `failed`. Two machines
 writing the same inbox through git therefore never touch the same file, and an
 item id ends in a random tail, so two machines filing the same thing in the same
 minute still create two folders. This is the property the task folders already have, and
@@ -139,6 +139,7 @@ python3 scripts/inbox.py approve <id> [--when-json '{...}'] [--text "edited draf
 python3 scripts/inbox.py reject|close|drop <id> [--note "why"]
 python3 scripts/inbox.py close --key <key> [--note "why"]     # every live item filed under that key
 python3 scripts/inbox.py defer <id> --until 2026-10-08
+python3 scripts/inbox.py urgency <id> now|today|later       # re-rank; the latest urgency event wins
 python3 scripts/inbox.py note <id> "Sam will answer on Monday"
 python3 scripts/inbox.py check                             # close what the live source says is done
 python3 scripts/inbox.py run [--dry-run]                   # execute what a person released

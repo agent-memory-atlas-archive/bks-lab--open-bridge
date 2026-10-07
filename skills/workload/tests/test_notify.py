@@ -426,13 +426,138 @@ class TheBackoffIsBoundToDelivery(DispatchBase):
             "repository's own history")
 
     def test_a_new_incident_speaks_through_the_silence(self):
+        from datetime import timedelta
         self.once(self.finding())
-        self.once(self.finding(detail="the midday run ended with 1 at 2026-08-24T18:40:00Z"))
+        # INSIDE the backoff window, and genuinely different (another exit code). Since
+        # stamps are blanked for failures, a new stamp alone is the same incident on
+        # purpose; only a changed sentence is new news, and it must not wait.
+        self.once(self.finding(detail="the midday run ended with 2 at 2026-08-24T13:40:00Z"),
+                  now=self.at() + timedelta(hours=1))
         self.assertEqual(
             len(self.sent), 2,
-            "the run failed AGAIN, six hours later. A wall clock backoff alone "
+            "the run failed DIFFERENTLY an hour later. A wall clock backoff alone "
             "would swallow the second failure as though it were the first one "
             "still standing")
+
+
+class AnUnchangedFingerprintIsToldAtMostTwice(DispatchBase):
+    """The scar named in the code, TWICE. A weekly job failed once, did not
+    run again before its next scheduled appointment, and the identical
+    sentence went out every 4h for two days (11 deliveries, streak=104 in the
+    live state file) - through a thread where the recipient asked twice to
+    stop repeating it and it kept going regardless.
+
+    A first correction made the wait GROW instead of staying flat. It still
+    fired again on schedule at the still-flat first doubling step, arrived
+    right after the fix was reported done, and answered the wrong question:
+    growing the wait says how annoying each repeat is, not how many times an
+    already-acknowledged fact may be repeated at all. This one caps the
+    COUNT: the original telling plus one reminder, then quiet until the
+    fingerprint itself changes.
+    """
+
+    def base(self, day=24, hour=12):
+        from datetime import datetime, timezone
+        return datetime(2026, 8, day, hour, tzinfo=timezone.utc)
+
+    def plus(self, hours):
+        from datetime import timedelta
+        return self.base() + timedelta(hours=hours)
+
+    def test_the_first_two_deliveries_both_go_out(self):
+        self.once(self.finding(), now=self.plus(0))
+        self.once(self.finding(), now=self.plus(4))
+        self.assertEqual(len(self.sent), 2,
+                         "one reminder is still owed after the first telling; "
+                         "a message that might have been missed deserves one "
+                         "more chance to be seen")
+
+    def test_a_third_identical_repeat_never_goes_out_no_matter_how_long_it_waits(self):
+        self.once(self.finding(), now=self.plus(0))
+        self.once(self.finding(), now=self.plus(4))
+        for t in (8, 12, 100, 100 * 24):
+            self.once(self.finding(), now=self.plus(t))
+        self.assertEqual(
+            len(self.sent), 2,
+            "an unchanged, already-told fact kept arriving no matter how far "
+            "out the wall clock ran; two tellings is the whole budget for one "
+            "unresolved incident, not a slower drip that never actually ends")
+
+    def test_a_different_fingerprint_gets_its_own_two_tellings(self):
+        self.once(self.finding(), now=self.plus(0))
+        self.once(self.finding(), now=self.plus(4))
+        self.once(self.finding(), now=self.plus(8))  # capped out, held back
+        self.assertEqual(len(self.sent), 2)
+        self.once(self.finding(detail="a genuinely different failure"), now=self.plus(9))
+        self.once(self.finding(detail="a genuinely different failure"), now=self.plus(13))
+        self.assertEqual(
+            len(self.sent), 4,
+            "new information about the SAME appointment must not be held back "
+            "by a DIFFERENT, already exhausted incident's cap")
+
+    def test_state_recorded_before_this_field_existed_is_not_read_as_already_capped(self):
+        # A live state file recorded before this change carries fingerprint/
+        # last_alert_at/streak but no `repeats`. The transition pass must not
+        # read that absence as "already told twice".
+        import json
+        self.once(self.finding(), now=self.plus(0))
+        raw = json.loads(self.state.read_text(encoding="utf-8"))
+        for entry in raw["keys"].values():
+            entry.pop("repeats", None)
+        self.state.write_text(json.dumps(raw), encoding="utf-8")
+
+        self.once(self.finding(), now=self.plus(4))
+        self.assertEqual(len(self.sent), 2,
+                         "a migrated entry without `repeats` was treated as "
+                         "already capped out and the honest second telling "
+                         "never went out")
+
+
+class AFailingRunThatKeepsRunningIsOneIncident(DispatchBase):
+    """The scar of 2026-10-07. A run every five minutes failed with the same
+    exit code all morning, and the alarm layer, passing every half hour, told
+    the recipient the same two findings at 07:43, 08:13, 08:44 and 09:14.
+
+    The sentence of a failed run carries the stamp of that run, so every new
+    run made a new fingerprint: neither the backoff nor the two-tellings cap
+    ever applied. A stamp is WHEN it failed, not WHAT failed. Same exit code on
+    the same run is the same trouble, however often it runs again.
+    """
+
+    def detail(self, minute):
+        return (f"the last run of inbox-runner ended with 75, and said so in its "
+                f"own trace at 2026-10-07T05:{minute:02d}:05+00:00")
+
+    def test_new_stamps_with_the_same_exit_code_are_told_once_per_backoff_not_every_pass(self):
+        from datetime import datetime, timedelta, timezone
+        t0 = datetime(2026, 10, 7, 5, 43, tzinfo=timezone.utc)
+        for i in range(8):                       # 8 passes, half an hour apart
+            self.once(self.finding(detail=self.detail(i * 5)),
+                      now=t0 + timedelta(minutes=30 * i))
+        self.assertEqual(
+            len(self.sent), 1,
+            "a run that fails again every five minutes read as NEW news at "
+            "every pass because its stamp moved; the recipient got the same "
+            "failure four times before nine o'clock")
+
+    def test_over_a_whole_day_it_is_told_twice_and_then_never_again(self):
+        from datetime import datetime, timedelta, timezone
+        t0 = datetime(2026, 10, 7, 5, 43, tzinfo=timezone.utc)
+        for i in range(30):                      # 15 hours of half-hourly passes
+            self.once(self.finding(detail=self.detail(i % 60)),
+                      now=t0 + timedelta(minutes=30 * i))
+        self.assertEqual(len(self.sent), 2,
+                         "the telling and one reminder, then quiet")
+
+    def test_a_different_exit_code_is_still_new_news(self):
+        from datetime import datetime, timedelta, timezone
+        t0 = datetime(2026, 10, 7, 5, 43, tzinfo=timezone.utc)
+        self.once(self.finding(detail=self.detail(0)), now=t0)
+        self.once(self.finding(detail=self.detail(5)), now=t0 + timedelta(minutes=30))
+        self.once(self.finding(detail=self.detail(10).replace("with 75", "with 1")),
+                  now=t0 + timedelta(minutes=60))
+        self.assertEqual(len(self.sent), 2,
+                         "stripping the stamp must not hide a changed exit code")
 
 
 class OneKeyPerAppointment(DispatchBase):
