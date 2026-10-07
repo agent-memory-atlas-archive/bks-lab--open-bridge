@@ -236,6 +236,29 @@ def route(finding, workload) -> str | None:
 #: single message. To be re-measured after the first weeks in service.
 BACKOFF_HOURS = 4
 
+#: Re-measured, TWICE. A weekly job failed once and did not run again before
+#: its next scheduled appointment five days later: the SAME sentence,
+#: unchanged, fired every 4h for two days straight (11 deliveries, streak=104
+#: in the live state file), through a chat thread where the recipient asked
+#: TWICE to stop repeating it and it kept going regardless. A flat interval
+#: cannot tell "still broken, as expected until the next run" from "broken
+#: again, new information" - only the fingerprint can, and it already does
+#: that job.
+#:
+#: The first correction made the wait GROW instead of staying flat (doubling,
+#: capped at 48h) and shipped believing that closed it. It did not: the very
+#: next scheduled repeat still went out on the still-flat first doubling step,
+#: read to the recipient as "you said this was fixed and it happened again",
+#: and a cap that still fires every two days is still "the whole week" to
+#: someone who has already been told once. Growing the wait answers "how
+#: annoying is each repeat" when the actual question was "how many times may
+#: an unchanged, already-acknowledged fact be repeated at all": two, ever, per
+#: fingerprint - the first telling and one reminder in case it was missed.
+#: After that this key is fully quiet until the fingerprint itself changes
+#: (it resolves, or it breaks differently); the workloads page stays the
+#: living record for as long as that silence lasts.
+MAX_REPEATS = 2
+
 #: Messages that actually ARRIVED, per day, across everything. Six and not
 #: eight, because a phone is more easily worn out than a dashboard.
 DAILY_CAP = 6
@@ -274,9 +297,23 @@ def fingerprint(finding) -> str:
 
     The cost is honest and small: rewording a sentence makes one alarm read as
     new, once.
+
+    ONE EXCEPTION, for a failed run: its sentence carries the stamp of THAT run,
+    and a run that fails again every five minutes made a new fingerprint at
+    every pass, so neither the backoff nor the two-tellings cap ever applied
+    (2026-10-07: the same two findings at 07:43, 08:13, 08:44, 09:14). A stamp
+    is when it failed, not what failed. For a failure the stamps are blanked
+    before hashing, so the same exit code on the same run is one incident, and
+    a changed exit code is still a new one. `missing` keeps its due moment: a
+    new missed appointment is new news.
     """
     import hashlib
-    return hashlib.sha256(str(getattr(finding, "detail", "")).encode("utf-8")).hexdigest()[:16]
+    import re
+    detail = str(getattr(finding, "detail", ""))
+    if getattr(finding, "state", None) in WAKES_ON_FAILURE:
+        detail = re.sub(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?"
+                        r"(Z|[+-]\d{2}:?\d{2})?", "<stamp>", detail)
+    return hashlib.sha256(detail.encode("utf-8")).hexdigest()[:16]
 
 
 def _key(finding, bucket) -> str:
@@ -384,7 +421,8 @@ def _sender_for(spec):
 
 
 def dispatch(report, workloads, *, state_path, now, cfg=None, sender=None,
-             cap: int = DAILY_CAP, backoff_hours: int = BACKOFF_HOURS) -> Dispatched:
+             cap: int = DAILY_CAP, backoff_hours: int = BACKOFF_HOURS,
+             max_repeats: int = MAX_REPEATS) -> Dispatched:
     """One pass: route, dampen, say it once, and remember only what arrived."""
     by_id = {w.id: w for w in (workloads or ())}
     state, note = _load_state(state_path)
@@ -438,8 +476,16 @@ def dispatch(report, workloads, *, state_path, now, cfg=None, sender=None,
             continue
 
         mark = fingerprint(finding)
-        if entry.get("fingerprint") == mark and _within(entry.get("last_alert_at"),
-                                                        now, backoff_hours):
+        same = entry.get("fingerprint") == mark
+        if same and int(entry.get("repeats") or 0) >= max_repeats:
+            # Told, and told again. A THIRD identical message answers no
+            # question the first two did not already answer, so this key
+            # stays quiet regardless of the wall clock until the fingerprint
+            # itself moves - the same rule the daily cap already applies at a
+            # coarser grain, just per incident instead of per day.
+            suppressed += 1
+            continue
+        if same and _within(entry.get("last_alert_at"), now, backoff_hours):
             suppressed += 1
             continue
         candidates.append((finding, workload, bucket, key, mark))
@@ -479,14 +525,22 @@ def dispatch(report, workloads, *, state_path, now, cfg=None, sender=None,
                 stamp = now.isoformat()
                 # ONLY after a confirmed delivery. The whole point.
                 for _f, _w, _b, key, mark in candidates:
+                    prior = state["keys"][key]
+                    # Escalation survives only across the SAME fingerprint. A
+                    # different sentence is different news and earns the
+                    # prompt cadence back, exactly like backoff already did
+                    # for the wall clock silence itself.
+                    prior_repeats = int(prior.get("repeats") or 0) if prior.get(
+                        "fingerprint") == mark else 0
                     named = f"{_w.id}.{_f.appointment}" if getattr(_f, "appointment", "") else str(_w.id)
                     state["keys"][key] = {"fingerprint": mark, "last_alert_at": stamp,
-                                          "streak": state["keys"][key].get("streak", 1),
+                                          "streak": prior.get("streak", 1),
+                                          "repeats": prior_repeats + 1,
                                           "who": named, "detail": _f.detail,
                                           # Every title it was ever told under: each one
                                           # may be a separate item at the receiver.
                                           "alarm_whats": sorted(set(
-                                              (state["keys"][key].get("alarm_whats") or []) + [what])),
+                                              (prior.get("alarm_whats") or []) + [what])),
                                           "title": str(getattr(_w, "title", "") or _w.id),
                                           "host": str(getattr(getattr(_w, "placement", None),
                                                               "host", "") or "")}
