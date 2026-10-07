@@ -72,6 +72,10 @@ properties:
         type: string
   closes_when:
     $ref: "#/$defs/probe"
+  closer:
+    type: string
+    enum: [probe, reporter, person, bot]
+    description: "Who ends the item when it has no probe: the reporter (closes by key once the condition is gone), a person, or a watcher bot. An item with neither closes_when nor closer has no way out; `add` warns."
 
 $defs:
   probe:

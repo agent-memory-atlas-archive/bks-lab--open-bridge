@@ -1,7 +1,7 @@
 ---
 summary: "The inbox: one place per Bridge where everything that needs a person waits until it is done. Item and event layout, derived states, gates, closing probes, who writes and reads, CLI reference."
 type: guide
-last_updated: 2026-10-04
+last_updated: 2026-10-07
 related:
   - scripts/inbox.py
   - scripts/tests/test_inbox.py
@@ -90,6 +90,19 @@ green), `gh_issue` (with `state`), `task_status` (with `status`), and `all` /
 A probe that cannot be evaluated (no network, a typo, a missing task) is
 **unknown, never true**. The item stays open rather than vanishing on an error.
 
+## Every item needs a way out (`closer`)
+
+An item without a probe stays open until somebody remembers it. `closer` says who
+ends it instead: `reporter` (the job that filed it closes it by key once the
+condition is gone: `inbox.py close --key <key>`), `person`, or `bot` (a watcher
+that acts on it). `add` warns about a `finding` or `question` with neither
+`closes_when` nor `closer`. It warns rather than refuses, because filers run
+unattended and a refusal would lose the finding.
+
+An alarm path that announces both the trouble and its end should close by key: the
+all-clear carries the alarm's own title, so the receiver rebuilds the key it filed
+the alarm under and closes that item rather than filing a new one.
+
 ## Who writes
 
 - A scheduled job on an always-on machine (a watcher that finds a red check or
@@ -124,6 +137,7 @@ python3 scripts/inbox.py list [--all] [--json] [--short]   # open items, most ur
 python3 scripts/inbox.py show <id>                         # item plus its events; an unambiguous id prefix works
 python3 scripts/inbox.py approve <id> [--when-json '{...}'] [--text "edited draft"]
 python3 scripts/inbox.py reject|close|drop <id> [--note "why"]
+python3 scripts/inbox.py close --key <key> [--note "why"]     # every live item filed under that key
 python3 scripts/inbox.py defer <id> --until 2026-10-08
 python3 scripts/inbox.py note <id> "Sam will answer on Monday"
 python3 scripts/inbox.py check                             # close what the live source says is done

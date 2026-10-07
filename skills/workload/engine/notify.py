@@ -354,6 +354,28 @@ def compose(entries, *, capped: bool = False):
     return what, where, todo, "\n".join(lines)
 
 
+#: In front of the all-clear's title. Followed by the alarm's own title, verbatim: a
+#: receiver that filed the alarm under a key made of that title (the inbox does) finds it
+#: again by stripping this prefix.
+RECOVERED_PREFIX = "recovered: "
+
+
+def compose_recovery(entries):
+    """The all-clear for alarms that were told and have since ended. Pure.
+
+    `entries` are remembered state entries of ONE delivered message (same `alarm_what`),
+    each carrying what it said, so neither the workload nor the old finding is needed.
+    Added 2026-10-07: an alarm arrived in the middle of a failure and the end of the failure
+    was never announced, so the reader had to open a page to find out.
+    """
+    first = entries[0]
+    what = RECOVERED_PREFIX + str(first.get("alarm_what") or first.get("title") or "a run")
+    where = first.get("host") or "unknown host"
+    lines = [f"[recovered] {e.get('who') or '?'}: was: {e.get('detail') or 'n/a'}"
+             for e in entries]
+    return what, where, "nothing to do, it works again", "\n".join(lines)
+
+
 def _sender_for(spec):
     def send_one(*, what, where, todo, detail):
         return send(argv=argv_for(spec, what=what, where=where, todo=todo,
@@ -424,14 +446,21 @@ def dispatch(report, workloads, *, state_path, now, cfg=None, sender=None,
 
     # Everything that had a key and no longer has a finding recovered, unless
     # its host simply could not be asked this time.
+    recovered = []
     for key in list(state["keys"]):
         if key in seen:
             continue
         if key.split("|", 1)[0] in unreachable:
             continue
+        if state["keys"][key].get("last_alert_at"):
+            # Only an alarm that ARRIVED earns an all-clear. The key stays until
+            # the all-clear is delivered, so a failed send is tried again.
+            recovered.append(key)
+            continue
         state["keys"].pop(key, None)
 
     sent = 0
+    pass_titles = set()
     if candidates:
         candidates.sort(key=lambda c: _ORDER.get(c[2], 9))
         room = cap - int(state.get("delivered_today") or 0)
@@ -442,6 +471,7 @@ def dispatch(report, workloads, *, state_path, now, cfg=None, sender=None,
             capped = int(state.get("delivered_today") or 0) + 1 >= cap
             what, where, todo, detail = compose(
                 [(f, w, b) for f, w, b, _k, _m in candidates], capped=capped)
+            pass_titles.add(what)
             answer = sender(what=what, where=where, todo=todo, detail=detail)
             if getattr(answer, "delivered", False):
                 sent = 1
@@ -449,10 +479,58 @@ def dispatch(report, workloads, *, state_path, now, cfg=None, sender=None,
                 stamp = now.isoformat()
                 # ONLY after a confirmed delivery. The whole point.
                 for _f, _w, _b, key, mark in candidates:
+                    named = f"{_w.id}.{_f.appointment}" if getattr(_f, "appointment", "") else str(_w.id)
                     state["keys"][key] = {"fingerprint": mark, "last_alert_at": stamp,
-                                          "streak": state["keys"][key].get("streak", 1)}
+                                          "streak": state["keys"][key].get("streak", 1),
+                                          "who": named, "detail": _f.detail,
+                                          # Every title it was ever told under: each one
+                                          # may be a separate item at the receiver.
+                                          "alarm_whats": sorted(set(
+                                              (state["keys"][key].get("alarm_whats") or []) + [what])),
+                                          "title": str(getattr(_w, "title", "") or _w.id),
+                                          "host": str(getattr(getattr(_w, "placement", None),
+                                                              "host", "") or "")}
             else:
                 note = (note + "; " if note else "") + f"send failed: {answer.reason}"
+
+    # One all-clear per alarm TITLE that ended. A title still carried by a key that is
+    # failing (a bundled alarm, or the same run moving bucket) has NOT ended: its receiver
+    # would close an item for trouble that is still there (review 2026-10-07). Such a title
+    # is simply forgotten by the recovered key and cleared later by the key that still has it.
+    held = set(pass_titles)
+    for key in seen:
+        held.update((state["keys"].get(key) or {}).get("alarm_whats") or [])
+    groups = {}
+    for key in recovered:
+        entry = state["keys"][key]
+        owed = [t for t in (entry.get("alarm_whats") or [entry.get("title") or ""]) if t not in held]
+        entry["alarm_whats"] = owed
+        if not owed:
+            continue
+        if _within(entry.get("clear_tried_at"), now, backoff_hours):
+            suppressed += 1
+            continue                # a failed all-clear waits like a failed alarm, not every pass
+        for title in owed:
+            groups.setdefault((title, entry.get("host") or ""), []).append(key)
+    for (title, _host), keys in sorted(groups.items()):
+        if cap - int(state.get("delivered_today") or 0) <= 0:
+            suppressed += 1         # the cap counts what arrived, all-clears included
+            continue
+        entries = [dict(state["keys"][k], alarm_what=title) for k in keys]
+        what, where, todo, detail = compose_recovery(entries)
+        answer = sender(what=what, where=where, todo=todo, detail=detail)
+        if getattr(answer, "delivered", False):
+            sent += 1
+            state["delivered_today"] = int(state.get("delivered_today") or 0) + 1
+            for k in keys:
+                state["keys"][k]["alarm_whats"] = [t for t in state["keys"][k]["alarm_whats"] if t != title]
+        else:
+            for k in keys:
+                state["keys"][k]["clear_tried_at"] = now.isoformat()
+            note = (note + "; " if note else "") + f"all-clear not sent: {answer.reason}"
+    for key in recovered:
+        if not state["keys"][key].get("alarm_whats"):
+            state["keys"].pop(key, None)
 
     _save_state(state_path, state)
     return Dispatched(sent=sent, suppressed=suppressed, note=note)
