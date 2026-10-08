@@ -66,6 +66,15 @@ def test_add_rejects_unknown_kind_gate_and_urgency(box):
         add(box, urgency="asap")
 
 
+def test_an_idea_is_a_kind_and_ranks_after_everything_that_waits_on_someone(box):
+    # An idea has no deadline and nobody is blocked by it: it must never push a decision down.
+    idea = add(box, kind="idea", summary="try a new model", urgency="today")
+    decision = add(box, kind="decision", summary="merge it", urgency="today")
+    result = add(box, kind="result", summary="it ran", urgency="today")
+    assert box.get(idea).kind == "idea"
+    assert [i.id for i in box.open_items()] == [decision, result, idea]
+
+
 def test_same_key_while_open_is_one_item(box):
     first = add(box, key="backup-stale")
     second = add(box, key="backup-stale", summary="still stale")

@@ -58,7 +58,7 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 SCHEMA_VERSION = 1
 
-KINDS = ("decision", "question", "finding", "draft", "result")
+KINDS = ("decision", "question", "finding", "draft", "result", "idea")
 GATES = ("free", "your-yes", "only-you")
 URGENCIES = ("now", "today", "later")
 #: Who ends an item when it has no probe. `reporter`: the job that filed it closes it when the

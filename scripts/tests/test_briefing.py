@@ -308,6 +308,28 @@ def test_inbox_section_lists_open_items(tmp_path):
     assert sec["items"][0]["urgency"] == "now"
 
 
+def test_inbox_section_can_keep_ideas_apart_and_show_shelved_ones(tmp_path):
+    # An idea waits on nobody: the "waiting for you" list leaves it out, a second section lists
+    # the ideas, including the ones put on the shelf (deferred) whatever their return date.
+    root = bridge(tmp_path)
+    box = inbox.Inbox(root / "work" / "inbox", actor="t", clock=lambda: NOW)
+    d = box.add(source="t", kind="decision", summary="Merge the fix?")
+    i1 = box.add(source="t", kind="idea", summary="Try a model")
+    i2 = box.add(source="t", kind="idea", summary="Shelved idea")
+    box.event(i2, "defer", until="2027-01-01")
+    profile = {"id": "p", "sections": [{"kind": "inbox", "skip_kinds": ["idea"]},
+                                       {"kind": "inbox", "id": "ideas", "kinds": ["idea"], "deferred": "all"}]}
+    waiting, ideas = bf.collect(root, profile, ctx(root))["sections"]
+    assert [i["id"] for i in waiting["items"]] == [d]
+    assert sorted(i["id"] for i in ideas["items"]) == sorted([i1, i2])
+    assert bf.profile_problems({**profile, "schema_version": 1, "scope": "user"}, "p") == []
+
+
+def test_an_unknown_inbox_kind_is_a_problem_not_an_empty_section():
+    profile = {"schema_version": 1, "scope": "user", "id": "p", "sections": [{"kind": "inbox", "kinds": ["ideas"]}]}
+    assert any("ideas" in p for p in bf.profile_problems(profile, "p"))
+
+
 def test_activity_section_reads_recent_log_rows(tmp_path):
     root = bridge(tmp_path)
     (root / "work" / "log.md").write_text(textwrap.dedent("""\

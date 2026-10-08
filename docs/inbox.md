@@ -1,7 +1,7 @@
 ---
 summary: "The inbox: one place per Bridge where everything that needs a person waits until it is done. Item and event layout, derived states, gates, closing probes, who writes and reads, CLI reference."
 type: guide
-last_updated: 2026-10-07
+last_updated: 2026-10-08
 related:
   - scripts/inbox.py
   - scripts/tests/test_inbox.py
@@ -51,7 +51,9 @@ minute still create two folders. This is the property the task folders already h
 `work/board.md` is derived from them for the same reason. The inbox state is
 derived from events and never stored.
 
-Kinds: `decision`, `question`, `finding`, `draft`, `result`. Urgency: `now`,
+Kinds: `decision`, `question`, `finding`, `draft`, `result`, `idea`. An `idea`
+waits on nobody: it ranks after every other kind and a briefing section can list
+ideas apart (`kinds: [idea]`) or leave them out (`skip_kinds: [idea]`). Urgency: `now`,
 `today`, `later`.
 
 ## States
