@@ -186,6 +186,18 @@ $defs:
       max:
         type: integer
         minimum: 1
+      # inbox
+      kinds:
+        type: array
+        items: {enum: [decision, question, finding, draft, result, idea]}
+        description: "inbox: only these item kinds (an `ideas` section lists `[idea]`)."
+      skip_kinds:
+        type: array
+        items: {enum: [decision, question, finding, draft, result, idea]}
+        description: "inbox: leave these kinds out (the waiting-for-you list skips `idea`)."
+      deferred:
+        enum: [all]
+        description: "inbox: also list every put-off item, whatever its return date (the idea shelf)."
       summary:
         type: boolean
         description: |

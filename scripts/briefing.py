@@ -62,7 +62,8 @@ PROFILE_KEYS = {"schema_version", "scope", "id", "title", "for", "default", "off
                 "view", "mutes"}
 SECTION_KEYS = {"kind", "id", "title", "max", "to_inbox", "provider", "query", "account_ref", "state_map",
                 "status", "contexts", "days", "path", "argv", "exclude_calendars", "info_calendars", "bucket",
-                "repos", "author", "all_branches", "summary", "report_ok", "covers"}
+                "repos", "author", "all_branches", "summary", "report_ok", "covers", "kinds", "skip_kinds",
+                "deferred"}
 # A profile is committed and often shared: a value under one of these names is
 # a credential, and credentials only ever travel as references (account_ref).
 SECRET_NAME = re.compile(r"(token|secret|password|passwd|api[_-]?key|private[_-]?key)", re.I)
@@ -369,9 +370,15 @@ def _section_types(s: dict) -> list:
         out.append("max must be a positive integer")
     if "days" in s and not (isinstance(s["days"], int) and not isinstance(s["days"], bool) and s["days"] >= 0):
         out.append("days must be a whole number of days, 0 or more")
-    for key in ("contexts", "exclude_calendars", "info_calendars", "argv"):
+    for key in ("contexts", "exclude_calendars", "info_calendars", "argv", "kinds", "skip_kinds"):
         if key in s and not _is_str_list(s[key]):
             out.append(f"{key} must be a list of text")
+    for key in ("kinds", "skip_kinds"):
+        unknown = sorted(set(s.get(key) or []) - set(_inbox().KINDS)) if _is_str_list(s.get(key)) else []
+        if unknown:
+            out.append(f"{key}: unknown inbox kind(s) {', '.join(unknown)}")
+    if "deferred" in s and s["deferred"] != "all":
+        out.append("deferred must be `all` (show every put-off item, whatever its return date)")
     if "status" in s and not (_is_str_list(s["status"]) and set(s["status"]) <= {"backlog", "doing", "review", "done"}):
         out.append("status must be a list of backlog, doing, review, done")
     for key in ("query", "state_map"):
@@ -517,16 +524,22 @@ def _frontmatter(text: str) -> dict:
 def sec_inbox(section: dict, ctx: Context) -> list:
     box = _inbox().Inbox(ctx.root / "work" / "inbox", actor="briefing", clock=lambda: ctx.now)
     order = {"now": 0, "today": 1, "later": 2}
+    kinds, skip = section.get("kinds"), set(section.get("skip_kinds") or ())
+
+    def wanted(item):
+        return item.kind not in skip and (not kinds or item.kind in kinds)
+
     items = []
-    for item in box.open_items():
+    for item in filter(wanted, box.open_items()):
         items.append({"id": item.id, "title": item.summary, "state": item.state, "urgency": item.urgency,
                       "kind": item.kind, "gate": item.gate, "task": item.task, "due": item.due,
                       "key": item.key, "changed_at": str(item.created or "")})
-    if ctx.lookahead is not None:
+    if ctx.lookahead is not None or section.get("deferred") == "all":
         # A view that looks ahead also shows what was put off and comes back within
-        # its window: "decide tomorrow" must not vanish until tomorrow.
-        horizon = ctx.now.date() + dt.timedelta(days=ctx.lookahead)
-        for item in box.items():
+        # its window: "decide tomorrow" must not vanish until tomorrow. `deferred: all`
+        # shows every put-off item: the idea shelf is deferred on purpose and still listed.
+        horizon = dt.date.max if section.get("deferred") == "all" else ctx.now.date() + dt.timedelta(days=ctx.lookahead)
+        for item in filter(wanted, box.items()):
             if item.state != "deferred":
                 continue
             until = next((e.data.get("until") for e in reversed(item.events) if e.verb == "defer"), None)

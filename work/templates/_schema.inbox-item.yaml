@@ -33,7 +33,7 @@ properties:
     minLength: 1
     description: "Who filed it: a machine/job, an agent or a tab"
   kind:
-    enum: [decision, question, finding, draft, result]
+    enum: [decision, question, finding, draft, result, idea]
   summary:
     type: string
     minLength: 1
