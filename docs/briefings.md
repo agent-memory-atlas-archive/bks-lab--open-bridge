@@ -387,6 +387,9 @@ needs it. Sections run side by side, so the full run is no slower than one with
 and the calendar together. `collect` keeps no rows from an earlier run: a section
 a run leaves out comes back `skipped` with no items, so a dashboard that wants to
 show the earlier rows meanwhile keeps them itself.
+The briefing-ui mod (`mods/briefing-ui`) does exactly that: after a click it
+runs only the first part again and keeps every section it left out, the headline
+included, from the earlier run, so a click never waits for a tracker.
 
 A slow source can keep its answer: `cache_minutes: 5` on a section makes the
 next runs answer from its last good result until five minutes have passed
