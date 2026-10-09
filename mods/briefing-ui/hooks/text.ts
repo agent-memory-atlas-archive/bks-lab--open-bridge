@@ -142,7 +142,8 @@ export type Strings = {
   inboxRule: string
   backup: string
   backupAt: (time: string) => string
-  backupHourly: string
+  /** how often the layout is saved, from snapshot_minutes (0: only on Save) */
+  backupEvery: (minutes: number) => string
   picked: (n: number) => string
   hiddenUntil: (date: string) => string
   hiddenCount: (n: number) => string
@@ -264,7 +265,7 @@ const de: Strings = {
     ['[ ]', 'markieren; oben erscheint „N markiert: Mach du · Berate mich“'],
     ['+N weitere', 'einen Block aufklappen · „alles“ klappt alle auf'],
     ['Team (▾)', 'mehrere Rollen-Tabs auf einer Aufgabe, nacheinander: Bauen (Umsetzung, Prüfung), TDD, Recherche (Belege, Gegenposition, Zusammenfassung), Antwort (Verlauf, Entwurf), Betrieb (Diagnose, Behebung) · ▶ startet die nächste Rolle, wenn die vorige wartet · Übergabe in team.md'],
-    ['Lange · Sicherung', '„lange“: Tab wartet oder läuft seit über einer Stunde, einmal gemeldet · Workspaces und Tabs werden stündlich gesichert, nur bei Änderung; „Liste“ zeigt die letzten'],
+    ['Lange · Sicherung', '„lange“: Tab wartet oder läuft seit über einer Stunde, einmal gemeldet · Workspaces und Tabs werden in cmux regelmäßig gesichert (snapshot_minutes, sonst stündlich), nur bei Änderung; „Liste“ zeigt die letzten'],
     ['Kontext (▾)', 'Notiz: selbst ergänzen, landet in STATUS.md oder am Eintrag · Kontext sammeln lassen: ein Tab sucht in Log, Posteingang, Commits, Issues, Mails, Protokollen und notiert die Fakten mit Quelle'],
     ['Kürzel', 'in die Eingabezeile, ohne Claude zu fragen: 3a Mach du · 3b Später · 3c Weg · 3v Berate mich · 3w eigener Workspace · mehrere: 1a 4v'],
     ['Tokens', 'nur „einordnen“, „Plan für heute“, „Feierabend“, „im Chat fragen“, „Nachfassen“ und jeder gestartete Tab · alles andere lokal'],
@@ -396,7 +397,7 @@ const de: Strings = {
   inboxRule: 'Posteingang',
   backup: 'Sicherung',
   backupAt: time => `zuletzt ${time}`,
-  backupHourly: 'stündlich',
+  backupEvery: min => (min === 60 ? 'stündlich' : min > 0 ? `alle ${min} Min.` : 'nur von Hand'),
   picked: n => `${n} markiert`,
   hiddenUntil: date => `bis ${date}`,
   hiddenCount: n => ` · ${n} ausgeblendet`,
@@ -515,7 +516,7 @@ const en: Strings = {
     ['[ ]', 'select; "N selected: Do it · Advise me" appears at the top'],
     ['+N more', 'open one section · "all" opens every section'],
     ['Team (▾)', 'several role tabs on one task, one after the other: Build (implement, review), TDD, Research (evidence, counter, summary), Reply (context, draft), Ops (diagnose, fix) · ▶ starts the next role once the previous one waits · handoff in team.md'],
-    ['Long · Backup', '"long": a tab has waited or run for over an hour, reported once · workspaces and tabs are saved hourly, only on change; "List" shows the latest'],
+    ['Long · Backup', '"long": a tab has waited or run for over an hour, reported once · inside cmux, workspaces and tabs are saved regularly (snapshot_minutes, hourly by default), only on change; "List" shows the latest'],
     ['Context (▾)', 'Note: add it yourself, it goes into STATUS.md or onto the item · let it collect: a tab searches log, inbox, commits, issues, mails, minutes and notes the facts with sources'],
     ['Shortcuts', 'type them into the prompt, no Claude turn: 3a do it · 3b later · 3c drop · 3v advise me · 3w own workspace · several: 1a 4v'],
     ['Tokens', 'only "Sort it", "Plan my day", "End of day", "ask in chat", "Follow up" and every launched tab · everything else is local'],
@@ -647,7 +648,7 @@ const en: Strings = {
   inboxRule: 'Inbox',
   backup: 'Backup',
   backupAt: time => `last at ${time}`,
-  backupHourly: 'hourly',
+  backupEvery: min => (min === 60 ? 'hourly' : min > 0 ? `every ${min} min` : 'only by hand'),
   picked: n => `${n} selected`,
   hiddenUntil: date => `until ${date}`,
   hiddenCount: n => ` · ${n} hidden`,
