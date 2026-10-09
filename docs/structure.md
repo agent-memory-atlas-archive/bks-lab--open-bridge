@@ -1,7 +1,7 @@
 ---
 summary: "Directory structure: where everything lives, what format, what it does — the cluster-wrapper layout in prose (mirrors AGENTS.md)."
 type: reference
-last_updated: 2026-09-25
+last_updated: 2026-10-09
 related:
   - AGENTS.md
   - docs/extension-model.md
@@ -48,7 +48,7 @@ DESIGN.md               CORE     Design system manifest
 
 identity/   infra/   workflow/   ← Cluster wrappers (see below)
 .claude/    skills/    rules/    themes/    trackers/    docs/    scripts/    bin/
-protocols/   work/    imports/    examples/   agents/
+protocols/   work/    imports/    examples/   agents/   mods/
 ```
 
 ## Cluster wrappers — Default-to-folder
@@ -158,6 +158,8 @@ Every config type lives in **`<wrapper>/<types>/`** — a plural folder with tem
 | `.claude/agents/` | CORE (with scope) | Native sub-agents |
 | `.claude/skills/` | CORE (symlink → `../skills/`) | Discovery symlink so Claude Code finds skills (slash-command triggers live in each skill's `description`; there is no separate commands directory) |
 | `.claude/hooks/` | CORE | Optional hook scripts |
+| `mods/` | **Enumerated** | Claude Code mods that ship with open-bridge (function hooks, Claude Code only), published through the folder marketplace `mods/.claude-plugin/marketplace.json` (`open-bridge-mods`). `README.md`, the marketplace file and each shipped mod folder (today `briefing-ui/`) = CORE, listed in the `mods/` lookahead of `USER_PATTERNS` in `scripts/categorize-commits.py`; any other folder here routes USER until it is registered. Guide: [`mods/README.md`](../mods/README.md). |
+| `.claude/mods/` | USER | An instance's own mods and their folder marketplace; never promoted. |
 | `.codex/hooks.json` | CORE | Codex CLI `Stop` hook: runs `scripts/worklog-drift-check.sh --client codex` ([`tool-mapping.md`](tool-mapping.md)) |
 | `.vibe/hooks.toml` | CORE | Mistral Vibe `post_agent` hook: runs `scripts/worklog-drift-check.sh --client vibe` ([`tool-mapping.md`](tool-mapping.md)) |
 
@@ -218,6 +220,7 @@ CORE paths (developed on `main`):
 - `CLAUDE.md`, `README.md`, `AGENTS.md`, `DESIGN.md`
 - `docs/`, `rules/*.md` (core), `themes/`, `trackers/`, `skills/` (scope: core), `scripts/` (tooling), `bin/` (bootstrap), `examples/` (reference instance)
 - `.claude/agents/` (scope: core)
+- `mods/README.md`, `mods/.claude-plugin/marketplace.json` and the shipped mod folders (`mods/briefing-ui/`)
 - Templates and schemas in every wrapper folder:
   - `identity/{personas,accounts,mandants}/{_template.yaml,_schema.yaml}`
   - `infra/{remotes,channels,backups,transcriptions}/{_template.yaml,_schema.yaml}`
@@ -236,6 +239,7 @@ USER paths (`user/{name}` branch):
 - `work/`
 - personal user-scope features (`scope: user`, never upstream) live in `rules/user/` + `work/streams/<stream>/` — such as a job-application pipeline
 - `.claude/agents/<name>.md` (scope: org/user)
+- `.claude/mods/` (an instance's own mods)
 
 ## gitignore policy
 

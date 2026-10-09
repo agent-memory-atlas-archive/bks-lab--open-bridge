@@ -40,6 +40,8 @@ Everything in the `core` tier:
 - `protocols/*.md` and CORE standing orders (`protocols/standing-orders/*.md`)
 - `trackers/*.md`
 - `scripts/**` — both comments and any help/UI strings
+- `mods/**` (Claude Code mods): code, comments, manifests and tests; the
+  one exception is a mod's per-language UI string table (§ 3)
 - `scope: core` skills (SKILL.md + `references/**`) and `scope: core`
   agents, including the frontmatter `description`
 - `themes/_schema.yaml` and the built-in English theme (`professional`)
@@ -54,6 +56,20 @@ Everything in the `core` tier:
 - **Locale themes**: `professional-de.yaml` and any other locale theme.
   Their non-English *vocabulary values* are the entire point; the theme's
   structural keys and comments stay English.
+- **Per-language UI string tables** inside a CORE program that has its own
+  user-facing words (today: the `briefing-ui` mod,
+  `mods/briefing-ui/hooks/text.ts`). Allowed only in this shape:
+  - all languages side by side in ONE file, one table per language, under
+    identical keys (a test asserts the key sets match and no value is empty);
+  - English is the default and the fallback for any language without a table;
+  - the language is chosen at run time from config (the program's own key,
+    else `language.conversation`), never by editing the file;
+  - structure, key names and comments stay English; only the values of a
+    non-English table are in that language.
+
+  This is not a translation of CORE: the English table is the source, the
+  others are data beside it, and a fork adds a language by adding a table
+  under the same keys.
 
 ## 4. Parsers are language-agnostic
 
@@ -99,7 +115,9 @@ A fork localizes by configuration and overlay, never by editing CORE:
 NEVER edit a CORE file to translate it. Localization lives in config plus
 a theme overlay, so `git merge upstream/main` stays conflict-free. Per-
 language CORE files and hand-maintained weekday/month tables are
-explicitly rejected — they would fork CORE and break the merge.
+explicitly rejected — they would fork CORE and break the merge. A
+program's own UI string table (§ 3) is the one exception, because all its
+languages live in the same CORE file under the same keys.
 
 ## 7. CORE is never translated at promote
 

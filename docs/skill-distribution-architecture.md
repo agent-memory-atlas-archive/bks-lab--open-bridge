@@ -1,10 +1,11 @@
 ---
 summary: "Architecture Decision Record for skill distribution across the Bridge tier model — why open-bridge stays a framework repo and why an organization's overlay may add a plugin marketplace"
 type: reference
-last_updated: 2026-05-14
+last_updated: 2026-10-09
 related:
   - extension-model.md
   - structure.md
+  - ../mods/README.md
 ---
 
 # Skill Distribution Architecture
@@ -173,6 +174,30 @@ open-bridge                         [framework only, no marketplace]
 | `scope: org` + `tier: framework` | `<your-org>-bridge/skills/<name>/` |
 | `scope: org` + `tier: plugin` | `<your-org>-bridge/plugins/org-tools/skills/<name>/` |
 | `scope: user` | stays local in the seed |
+
+### Amendment 2026-10-09: one marketplace for mods, none for skills
+
+open-bridge still ships **no marketplace for skills**; everything above
+holds. It now ships one folder marketplace for something skills cannot be:
+**Claude Code mods** (plugins with function hooks that change Claude Code's
+own interface, such as the `briefing-ui` dashboard). A mod has no
+symlink-discovery path the way a skill has `.claude/skills/`, so it reaches
+a machine only by `claude plugin install`, and that needs a marketplace.
+
+- **Where:** `mods/`, a top-level CORE folder; the marketplace is
+  `mods/.claude-plugin/marketplace.json`, named `open-bridge-mods`.
+- **How it is installed:** from the Bridge folder,
+  `claude plugin marketplace add ./mods --scope local` and
+  `claude plugin install <mod>@open-bridge-mods --scope local`, so it stays
+  bound to that Bridge ([`mods/README.md`](../mods/README.md)).
+- **Routing:** enumerated, not a glob. Each shipped mod folder is named in
+  the `mods/` lookahead of `USER_PATTERNS` in `scripts/categorize-commits.py`;
+  any other folder under `mods/` routes `user` until registered.
+  An instance's own mods live in `.claude/mods/` (its own folder
+  marketplace) and are always `user`.
+- **Why not under `.claude/`:** `.claude/` mixes CORE (`agents/`, the skills
+  symlink) with instance content; a separate top-level folder keeps the
+  shipped set visible and its routing a single rule.
 
 ## Consumption patterns on developer machines
 
