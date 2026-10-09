@@ -397,6 +397,7 @@ SCRIPTS_CORE_ALLOWLIST = frozenset({
     "scripts/tests/test_worklog.py",
     "scripts/tests/test_workplace.py",
     "scripts/tests/test_task.py",
+    "scripts/tests/test_task_review.py",
     # Registered 2026-08-28: both are generic guards with no instance name in
     # them, both are RUN by validate.yml, and that workflow promotes. A core CI
     # job calling a file classified `user` is the same defect the `_tests`
