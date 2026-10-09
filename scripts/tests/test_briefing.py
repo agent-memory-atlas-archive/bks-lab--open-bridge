@@ -1153,3 +1153,22 @@ def test_cli_max_items_lifts_the_view_cap_for_one_run(tmp_path, capsys, monkeypa
     capsys.readouterr()
     assert seen == [1, 500]
     assert "max_items: 1" in (root / "workflow" / "briefings" / "a.yaml").read_text(encoding="utf-8")
+
+
+def test_two_board_sections_loading_tracker_sync_at_once_both_get_it_whole(tmp_path):
+    """Sections run side by side: the second board section must never see a half-loaded
+    tracker-sync (it would fail with AttributeError on resolve_boards)."""
+    root = bridge(tmp_path, config={"integrations": {"github": {"assignee_me": "octo"}}})
+    (root / "ecosystem.yaml").write_text(yaml.safe_dump({"github_projects": [
+        {"org": "example-org", "number": 3, "name": "Tool board"}]}), encoding="utf-8")
+    run = FakeRun({("gh", "project", "item-list"): (FIX / "github-board" / "item-list.json").read_text()})
+    sections = [{"kind": "tracker", "provider": "github-board", "id": f"board{n}", "query": {"include_done": True}}
+                for n in range(8)]
+    for _ in range(20):
+        saved = sys.modules.pop("tracker_sync", None)
+        try:
+            result = bf.collect(root, {"id": "p", "sections": sections}, ctx(root, run))
+        finally:
+            if saved is not None:
+                sys.modules["tracker_sync"] = saved
+        assert [s["status"] for s in result["sections"]] == ["ok"] * 8, [s.get("reason") for s in result["sections"]]

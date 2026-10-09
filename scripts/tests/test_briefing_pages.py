@@ -425,6 +425,23 @@ def test_two_sections_loading_the_same_module_at_once_both_get_it_whole(tmp_path
         assert [s["status"] for s in result["sections"]] == ["ok"] * 6, [s.get("reason") for s in result["sections"]]
 
 
+
+def test_an_advise_section_takes_the_inbox_from_the_briefings_loader(tmp_path, monkeypatch):
+    """advise reads the inbox too. Its own loader takes no lock, so beside an inbox section
+    it could publish a half-loaded copy over the one that section is loading: inside a
+    briefing it must use the module the briefing's loader hands it."""
+    root = tmp_path / "b"
+    (root / "work" / "inbox").mkdir(parents=True)
+    advise = bf._load_module("briefing_advise", ROOT / "skills" / "briefing" / "scripts" / "advise.py")
+
+    def unlocked():
+        raise AssertionError("advise loaded the inbox itself, outside the briefing's lock")
+
+    monkeypatch.setattr(advise, "_load_inbox", unlocked)
+    profile = {"id": "p", "sections": [{"kind": "inbox", "id": "in"}, {"kind": "advise", "id": "adv"}]}
+    result = bf.collect(root, profile, bf.Context(root, cfg={}))
+    assert [s["status"] for s in result["sections"]] == ["ok", "ok"], [s.get("reason") for s in result["sections"]]
+
 # ---------------------------------------------------------------- cache
 
 def _cached_profile(argv, minutes=5):

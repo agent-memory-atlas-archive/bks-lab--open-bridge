@@ -18,28 +18,43 @@ from __future__ import annotations
 import importlib.util
 import re
 import sys
+import threading
 from pathlib import Path
 
 from . import load_json, source_error
 
 
-def _tracker_sync(root: Path):
+_LOADING = threading.Lock()
+
+
+def _tracker_sync(ctx):
+    """scripts/tracker-sync.py, loaded once. Board sections run side by side, so the load
+    goes through the briefing's lock (`ctx.load_module`); a caller without one gets a
+    lock of this module, and a load that fails leaves nothing behind."""
     name = "tracker_sync"
-    if name in sys.modules:
-        return sys.modules[name]
     here = Path(__file__).resolve().parents[2] / "tracker-sync.py"
-    spec = importlib.util.spec_from_file_location(name, here)
-    if spec is None or spec.loader is None:  # pragma: no cover
-        raise source_error("scripts/tracker-sync.py is missing")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
+    load = getattr(ctx, "load_module", None)
+    if callable(load):
+        return load(name, here)
+    with _LOADING:
+        if name in sys.modules:
+            return sys.modules[name]
+        spec = importlib.util.spec_from_file_location(name, here)
+        if spec is None or spec.loader is None:  # pragma: no cover
+            raise source_error("scripts/tracker-sync.py is missing")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        try:
+            spec.loader.exec_module(module)
+        except BaseException:
+            sys.modules.pop(name, None)
+            raise
+        return module
 
 
 def collect(section: dict, ctx) -> list:
     query = dict(section.get("query") or {})
-    ts = _tracker_sync(ctx.root)
+    ts = _tracker_sync(ctx)
     boards = ts.resolve_boards(ctx.root, ts.load_registries(ctx.root))
     if query.get("boards"):
         boards = [b for b in boards if b["slug"] in query["boards"]]

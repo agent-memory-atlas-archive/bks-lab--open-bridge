@@ -38,6 +38,7 @@ import importlib.util
 import json
 import re
 import sys
+import threading
 from pathlib import Path
 
 import yaml
@@ -48,7 +49,15 @@ DEFAULTS = {"stale_days": 7, "blocked_days": 14, "waiting_days": 2, "collision_m
 KEY_PREFIX = "advise:"
 
 
+_LOADING = threading.Lock()
+
+
 def _load_inbox():
+    with _LOADING:
+        return _load_inbox_locked()
+
+
+def _load_inbox_locked():
     if "inbox" in sys.modules and hasattr(sys.modules["inbox"], "Inbox"):
         return sys.modules["inbox"]
     spec = importlib.util.spec_from_file_location("inbox", REPO / "scripts" / "inbox.py")
@@ -114,11 +123,14 @@ def _finding(check, subject, summary, urgency, task=None, file=True) -> dict:
             "urgency": urgency, "task": task, "file": file}
 
 
-def advise(root: Path, *, now: dt.datetime | None = None, calendar: list | None = None) -> list:
+def advise(root: Path, *, now: dt.datetime | None = None, calendar: list | None = None,
+           inbox=None) -> list:
+    """`inbox` is scripts/inbox.py as the caller loaded it. The briefing passes its own,
+    loaded under its lock, since its sections run side by side; alone, advise loads it."""
     now = now or dt.datetime.now()
     today = now.date()
     cfg, max_active = _config(root)
-    inbox = _load_inbox()
+    inbox = inbox or _load_inbox()
     box = inbox.Inbox(root / "work" / "inbox", actor="briefing", clock=lambda: now)
     items = box.open_items()
     found = []

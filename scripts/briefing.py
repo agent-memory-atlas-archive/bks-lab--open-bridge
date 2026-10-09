@@ -206,6 +206,12 @@ class Context:
         self.lookahead: int | None = None   # days a view looks ahead; deferred items returning in them show
         self.fresh = False                  # True: ask every source, whatever `cache_minutes` allows
 
+    @staticmethod
+    def load_module(name: str, path: Path):
+        """Load a helper module under the briefing's lock: sections run side by side, and a
+        provider that loads one itself would let another thread see it half-loaded."""
+        return _load_module(name, path)
+
     @property
     def deadline(self) -> float | None:
         """Monotonic end of the section running in this thread."""
@@ -585,7 +591,7 @@ def sec_inbox(section: dict, ctx: Context) -> list:
 
 def sec_advise(section: dict, ctx: Context) -> list:
     advise = _load_module("briefing_advise", ROOT / "skills" / "briefing" / "scripts" / "advise.py")
-    found = advise.advise(ctx.root, now=ctx.now, calendar=ctx.calendar)
+    found = advise.advise(ctx.root, now=ctx.now, calendar=ctx.calendar, inbox=_inbox())
     return [{"id": f["key"], "title": f["summary"], "state": "new", "urgency": f["urgency"], "check": f["check"],
              "task": f.get("task"), "file": f.get("file", True)} for f in found]
 
