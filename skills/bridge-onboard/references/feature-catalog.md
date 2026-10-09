@@ -1,7 +1,7 @@
 ---
 description: Read-only catalogue of every Bridge feature with "when you need it" + how to activate. Surfaced in Phase E of onboarding (no questions, just info) and as the body of /bridge-onboard --features. Source of truth for what Bridge can do without making the user feel quizzed.
 type: reference
-last_updated: 2026-05-16
+last_updated: 2026-10-09
 ---
 
 # Feature Catalogue — What Bridge Can Do
@@ -282,7 +282,7 @@ skills.
 
 **When you need it:** You run `/briefing` daily and would rather click than type, or you steer several agent tabs and want to see which one waits for you.
 
-**Activate:** `docs/briefing-dashboard.md` (install the mod from `mods/` with `claude plugin marketplace add ./mods --scope local` and `claude plugin install briefing-ui@open-bridge-mods --scope local`, set `briefing.claude_code_ui.enabled: true`, then `/briefing-ui`).
+**Activate:** `docs/briefing-dashboard.md` (install the mod from `mods/` with `claude plugin marketplace add ./mods --scope local` and `claude plugin install briefing-ui@open-bridge-mods --scope local`, set `briefing.claude_code_ui.enabled: true`, copy the profile template with `cp workflow/briefings/_template.yaml workflow/briefings/morning.yaml` and adjust it, then `/briefing-ui`; without a profile the card still shows inbox, advice and tasks).
 
 **Offer only when** the session runs in Claude Code and `mods/briefing-ui/` exists in this Bridge.
 

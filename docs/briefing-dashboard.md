@@ -5,6 +5,7 @@ last_updated: 2026-10-09
 related:
   - briefings.md
   - workplace.md
+  - inbox.md
   - ../workflow/briefings/_template.yaml
   - ../workflow/briefings/_schema.yaml
   - ../bridge-config.yaml.template
@@ -19,17 +20,25 @@ reads to you. The dashboard shows the same result as a card you click: what
 waits for you, what you can hand off, your tasks, and tabs beside it for
 whatever else your briefing collects (health checks, dates, GitHub, today's
 commits, your inbox). Nothing on it costs tokens until you press a button that
-asks Claude.
+asks Claude or opens an agent tab.
 
 **Status.** Tested with Claude Code and cmux only. It is a Claude Code mod
-(function hooks, early access, Claude Code 2.1.291 or newer); other agents
-cannot load it. Without cmux everything works except the agent tabs.
+(function hooks, early access); other agents cannot load it. Without cmux
+everything works except the agent tabs: no tab line, no Yes and No for a
+waiting tab, no layout backup.
 
 ## 1. Install the mod
 
-You need an onboarded Bridge: `bridge-config.yaml` in the repo root, written by
-`/bridge-onboard`. Start Claude Code in the repo root, not a subfolder, because
-the mod checks the current folder.
+You need:
+
+- an onboarded Bridge: `bridge-config.yaml` in the repo root, written by
+  `/bridge-onboard`;
+- Claude Code 2.1.291 or newer (`claude --version`);
+- `python3` with PyYAML (`python3 -c 'import yaml'` prints nothing): the mod
+  reads `bridge-config.yaml` and runs the Bridge scripts through it.
+
+Start Claude Code in the repo root, not a subfolder, because the mod checks
+the current folder.
 
 The mod ships with open-bridge under `mods/briefing-ui`, published through the
 folder marketplace `open-bridge-mods` in `mods/` ([`mods/README.md`](../mods/README.md)).
@@ -51,16 +60,25 @@ first.
 
 ## 2. Switch it on
 
-In `bridge-config.yaml` (yours, written by onboarding, never committed upstream):
+In `bridge-config.yaml` (yours, written by onboarding, never committed upstream),
+add `claude_code_ui` under the `briefing:` block you already have:
 
 ```yaml
 briefing:
+  # ... your existing briefing keys stay as they are
   claude_code_ui:
     enabled: true
 ```
 
+Do not add a second top-level `briefing:` key: YAML keeps only the last one,
+so it silently replaces the first and its settings are gone.
+
 Start a new Claude Code session in the Bridge folder and type `/briefing-ui`.
-The card appears in the conversation; `Sidebar` opens it as a side panel.
+The card appears in the conversation; `Sidebar` (German: `Leiste`) opens it as
+a side panel.
+
+![The briefing card in the conversation](assets/briefing-dashboard/card.png)
+
 Every other key is optional; `bridge-config.yaml.template` lists them all with
 their defaults:
 
@@ -72,21 +90,43 @@ their defaults:
 | `morning_hint` | `true` | the first session of the day points at the briefing |
 | `language` | from `language.conversation`, else `en` | `de` or `en` for the dashboard's own words |
 | `full_minutes` | `10` | on open, run the full briefing again when the last is older |
-| `status_seconds` | `60` | how often the agent tabs are re-read (cmux only) |
+| `status_seconds` | `60` | how often, in seconds, the agent tabs are re-read (cmux only); a value below 15 counts as 15 |
 | `voice` | `false` | a waiting tab is also spoken (macOS) |
-| `snapshot_minutes` | `60` | back up the cmux layout while the session is open; `0` = never |
+| `snapshot_minutes` | `60` | back up the cmux layout while a session inside cmux is open; `0` = never |
 | `launch.target` | `area` | where "Do it" opens a tab: `area`, `tab`, `workspace` or `auto` |
 
+The dashboard's default target is `area` (the workspace of the item's area),
+while `workplace.py launch` on its own defaults to `tab` (the calling tab's
+workspace).
+
 Shortcut letters, after the row number as it stands on the card: `a` Do it,
-`b` later (tomorrow), `c` away, `v` Advise me, `w` Do it in its own workspace.
+`b` Later (tomorrow), `c` Drop (an inbox entry is dropped, any other row is
+hidden for a week), `v` Advise me, `w` Do it in its own workspace. Shortcuts
+work only while today's card is open in this session and shows the Briefing
+tab; otherwise the text goes to Claude as an ordinary message.
 `/briefing-ui-off` hides the line above the prompt for this session;
 `/briefing-ui` still opens the dashboard.
+
+Do it on an inbox entry that waits for your yes to run an action approves it;
+nothing runs at once. The action runs at the next `python3 scripts/inbox.py run` on the
+machine named in `inbox.runner` ([`inbox.md`](inbox.md)). Any other row gets
+an agent tab (section 4).
 
 ## 3. Build your briefing profile
 
 What the card and its tabs show comes from your briefing profile,
-`workflow/briefings/<id>.yaml`. Without one the built-in profile runs (inbox,
-advice, tasks, calendar, activity). Start from the template:
+`workflow/briefings/<id>.yaml`. The dashboard shows the default profile: the
+one `briefing.default` in `bridge-config.yaml` names, else the one with
+`default: true`, else the only one there is. The card is built from the
+profile's view, so the profile needs a `view.style` other than `sources`
+(the template uses `triage`).
+
+Without a profile of your own the built-in one runs (inbox, advice, tasks,
+calendar, activity, and the trackers you enabled). It has no view, so the
+dashboard asks for the triage view itself: the card shows your inbox, the
+advice and your tasks, the calendar and the activity sit on their tabs. That
+is enough to try the dashboard; for your own sources, tabs and marks, copy
+the template:
 
 ```bash
 cp workflow/briefings/_template.yaml workflow/briefings/morning.yaml
@@ -105,9 +145,12 @@ keys are in [`briefings.md`](briefings.md).
 
 ### Tabs and columns
 
+![A status tab with marks and a cached section](assets/briefing-dashboard/tabs.png)
+
 Without `view.pages` the kind decides the tab: `command` sections (your own
-probes) on Status, calendars on Dates, trackers on Trackers, commits and the
-log on Today, any other kind on More. To choose yourself, merge these keys into
+probes) on Status, calendars on Dates, trackers on Trackers, commits and
+activity on Today, inbox, advice and tasks on the briefing itself, any other
+kind on More. To choose yourself, merge these keys into
 the `view:` block your profile already has, and add the two sections the
 template leaves commented out:
 
@@ -142,8 +185,9 @@ A page names sections by id; `validate` says which id it cannot find.
 
 Every row has the same columns: when, title, detail, link. A page entry
 overrides them per section (`when`, `detail`, `link` name an item field),
-`empty` is the text for nothing, `alarm: true` turns every row into a red
-finding, `badge: false` keeps a section out of the number on its tab.
+`empty` is the text for nothing (default "nothing"), `alarm: true` turns
+every row into a red finding and nothing more, `badge: false` keeps a section
+out of the number on its tab.
 
 ### Marks for customers and projects
 
@@ -154,8 +198,8 @@ view:
     - {label: Beta, match: beta-corp, color: cyan}
 ```
 
-A row whose title, id, project, repo, task, context, area, labels or link contains one
-of the words gets the label in front, on the card, on the tabs and in the text
+A row whose title, id, project, repo, task, context, area, labels or url (its
+link) contains one of the words gets the label in front, on the card, on the tabs and in the text
 briefing. The first mark that fits wins. Customers change; keep them here.
 
 ### Fast despite slow sources
@@ -173,7 +217,7 @@ sections:
     cache_minutes: 5
 ```
 
-⟳ on the dashboard always asks every source fresh. A failure is never kept,
+`⟳ reload` (German: `⟳ neu`) on the dashboard always asks every source fresh. A failure is never kept,
 and nothing cached crosses midnight.
 
 ### Words
@@ -186,9 +230,25 @@ briefing's words (headline, tab names, "today") are yours: set them in
 
 With cmux, "Do it" and "Advise me" open an agent tab per task, the card shows
 which tabs wait for you, and a tab that asks for permission gets Yes and No
-buttons. Set up the `workplace:` block as in [`workplace.md`](workplace.md).
-Name a control workspace (`workplace.control.name`): only the session there
-polls the tabs and notifies, the others read along quietly.
+buttons. That needs three things:
+
+1. cmux installed;
+2. Claude Code started inside a cmux tab;
+3. the cmux driver in the `workplace:` block of `bridge-config.yaml`
+   ([`workplace.md`](workplace.md)):
+
+```yaml
+workplace:
+  driver: {command: ["python3", "${root}/skills/cmux/scripts/cmux_driver.py"]}
+  control: {name: Control}
+```
+
+Without the driver, Do it and Advise me open nothing: the note at the bottom
+of the card lists the commands to start by hand, one terminal each.
+
+`workplace.control.name` names a workspace: the workspace whose session steers
+the others. The dashboard in that session polls the agent tabs and notifies;
+the dashboards in other sessions read its state quietly.
 
 ## 5. When something is off
 

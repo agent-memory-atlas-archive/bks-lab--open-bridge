@@ -40,8 +40,10 @@ Claude Code reads an installed mod straight from its folder here
 (`claude plugin list` shows "Read from"). After a pull or an edit, start a new
 session or run `/reload-plugins`. If `claude plugin list` shows no "Read from"
 line, your Claude Code keeps a copy: run
-`claude plugin update briefing-ui@open-bridge-mods --scope local` first. Each mod stays inert until its own switch in `bridge-config.yaml`
-is on (for `briefing-ui`: `briefing.claude_code_ui.enabled: true`).
+`claude plugin update briefing-ui@open-bridge-mods --scope local` first.
+
+Each mod stays inert until its own switch in `bridge-config.yaml` is on (for
+`briefing-ui`: `briefing.claude_code_ui.enabled: true`).
 
 ## Tests
 
