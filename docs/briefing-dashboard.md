@@ -27,6 +27,10 @@ cannot load it. Without cmux everything works except the agent tabs.
 
 ## 1. Install the mod
 
+You need an onboarded Bridge: `bridge-config.yaml` in the repo root, written by
+`/bridge-onboard`. Start Claude Code in the repo root, not a subfolder, because
+the mod checks the current folder.
+
 The mod ships with open-bridge under `mods/briefing-ui`, published through the
 folder marketplace `open-bridge-mods` in `mods/` ([`mods/README.md`](../mods/README.md)).
 From the Bridge folder:
@@ -38,13 +42,16 @@ claude plugin install briefing-ui@open-bridge-mods --scope local
 
 `--scope local` keeps both to this Bridge (they land in
 `.claude/settings.local.json`, which git ignores). The mod only acts in a folder
-that holds `bridge-config.yaml` and `scripts/briefing.py`. After a pull that
-changed the mod, `claude plugin update briefing-ui@open-bridge-mods --scope local`
-and a new session bring the new version in.
+that holds `bridge-config.yaml` and `scripts/briefing.py`. Claude Code reads the
+mod straight from `mods/briefing-ui` (`claude plugin list` shows "Read from").
+After a pull or an edit, start a new session or run `/reload-plugins`. If
+`claude plugin list` shows no "Read from" line, your Claude Code keeps a copy:
+then run `claude plugin update briefing-ui@open-bridge-mods --scope local`
+first.
 
 ## 2. Switch it on
 
-In `bridge-config.yaml` (yours, never committed upstream):
+In `bridge-config.yaml` (yours, written by onboarding, never committed upstream):
 
 ```yaml
 briefing:
@@ -61,7 +68,7 @@ their defaults:
 |---|---|---|
 | `surface` | `chat` | `chat`: a card in the conversation, `pane`: the side panel |
 | `band` | `true` | one line above the prompt: waiting tabs, what is due now |
-| `shortcuts` | `true` | type `3a` or `1a 4v` to act on numbered rows without asking Claude |
+| `shortcuts` | `true` | type `3a` or `1a 4v` to act on numbered rows without asking Claude (letters below) |
 | `morning_hint` | `true` | the first session of the day points at the briefing |
 | `language` | from `language.conversation`, else `en` | `de` or `en` for the dashboard's own words |
 | `full_minutes` | `10` | on open, run the full briefing again when the last is older |
@@ -69,6 +76,11 @@ their defaults:
 | `voice` | `false` | a waiting tab is also spoken (macOS) |
 | `snapshot_minutes` | `60` | back up the cmux layout while the session is open; `0` = never |
 | `launch.target` | `area` | where "Do it" opens a tab: `area`, `tab`, `workspace` or `auto` |
+
+Shortcut letters, after the row number as it stands on the card: `a` Do it,
+`b` later (tomorrow), `c` away, `v` Advise me, `w` Do it in its own workspace.
+`/briefing-ui-off` hides the line above the prompt for this session;
+`/briefing-ui` still opens the dashboard.
 
 ## 3. Build your briefing profile
 
@@ -82,6 +94,10 @@ python3 scripts/briefing.py validate          # names every problem
 python3 scripts/briefing.py collect --json    # what the dashboard receives
 ```
 
+Edit `for:` and the `owners:` of the `github-mine` section (your GitHub org or
+user) before you collect, or delete that section if you do not use GitHub.
+Otherwise it answers without error and stays empty.
+
 Each section is one source: the inbox, your tasks, a calendar, a tracker
 (GitHub, GitLab, Jira, Azure DevOps, Linear), today's commits, or any
 program of your own that prints JSON (`kind: command`). The kinds and their
@@ -89,25 +105,40 @@ keys are in [`briefings.md`](briefings.md).
 
 ### Tabs and columns
 
-Without `view.pages` the kind decides the tab: probes on Status, calendars on
-Dates, trackers on Trackers, commits and the log on Today. To choose yourself:
+Without `view.pages` the kind decides the tab: `command` sections (your own
+probes) on Status, calendars on Dates, trackers on Trackers, commits and the
+log on Today, any other kind on More. To choose yourself, merge these keys into
+the `view:` block your profile already has, and add the two sections the
+template leaves commented out:
 
 ```yaml
 view:
   pages:
+    - id: github
+      title: GitHub
+      sections: [github-mine]                  # the template's tracker section
+    - id: today
+      title: Today
+      sections:
+        - calendar                             # a section without id: its kind
+        - commits
+        - {id: activity, badge: false}
     - id: systems
       title: Systems
       sections:
         - {id: probes, alarm: true, empty: "all green"}
-    - id: github
-      title: GitHub
-      sections: [github-mine, boards]
-    - id: today
-      title: Today
-      sections:
-        - commits
-        - {id: activity, badge: false}
+
+sections:
+  # ... the template's sections, then:
+  - kind: commits
+    days: 7
+  - kind: command                              # any program printing JSON items
+    id: probes
+    title: "Probes"
+    argv: ["python3", "tools/probes.py"]
 ```
+
+A page names sections by id; `validate` says which id it cannot find.
 
 Every row has the same columns: when, title, detail, link. A page entry
 overrides them per section (`when`, `detail`, `link` name an item field),
@@ -123,7 +154,7 @@ view:
     - {label: Beta, match: beta-corp, color: cyan}
 ```
 
-A row whose title, id, project, repository, task, labels or link contains one
+A row whose title, id, project, repo, task, context, area, labels or link contains one
 of the words gets the label in front, on the card, on the tabs and in the text
 briefing. The first mark that fits wins. Customers change; keep them here.
 
@@ -163,9 +194,12 @@ polls the tabs and notifies, the others read along quietly.
 
 | You see | Why, and what to do |
 |---|---|
-| `/briefing-ui` says it is off | `briefing.claude_code_ui.enabled` is not `true`, or the session runs outside the Bridge folder |
-| "Nothing waits for you" and empty tabs | the profile has no sections for it; run `briefing.py collect --json` and look at `pages` |
+| `/briefing-ui` says it is off | `briefing.claude_code_ui.enabled` is not `true`, or `scripts/briefing.py` is missing in this folder |
+| `/briefing-ui` says it could not read `bridge-config.yaml` | the file has a YAML error, or `python3` lacks PyYAML; the reason follows the message |
+| `/briefing-ui` is an unknown command | the session does not run in the Bridge root, or the mod is not installed or enabled for this project (`claude plugin list`) |
+| "Nothing waits for you" and empty tabs | the profile has no sections for it; run `python3 scripts/briefing.py collect --json` and look at `pages` |
+| a tracker tab is empty but not failing | check its `query` (`owners`, `repos`): the template's placeholders find nothing |
 | a section reads "could not read: …" | its source failed; the reason follows (a token, a timeout); fix the source, then ⟳ |
 | a tab lags behind | it is cached (`as of …`); ⟳ asks fresh |
 | the tab line says the tab state is stale | `workplace.py status` failed; the reason is shown in red |
-| a change to the mod shows no effect | an installed mod is a copy: raise its version, `claude plugin update briefing-ui@open-bridge-mods --scope local`, restart the session |
+| a change to the mod shows no effect | start a new session or run `/reload-plugins`; only if `claude plugin list` shows no "Read from" line, run `claude plugin update briefing-ui@open-bridge-mods --scope local` first |

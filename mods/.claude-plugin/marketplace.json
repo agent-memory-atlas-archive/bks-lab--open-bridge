@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "open-bridge-mods",
   "version": "0.1.0",
-  "description": "Claude Code mods that ship with open-bridge (function hooks, early access). Add from the Bridge folder with: claude plugin marketplace add ./mods",
+  "description": "Claude Code mods that ship with open-bridge (function hooks, early access). Add from the Bridge folder with: claude plugin marketplace add ./mods --scope local",
   "owner": {
     "name": "open-bridge contributors"
   },
