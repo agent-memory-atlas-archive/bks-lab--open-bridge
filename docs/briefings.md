@@ -364,8 +364,10 @@ true for a finding (red or yellow), a tracker row and an inbox row: worth handin
 to the agent.
 
 A page entry overrides that per section: `when` and `link` name an item field,
-`detail` one field or a list, `empty` the text for nothing, and `alarm: true`
-makes every row a red finding and an empty section "all green"; `badge: false`
+`detail` one field or a list, `empty` the text for nothing (default
+"nothing"), and `alarm: true` makes every row a red finding, nothing more (for
+an empty section that reads as good news, set `empty:` too, for example
+`empty: "all green"`); `badge: false`
 keeps a section out of the number on its tab. Each section
 also says what it adds to its tab's badge (`weight`: rows not dimmed, for
 `commits` today's commits; `bad`: red rows).
@@ -411,7 +413,7 @@ view:
 ```
 
 A word matches anywhere in the row's title, id, project, repo, task, context,
-area, labels or link, whatever its case, never the name of its source; the
+area, labels or url (its link), whatever its case, never the name of its source; the
 first mark that fits wins. The mark is in the JSON as `mark` on the briefing's
 rows and the page rows alike. Of the text views, triage, brevity and report draw
 it as `[LABEL]` in front of the title; sources and plan leave it out. Customers
@@ -432,7 +434,7 @@ tab, an hour before a tab counts as long-running.
 | Wording of the briefing (headline, tab names, "today") | same profile, `view.labels` |
 | Dashboard on or off, card or side panel, band, voice, poll interval, how old the full run may be, layout backup, launch target | `bridge-config.yaml` `briefing.claude_code_ui` |
 | Language of the dashboard's own words (`de`, `en`) | `briefing.claude_code_ui.language`, else `language.conversation`, else English |
-| Name of the control tab that steers the others; the dashboard in that tab's session polls the agent tabs | `bridge-config.yaml` `workplace.control.name` ([workplace](workplace.md)) |
+| Name of the control workspace: the workspace whose session steers the others; the dashboard in that session polls the agent tabs, the others read its state | `bridge-config.yaml` `workplace.control.name` ([workplace](workplace.md)) |
 
 The dashboard's own words (buttons, help, the prompts it sends) sit in one
 German and one English table inside the mod (`mods/briefing-ui/hooks/text.ts`);

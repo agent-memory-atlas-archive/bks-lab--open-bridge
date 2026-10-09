@@ -184,6 +184,8 @@ declare module 'claude-code' {
       confirmAll: boolean
       /** why bridge-config.yaml could not be read; null when it was read */
       configError: string | null
+      /** collect is asked for the triage view: an earlier answer had no view */
+      askTriage: boolean
     }
   }
 }

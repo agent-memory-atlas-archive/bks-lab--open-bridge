@@ -83,6 +83,8 @@ export type WorldOptions = {
   isBridge?: boolean
   env?: Record<string, string>
   collect?: Raw
+  /** answers briefing.py collect by its argv instead of `collect`, e.g. by --style */
+  collectBy?: (argv: string[]) => Raw
   status?: Raw[]
   tasks?: Raw[]
   teams?: Raw[]
@@ -168,7 +170,7 @@ export function world(on: On, opts: WorldOptions = {}): World {
       return ok(JSON.stringify(config))
     }
     const script = argv[1] ?? ''
-    if (script === 'scripts/briefing.py') return ok(JSON.stringify(w.collect))
+    if (script === 'scripts/briefing.py') return ok(JSON.stringify(opts.collectBy ? opts.collectBy(argv) : w.collect))
     if (script === 'scripts/workplace.py') {
       if (argv[2] === 'status') return ok(JSON.stringify(w.status))
       if (argv[2] === 'tasks') return ok(JSON.stringify(opts.tasks ?? []))

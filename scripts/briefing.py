@@ -1494,7 +1494,8 @@ def main(argv=None) -> int:
         p.add_argument("--fresh", action="store_true",
                        help="ask every source now, whatever a section's cache_minutes allows")
         p.add_argument("--skip", action="append", default=[], choices=SECTION_KINDS, metavar="KIND",
-                       help="leave out sections of this kind (repeatable; --quick: tracker and calendar)")
+                       help="leave out sections of this kind (repeatable; the quick mode of /briefing is "
+                            "--skip tracker --skip calendar)")
         p.add_argument("--only", action="append", default=[], choices=SECTION_KINDS, metavar="KIND",
                        help="run only sections of this kind (repeatable); the rest are listed as skipped")
         p.add_argument("--max-items", type=int, metavar="N",

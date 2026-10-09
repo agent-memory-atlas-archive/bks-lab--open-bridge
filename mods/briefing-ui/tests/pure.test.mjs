@@ -206,3 +206,11 @@ test('no dash in either table, no umlauts in the English one', () => {
 test('the output of /briefing-ui carries the identifier of the card in both languages', () => {
   for (const t of Object.values(text.TABLES)) assert.match(t.cmdOutput('123'), /\(briefing-ui 123\)/)
 })
+
+test('the backup interval is named as configured: hourly only for 60 minutes', () => {
+  const { de, en } = text.TABLES
+  assert.equal(en.backupEvery(60), 'hourly')
+  assert.equal(de.backupEvery(60), 'stündlich')
+  assert.equal(en.backupEvery(30), 'every 30 min')
+  assert.equal(de.backupEvery(30), 'alle 30 Min.')
+})

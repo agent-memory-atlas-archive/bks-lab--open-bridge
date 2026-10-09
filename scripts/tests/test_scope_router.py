@@ -805,6 +805,7 @@ SHIPPED_MODS = [
     "mods/briefing-ui/tests/card.test.tsx",
     "mods/briefing-ui/tests/tabs.test.tsx",
     "mods/briefing-ui/tests/actions.test.tsx",
+    "mods/briefing-ui/tests/setup.test.tsx",
 ]
 
 

@@ -69,6 +69,11 @@ const tabsError = atom({ plugin: 'briefing-ui', key: 'tabsError' } as const, nul
 const isControl = atom({ plugin: 'briefing-ui', key: 'isControl' } as const, null as boolean | null)
 const starting = atom({ plugin: 'briefing-ui', key: 'starting' } as const, [] as string[])
 const confirmAll = atom({ plugin: 'briefing-ui', key: 'confirmAll' } as const, false)
+/**
+ * True once a collect came back without a view: the built-in profile, or a profile whose view.style is
+ * sources. The card is built from the view, so from then on this session asks for the triage view.
+ */
+const askTriage = atom({ plugin: 'briefing-ui', key: 'askTriage' } as const, false)
 /** Why bridge-config.yaml could not be read; null when it was read (switched on or off) */
 const configError = atom({ plugin: 'briefing-ui', key: 'configError' } as const, null as string | null)
 
@@ -215,8 +220,20 @@ async function loadView($: EngineInterface, how: LoadHow): Promise<void> {
     if (pass === 'quick') for (const kind of SLOW_KINDS) args.push('--skip', kind)
     // ⟳ wants the state of right now: past the cache (cache_minutes).
     if (how === 'full') args.push('--fresh')
+    if (await read($, askTriage)) args.push('--style', 'triage')
     const started = await $.clock.now()
-    const run = await bridge($, args, 120000)
+    let run = await bridge($, args, 120000)
+    let raw: unknown = null
+    try {
+      raw = run.ok ? JSON.parse(run.out) : null
+    } catch {
+      // unreadable output is reported below
+    }
+    // Without a view the card would show the tasks and nothing else: ask once more for the triage view.
+    if (run.ok && raw !== null && typeof raw === 'object' && !('view' in raw) && !(await read($, askTriage))) {
+      await update($, askTriage, () => true)
+      run = await bridge($, [...args, '--style', 'triage'], 120000)
+    }
     const ended = await $.clock.now()
     await update($, loadTook, t => ({ ...t, [pass]: ended - started }))
     if (!run.ok) {
@@ -715,7 +732,8 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
   const picked = await read($, selected)
   const isConfirming = await read($, confirmAll)
   // Without cmux there are no tabs to count, steer or back up: those lines stay away.
-  const hasTabs = (await read($, tabs)).length > 0 || Boolean(await $.env.get('CMUX_SURFACE_ID'))
+  const inCmux = Boolean(await $.env.get('CMUX_SURFACE_ID'))
+  const hasTabs = (await read($, tabs)).length > 0 || inCmux
   const open = await read($, expanded)
   const busy = await read($, loading)
   const now = await $.clock.now()
@@ -733,6 +751,9 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
   const recipes = await read($, teamList)
   const saved = await read($, lastSnapshot)
   const snapList = await read($, snapshots)
+  // The layout is saved only from a session inside cmux (see session.start), as often as snapshot_minutes says.
+  const every = (await read($, config))?.snapshotMinutes ?? 60
+  const backupText = `${T().backup} ${saved ? T().backupAt(saved) : T().backupEvery(every)}`
   const chosen = await read($, teamOf)
   // In the chat the frame of the card subtracts, in the panel columns is already the width of the content.
   const width = inChat ? Math.max(40, columns - 6) : Math.max(24, columns - 1)
@@ -1405,9 +1426,9 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
                 <Box paddingLeft={2}><Text wrap="wrap" dimColor>{does}</Text></Box>
               </Box>
             ))}
-            {hasTabs && <Text dimColor>{`${T().backup} ${saved ? T().backupAt(saved) : T().backupHourly}`}</Text>}
+            {inCmux && <Text dimColor>{backupText}</Text>}
             <Box flexWrap="wrap">
-              {hasTabs && <Button key="s-snap" label={T().btnSave} dimColor onPress={() => snapshot($, true)} />}
+              {inCmux && <Button key="s-snap" label={T().btnSave} dimColor onPress={() => snapshot($, true)} />}
               {v && <Button key="s-overview" label={T().btnSort} dimColor
                 onPress={() => ask($, overview(v, lay.sections.flatMap(x => x.all)))} />}
               {v && <Button key="s-plan" label={T().btnPlan} dimColor
@@ -1586,11 +1607,11 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
       {hasTabs && <Box marginTop={1} flexWrap="wrap">
         <Button key="tabs-toggle" plain label={tabsOpen ? T().tabsClose : T().tabsAll(tabList.length)} dimColor
           onPress={() => update($, showTabs, x => !x)} />
-        <Text dimColor>{`   ${T().backup} ${saved ? T().backupAt(saved) : T().backupHourly}: `}</Text>
-        <Button key="snap-now" plain label={T().btnSave} dimColor onPress={() => snapshot($, true)} />
-        <Text dimColor> · </Text>
-        <Button key="snap-list" plain label={snapList ? T().btnClose : T().btnList} dimColor
-          onPress={async () => ((await read($, snapshots)) ? update($, snapshots, () => null) : listSnapshots($))} />
+        {inCmux && <Text dimColor>{`   ${backupText}: `}</Text>}
+        {inCmux && <Button key="snap-now" plain label={T().btnSave} dimColor onPress={() => snapshot($, true)} />}
+        {inCmux && <Text dimColor> · </Text>}
+        {inCmux && <Button key="snap-list" plain label={snapList ? T().btnClose : T().btnList} dimColor
+          onPress={async () => ((await read($, snapshots)) ? update($, snapshots, () => null) : listSnapshots($))} />}
       </Box>}
       {tabsOpen && tabList.filter(t => !waiting.includes(t)).map(tabLine)}
       {snapList && (
@@ -1659,7 +1680,8 @@ export const register: Register = on => {
     $.clock.every(cfg.statusSeconds * 1000, () => {
       void loadTabs($, cfg)
     })
-    if (cfg.snapshotMinutes > 0) {
+    // The layout backup saves cmux workspaces: a session outside cmux has none to save.
+    if (cfg.snapshotMinutes > 0 && (await $.env.get('CMUX_SURFACE_ID'))) {
       // Save only in the control workspace (or if none is known): otherwise every session saves the same thing.
       const maybeSnap = async () => {
         if ((await read($, isControl)) !== false) await snapshot($, false)
