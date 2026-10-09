@@ -179,10 +179,9 @@ its own **folder** — no exceptions, no thresholds:
 reach · `workflow/` WHAT happens when. Every family below is a route: read the
 folder when its subject comes up, and its `_template.yaml` says what belongs in
 one. `scripts/check-reachability.py` fails CI when a family in the tree is named
-in nothing a session loads, so this list cannot quietly fall behind the tree —
-five families were missing from it when that check was first run. Entries also
-reference each other (`bridge_refs:`, `*_ref:`, `related_*:`); those references
-are the graph a session walks after the first hop, and
+in nothing a session loads, so this list cannot quietly fall behind the tree.
+Entries also reference each other (`bridge_refs:`, `*_ref:`, `related_*:`);
+those references are the graph a session walks after the first hop, and
 `scripts/check-edges.py` holds them to resolving (`--neighbours <path>` shows
 one hop both ways, `--fix` rewrites a reference whose task merely moved KIND).
 
@@ -212,7 +211,7 @@ one hop both ways, `--fix` rewrites a reference whose task merely moved KIND).
 | `workflow/workspaces/` | a named binding of repos + config overlays |
 
 Top-level, own lifecycle: `rules/` `protocols/standing-orders/` `skills/`
-`trackers/` `themes/` `.claude/agents/` `work/` `docs/`.
+`trackers/` `themes/` `.claude/agents/` `mods/` `work/` `docs/`.
 
 **Default-to-Folder:** every config type lives in `<wrapper>/<types>/` — a plural
 folder holding `_template.yaml`, an optional `_schema.yaml`, and all `<id>.yaml`
@@ -240,9 +239,10 @@ recipient group. Load one when a skill or routing order references it via
 Every file's tier (**core** → open-bridge · **org** → your org overlay · **user**
 → local) is decided by **where it lives**, not a tag you can forget:
 
-1. **Whole folder** — the path *is* the tier. `work/`, `imports/` = USER;
-   `docs/`, `themes/`, `trackers/`, `scripts/`, `protocols/standing-orders/*.md`
-   = CORE.
+1. **Whole folder** — the path *is* the tier. `work/`, `imports/`,
+   `.claude/mods/` = USER; `docs/`, `themes/`, `trackers/`, `scripts/`,
+   `protocols/standing-orders/*.md` = CORE; `mods/` = CORE, enumerated (an
+   unlisted mod is USER).
 2. **`_`-prefix** inside the cluster wrappers — `_template.yaml` / `_schema.yaml`
    = CORE, every other `*.yaml` instance = USER.
 3. **Frontmatter**, for the two things that cannot be foldered: skills carry

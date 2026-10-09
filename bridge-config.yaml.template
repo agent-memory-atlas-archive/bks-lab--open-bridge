@@ -157,6 +157,21 @@ work:
 # briefing:
 #   default: morning         # which workflow/briefings/<id>.yaml plain /briefing runs
 #                            # (wins over `default: true` in a shared profile file)
+#   claude_code_ui:          # the briefing-ui mod (mods/briefing-ui, docs/briefing-dashboard.md); tested only with Claude Code + cmux
+#                            # its tabs and columns come from the briefing profile: view.pages (docs/briefings.md)
+#     enabled: false         # the mod does nothing until this is true
+#     surface: chat          # chat = the dashboard as a card in the conversation | pane = side panel
+#     band: true             # a line above the prompt: waiting tabs, now, to hand off (never in launched tabs)
+#     shortcuts: true        # "1a 3b" settled without a model turn
+#     morning_hint: true     # first session of the day points at the briefing
+#     voice: false           # a tab that waits for you is also spoken (macOS say)
+#     status_seconds: 60     # how often the tab state is re-read
+#     full_minutes: 10       # on open, run the full briefing (trackers, checks) again when the last is older
+#     snapshot_minutes: 60   # save the cmux layout (only on change) while the session is open; 0 = never
+#     language: en           # de | en for the mod's own words; default language.conversation, else en
+#     launch:
+#       target: area         # area = the workspace of the item's area (workplace.workspaces) | tab = here | workspace = one each
+#                            # | auto = a small model picks the area or a workspace of its own (workplace.router)
 #   advise:
 #     stale_days: 7
 #     blocked_days: 14

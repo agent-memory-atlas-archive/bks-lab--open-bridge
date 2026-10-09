@@ -675,7 +675,7 @@ def test_every_file_upstream_ships_stays_core():
 # arrived. This is not hypothetical: the remote-inventory contract was merged
 # upstream with its CI step and its suite classified `user` on the same day.
 # ---------------------------------------------------------------------------
-_RUNNABLE_IN_CI = re.compile(r"(?:scripts|skills|infra|workflow|bin)/[\w./-]+\.(?:sh|py)")
+_RUNNABLE_IN_CI = re.compile(r"(?:scripts|skills|infra|workflow|bin|mods)/[\w./-]+\.(?:sh|py|mjs)")
 
 
 def test_paths_a_core_ci_workflow_runs_are_core():
@@ -782,3 +782,63 @@ def test_briefing_profiles_route_by_their_declaration(synth_repo):
     assert tier("workflow/briefings/undeclared.yaml") == "user"
     assert tier("workflow/briefings/_template.yaml") == "core"
     assert tier("workflow/briefings/_schema.yaml") == "core"
+
+
+# ---------------------------------------------------------------------------
+# Claude Code mods. `mods/` is a CORE top-level folder holding the mods that
+# ship with open-bridge, published through mods/.claude-plugin/marketplace.json.
+# A mod an instance keeps for itself lives in `.claude/mods/` (its own folder
+# marketplace) and is USER. The shipped set is ENUMERATED, like agents/: a mod
+# that lands in mods/ without being registered here fails closed to `user`.
+# ---------------------------------------------------------------------------
+SHIPPED_MODS = [
+    "mods/README.md",
+    "mods/.claude-plugin/marketplace.json",
+    "mods/briefing-ui/.claude-plugin/plugin.json",
+    "mods/briefing-ui/hooks/hooks.json",
+    "mods/briefing-ui/hooks/register.tsx",
+    "mods/briefing-ui/hooks/logic.ts",
+    "mods/briefing-ui/hooks/text.ts",
+    "mods/briefing-ui/types/index.d.ts",
+    "mods/briefing-ui/tests/pure.test.mjs",
+    "mods/briefing-ui/tests/world.ts",
+    "mods/briefing-ui/tests/card.test.tsx",
+    "mods/briefing-ui/tests/tabs.test.tsx",
+    "mods/briefing-ui/tests/actions.test.tsx",
+]
+
+
+@pytest.mark.parametrize("path", SHIPPED_MODS)
+def test_shipped_mods_are_core(path: str):
+    assert tier(path) == "core", f"{path} classifies {tier(path)!r}; a shipped mod must promote"
+
+
+UNREGISTERED_MODS = [
+    "mods/my-usage-panel/.claude-plugin/plugin.json",
+    "mods/my-usage-panel/hooks/register.tsx",
+    "mods/.claude-plugin/marketplace.local.json",
+    "mods/briefing-ui-fork/hooks/register.tsx",   # a prefix of a shipped name is not that name
+]
+
+
+@pytest.mark.parametrize("path", UNREGISTERED_MODS)
+def test_an_unregistered_mod_fails_closed(path: str):
+    assert tier(path) == "user", (
+        f"{path} classifies {tier(path)!r}. A mod nobody registered as shipped must not "
+        "reach the public repo by default."
+    )
+
+
+INSTANCE_MODS = [
+    ".claude/mods/.claude-plugin/marketplace.json",
+    ".claude/mods/my-usage-panel/hooks/register.tsx",
+    ".claude/mods/briefing-ui/hooks/text.ts",       # an instance's own copy, even of a shipped name
+]
+
+
+@pytest.mark.parametrize("path", INSTANCE_MODS)
+def test_instance_mods_folder_is_user(path: str):
+    assert tier(path) == "user", (
+        f"{path} classifies {tier(path)!r}. .claude/mods/ is the instance's own folder "
+        "marketplace; shipped mods live in mods/."
+    )

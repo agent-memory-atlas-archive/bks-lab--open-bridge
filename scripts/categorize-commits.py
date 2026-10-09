@@ -117,6 +117,13 @@ USER_PATTERNS = [
     # Promoted, one would re-allow instance data in every public clone.
     r"^(identity|infra|workflow|work)/\.gitignore$",
     r"^imports/(?!\.gitkeep$)",                       # AGENTS.md § Scope: whole folder = USER
+    # Claude Code mods. mods/ ships the mods open-bridge publishes through
+    # mods/.claude-plugin/marketplace.json; a mod an instance keeps for itself
+    # lives in .claude/mods/, its own folder marketplace, and never promotes.
+    # ENUMERATED like agents/ above: a new shipped mod is added to the
+    # lookahead deliberately, and anything else in mods/ fails closed.
+    r"^mods/(?!README\.md$|\.claude-plugin/marketplace\.json$|briefing-ui/)",
+    r"^\.claude/mods/",
 ]
 
 ORG_PATTERNS = [

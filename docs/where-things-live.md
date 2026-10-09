@@ -99,6 +99,8 @@ searches again.
 | Where does a task live, and what does its status mean? | [`docs/work-system.md`](work-system.md#status-semantics) |
 | What still needs me, and how does an open item get closed? | [`docs/inbox.md`](inbox.md) |
 | What does my briefing show, from which trackers, and how do I change it? | [`docs/briefings.md`](briefings.md) |
+| How do I set up the clickable briefing dashboard in Claude Code (tabs, columns, marks, language)? | [`docs/briefing-dashboard.md`](briefing-dashboard.md) |
+| What is in `mods/`, and how do I install or test a mod? | [`mods/README.md`](../mods/README.md) |
 | How do the day's agent tabs get planned and steered, with or without a terminal tool? | [`docs/workplace.md`](workplace.md) |
 | How does a machine that is always on become the arm of my Bridge? | [`docs/always-on-machine.md`](always-on-machine.md) |
 | How do I close a task? | [`docs/work-system.md`](work-system.md#3-step-close) |

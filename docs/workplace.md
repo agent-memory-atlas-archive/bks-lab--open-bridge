@@ -8,6 +8,7 @@ related:
   - inbox.md
   - ../skills/briefing/references/control.md
   - ../skills/cmux/SKILL.md
+  - briefing-dashboard.md
 ---
 
 # Workplace
@@ -68,8 +69,10 @@ cmux is the recommendation because it was built for running many coding agents
 side by side: workspaces with colors, tab status the agent itself reports (working,
 waiting, needs you), notifications, and an API for all of it. It is also the driver
 that ships and is tested, and so far the only one: every workplace feature,
-`launch`, teams and the tab steering (`status`, `send`, `adopt`) included, has run
-only with Claude Code as the agent and cmux as the terminal. Other agents and
+`launch`, teams and the tab steering (`status`, `send`, `adopt`) included, and the
+dashboard's tab actions built on them (setup in
+[`briefing-dashboard.md`](briefing-dashboard.md)), has run only with Claude Code as
+the agent and cmux as the terminal. Other agents and
 terminals are untested until an issue for that combination says otherwise. The
 others are good choices too; their driver is a small program speaking the protocol
 below, and the plan, the briefing and the inbox stay exactly the same.
@@ -198,6 +201,9 @@ one.
 Every agent tab, launched or opened by the plan, starts with `BRIDGE_TAB_SLUG=<slug>` in
 its environment, so a session, or any tool running in that tab, can tell it was started for
 one item rather than as a free session. `status` names the task (`slug`) or open inbox item (`item`) a tab works on.
+The briefing-ui dashboard ([`briefing-dashboard.md`](briefing-dashboard.md)) reads
+both from `status`: `is_self` keeps its own tab out of the tabs it lists, and `slug`
+ties a tab to the task row it works on.
 
 `workplace.py tasks [--json]` lists every active task flat, sorted by priority and then
 activity: label, area, priority, score, `blocked_by`, and `stale` (no activity for longer
