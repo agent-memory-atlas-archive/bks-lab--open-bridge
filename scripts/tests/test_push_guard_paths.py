@@ -65,6 +65,13 @@ def test_a_family_the_tree_does_not_have_yet_is_caught():
     "workspaces.lock.yaml", "context-budget.user.yaml", "edges.yaml",
     "reachability-scenarios.yaml", "bridge-deck.config.yaml",
     "identity/agent/SOUL.md", "work/memory/user_role.md",
+    # work/ instance files outside tasks/streams/done: drafts, inbox items, learning
+    # proposals and generated pages carry the same personal data (found by
+    # /onboard-sim, 09.10.2026)
+    "work/drafts/emails/2026-10-07-email.md", "work/inbox/20261008-x/item.yaml",
+    "work/inbox.md", "work/_learning/proposals/p.md",
+    "work/_learning/proposals/accepted/p.md", "work/_learning/postmortems/2026-10-x.md", "work/onboarding-state.yaml",
+    "work/bridge-preview.html",
     # the negation files a private instance commits: promoting one would strip
     # every public clone of its protection
     "identity/.gitignore", "infra/.gitignore", "workflow/.gitignore", "work/.gitignore",
@@ -106,3 +113,20 @@ def test_nothing_core_ships_is_caught():
     assert caught == [], (
         "CORE files the push guard would block on a promote; exempt them in "
         f"CORE_EXEMPT or move them under a _-prefixed name: {caught}")
+
+
+@pytest.mark.parametrize("path", [
+    "work/templates/STATUS.md", "work/_learning/README.md",
+    "work/_learning/_schema.proposal.yaml", "work/_learning/audit-trail.md",
+    "work/_learning/proposals/.gitkeep", "work/_learning/proposals/accepted/.gitkeep",
+    "work/_learning/postmortems/.gitkeep", "work/_learning/audit-history/.gitkeep",
+])
+def test_shipped_work_skeleton_stays_core(path):
+    assert not _caught(path), path
+
+
+def test_guard_lists_paths_unquoted():
+    """Non-ASCII file names: git quotes them by default ("work/tasks/R\\303\\274...")
+    and the ^-anchored regex then misses them. The hook must ask git for raw paths."""
+    hook = (REPO / "scripts" / "hooks" / "pre-push").read_text()
+    assert "core.quotepath=false diff-tree" in hook

@@ -48,7 +48,7 @@ if [ -z "${USER_PATHS:-}" ] || [ -z "${CORE_EXEMPT:-}" ]; then
   echo "build-sandbox: cannot read USER_PATHS/CORE_EXEMPT from $CORE_SRC/scripts/hooks/pre-push" >&2
   exit 1
 fi
-( cd "$CORE_SRC" && git ls-files -co --exclude-standard ) > "$SANDBOX/.filelist.all"
+( cd "$CORE_SRC" && git -c core.quotepath=false ls-files -co --exclude-standard ) > "$SANDBOX/.filelist.all"
 { grep -E  "$CORE_EXEMPT" "$SANDBOX/.filelist.all" || true
   grep -Ev "$USER_PATHS"  "$SANDBOX/.filelist.all" || true
 } | sort -u > "$SANDBOX/.filelist"
