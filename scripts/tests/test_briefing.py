@@ -266,6 +266,71 @@ def test_github_board_provider_reuses_tracker_sync_and_the_registry(tmp_path):
     assert states == {"in_progress", "done", "blocked"}
 
 
+def _three_boards(root):
+    (root / "ecosystem.yaml").write_text(yaml.safe_dump({"github_projects": [
+        {"org": "example-org", "number": n, "name": f"Board {n}"} for n in (3, 4, 5)]}), encoding="utf-8")
+
+
+def _cards_of(argv):
+    """One card per board, numbered after the board, so the order of the rows shows."""
+    n = int(argv[3])
+    return json.dumps({"items": [{"status": "In Progress", "assignees": ["octo"], "labels": [], "title": f"Card {n}",
+                                  "content": {"number": n, "title": f"Card {n}", "type": "Issue",
+                                              "repository": "example-org/tool", "updatedAt": "2026-10-04T05:00:00Z",
+                                              "url": f"https://github.com/example-org/tool/issues/{n}"}}]})
+
+
+def test_github_board_loads_the_boards_side_by_side(tmp_path):
+    """Eight boards one after another took 64 s live (2026-10-09) against a 30 s section
+    limit. Each list call here waits until all three are in flight: one after another,
+    the barrier breaks and the section fails."""
+    import threading
+    root = bridge(tmp_path, config={"integrations": {"github": {"assignee_me": "octo"}}})
+    _three_boards(root)
+    gate = threading.Barrier(3, timeout=5)
+
+    def listing(argv):
+        gate.wait()
+        return _cards_of(argv)
+    run = FakeRun({("gh", "project", "item-list"): listing})
+    section = {"kind": "tracker", "provider": "github-board", "summary": True, "query": {"assigned_to_me": True}}
+    sec = bf.collect(root, {"id": "p", "sections": [section]}, ctx(root, run))["sections"][0]
+    assert sec["status"] == "ok", sec.get("reason")
+    assert sorted(i["id"] for i in sec["items"]) == ["example-org/tool#3", "example-org/tool#4", "example-org/tool#5"]
+
+
+def test_github_board_keeps_the_registry_order_when_boards_answer_out_of_order(tmp_path):
+    import time as _time
+    root = bridge(tmp_path, config={"integrations": {"github": {"assignee_me": "octo"}}})
+    _three_boards(root)
+
+    def listing(argv):
+        _time.sleep({"3": 0.3, "4": 0.15, "5": 0.0}[argv[3]])    # the first board answers last
+        return _cards_of(argv)
+    run = FakeRun({("gh", "project", "item-list"): listing})
+    section = {"kind": "tracker", "provider": "github-board", "summary": True, "query": {"assigned_to_me": True}}
+    result = bf.collect(root, {"id": "p", "sections": [section]}, ctx(root, run))
+    sec = result["sections"][0]
+    assert sec["status"] == "ok", sec.get("reason")
+    assert [i["project"] for i in sec["items"]] == ["Board 3", "Board 4", "Board 5"]
+    assert [b["number"] for b in sec["summary"]] == [3, 4, 5]
+
+
+def test_github_board_calls_on_other_threads_keep_the_section_time_limit(tmp_path):
+    """The deadline lives per thread: a board fetched on a helper thread must still end
+    with its section, not start a fresh limit of its own."""
+    import time as _time
+    root = bridge(tmp_path, config={"integrations": {"github": {"assignee_me": "octo"}}})
+    _three_boards(root)
+    run = FakeRun({("gh", "project", "item-list"): _cards_of})
+    c = ctx(root, run)
+    c.deadline = _time.monotonic() - 1            # the section's time is already used up
+    gb = bf._providers().get("github-board")
+    with pytest.raises(bf.SourceError, match="time limit"):
+        gb.collect({"kind": "tracker", "provider": "github-board", "query": {}}, c)
+    assert not [call for call in run.calls if call[:3] == ["gh", "project", "item-list"]]
+
+
 def test_github_board_rows_get_the_date_their_issue_last_changed(tmp_path):
     root = bridge(tmp_path, config={"integrations": {"github": {"assignee_me": "octo"}}})
     (root / "ecosystem.yaml").write_text(yaml.safe_dump({"github_projects": [
