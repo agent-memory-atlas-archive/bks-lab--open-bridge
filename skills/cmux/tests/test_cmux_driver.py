@@ -545,3 +545,101 @@ def test_workspace_created_for_moved_tabs_reports_its_leftover_shell(fake):
     report = fake.answer(_open(plan))["report"]
     assert any("starting shell" in line for line in report)
     assert not any("close" in " ".join(a) for a in fake.argv())
+
+
+# ---------------------------------------------------------------- launch verb
+
+LAUNCH_TABS = [{"label": "Alpha", "slug": "alpha", "command": "cd -- /repo && agent -n alpha 'go'"},
+               {"label": "Beta", "slug": "beta", "command": "cd -- /repo && agent -n beta 'go'"}]
+
+
+def test_launch_tabs_open_in_the_callers_workspace_and_keep_a_shell(fake):
+    report = fake.answer({"verb": "launch", "tabs": LAUNCH_TABS, "target": "tab", "here": None})["report"]
+    argv = fake.argv()
+    new = [a for a in argv if a[0] == "new-surface"]
+    assert len(new) == 2
+    for a in new:
+        assert a[a.index("--workspace") + 1] == "workspace:3"       # tree caller, not the selected one
+        assert a[a.index("--focus") + 1] == "false"
+        assert a[a.index("--command") + 1].endswith(drv.KEEP_SHELL)
+    renames = [a for a in argv if a[:3] == ["tab-action", "--action", "rename"]]
+    assert [a[a.index("--title") + 1] for a in renames] == ["Alpha", "Beta"]
+    assert len(report) == 2 and report[0].startswith("tab Alpha (surface:60")
+    assert not any("close" in " ".join(a) for a in argv)
+
+
+def test_launch_here_decides_the_workspace(fake):
+    fake.answer({"verb": "launch", "tabs": LAUNCH_TABS[:1], "target": "tab", "here": "surface:95"})
+    (new,) = [a for a in fake.argv() if a[0] == "new-surface"]
+    assert new[new.index("--workspace") + 1] == "workspace:4"
+
+
+def test_launch_without_a_caller_opens_nothing(fake):
+    tree = json.loads(fake.files["FAKE_CMUX_TREE"].read_text())
+    tree.pop("caller")
+    fake.files["FAKE_CMUX_TREE"].write_text(json.dumps(tree))
+    report = fake.answer({"verb": "launch", "tabs": LAUNCH_TABS, "target": "tab", "here": None})["report"]
+    assert report and report[0].startswith("ERROR")
+    assert not [a for a in fake.argv() if a[0] in ("new-surface", "workspace")]
+
+
+def test_launch_workspace_target_creates_one_workspace_per_tab(fake):
+    report = fake.answer({"verb": "launch", "tabs": LAUNCH_TABS, "target": "workspace", "here": None})["report"]
+    creates = [a for a in fake.argv() if a[:2] == ["workspace", "create"]]
+    assert len(creates) == 2
+    assert creates[0][creates[0].index("--name") + 1] == "Alpha"
+    assert creates[0][creates[0].index("--focus") + 1] == "false"
+    assert creates[0][creates[0].index("--command") + 1].endswith(drv.KEEP_SHELL)
+    assert report[0].startswith("workspace Alpha (workspace:50)")
+    assert not [a for a in fake.argv() if a[0] == "new-surface"]
+
+
+def test_launch_area_target_opens_each_tab_in_its_named_workspace(fake):
+    tabs = [{**LAUNCH_TABS[0], "workspace": "Customer A"}, {**LAUNCH_TABS[1], "workspace": "Customer B"}]
+    report = fake.answer({"verb": "launch", "tabs": tabs, "target": "area", "here": None})["report"]
+    new = [a for a in fake.argv() if a[0] == "new-surface"]
+    assert [a[a.index("--workspace") + 1] for a in new] == ["workspace:4", "workspace:5"]   # across windows
+    assert not [a for a in fake.argv() if a[:2] == ["workspace", "create"]]
+    assert all(line.startswith("tab ") for line in report)
+
+
+def test_launch_area_target_creates_a_missing_area_once_and_names_the_tab(fake):
+    tabs = [{**LAUNCH_TABS[0], "workspace": "Research"}, {**LAUNCH_TABS[1], "workspace": "Research"}]
+    report = fake.answer({"verb": "launch", "tabs": tabs, "target": "area", "here": None})["report"]
+    argv = fake.argv()
+    (create,) = [a for a in argv if a[:2] == ["workspace", "create"]]
+    assert create[create.index("--name") + 1] == "Research"
+    assert create[create.index("--focus") + 1] == "false"
+    assert "--command" not in create                       # the agent goes into a named tab, not the shell
+    new = [a for a in argv if a[0] == "new-surface"]
+    assert [a[a.index("--workspace") + 1] for a in new] == ["workspace:50", "workspace:50"]
+    renames = [a for a in argv if a[:3] == ["tab-action", "--action", "rename"]]
+    assert [a[a.index("--title") + 1] for a in renames] == ["Alpha", "Beta"]
+    assert any("new workspace Research" in line for line in report)
+    assert not any("close" in " ".join(a) for a in argv)
+
+
+def test_launch_area_target_without_a_name_falls_back_to_the_caller(fake):
+    fake.answer({"verb": "launch", "tabs": LAUNCH_TABS[:1], "target": "area", "here": None})
+    (new,) = [a for a in fake.argv() if a[0] == "new-surface"]
+    assert new[new.index("--workspace") + 1] == "workspace:3"
+
+
+def test_launch_area_target_finds_a_workspace_by_its_alias(fake):
+    tabs = [{**LAUNCH_TABS[0], "workspace": "Customers", "aliases": ["Customer A"]}]
+    fake.answer({"verb": "launch", "tabs": tabs, "target": "area", "here": None})
+    (new,) = [a for a in fake.argv() if a[0] == "new-surface"]
+    assert new[new.index("--workspace") + 1] == "workspace:4"
+    assert not [a for a in fake.argv() if a[:2] == ["workspace", "create"]]
+
+
+def test_tabs_mark_the_tab_this_process_runs_in(monkeypatch):
+    tree = {"windows": [{"workspaces": [{"title": "Control", "ref": "workspace:1", "panes": [{"surfaces": [
+        {"type": "terminal", "ref": "surface:1", "id": "AAA", "title": "dashboard"},
+        {"type": "terminal", "ref": "surface:2", "id": "BBB", "title": "Claude Code"}]}]}]}]}
+    monkeypatch.setattr(drv, "read_tree", lambda: tree)
+    monkeypatch.setattr(drv, "_load_json", lambda path: {})
+    monkeypatch.setenv("CMUX_SURFACE_ID", "AAA")
+    assert [t["is_self"] for t in drv.tabs()] == [True, False]
+    monkeypatch.delenv("CMUX_SURFACE_ID")
+    assert [t["is_self"] for t in drv.tabs()] == [False, False]

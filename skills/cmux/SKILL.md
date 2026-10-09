@@ -47,14 +47,23 @@ workplace:
 ```
 
 Then `python3 scripts/workplace.py open --yes [--here "$CMUX_SURFACE_ID"]` opens
-the plan in cmux, and `status`, `send`, `adopt` steer the tabs. What the driver
-guarantees:
+the plan in cmux, and `status`, `send`, `adopt` steer the tabs.
+`python3 scripts/workplace.py launch --items A,B --yes [--here "$CMUX_SURFACE_ID"]
+[--target tab|workspace|area|auto]` opens one tab per chosen task or inbox item
+(docs/workplace.md § Launching chosen items). What the driver guarantees:
 
 - It never closes a tab or a workspace, and never moves the last tab out of a
   workspace (cmux drops an emptied workspace); such a tab is renamed where it is
   and the report says so.
 - It sees every window (`tree --all`), so a workspace in a second window is
   reused, not created twice.
+- `launch` opens in the calling tab's workspace (`here`, else the tree's
+  caller) and refuses when neither is known; it never falls back to the
+  selected workspace. With `target: area` it finds the area's workspace by
+  name or alias across windows and creates a missing one once.
+- The tree is read with `--id-format both` (refs and UUIDs), so `tabs` can mark
+  the tab the caller runs in (`is_self`, from `CMUX_SURFACE_ID`). Verified on
+  cmux 0.65.0.
 - A call cmux refuses (exit 1, `Error: ...`) is an ERROR line or a driver error,
   never a success line. When the workspaces cannot be read, `open` does nothing.
 - When cmux does not answer, `tabs` is an error, not the stale session file.
@@ -146,7 +155,7 @@ cmux rename-tab --surface "$NEW_SURFACE" "agent-name"
 | [`references/local.md`](references/local.md) | quick reference, spawning agents, splits, sidebar, notifications, wait-for, observe protocol, tab management, settings, browser limits, environment, socket API, traps |
 | [`references/sessions.md`](references/sessions.md) | layout snapshots and restore, loss alarm, what cmux and Claude Code already do natively, restart across all tabs |
 | [`references/remote.md`](references/remote.md) | socket modes, steering agents on another machine |
-| `scripts/cmux_driver.py` | the workplace driver (JSON protocol: tabs, sessions, open, send, rename) |
+| `scripts/cmux_driver.py` | the workplace driver (JSON protocol: tabs, sessions, open, launch, send, rename) |
 | `scripts/cmux_layout.py` | snapshot / list / show / restore |
 | `scripts/cmux-open.sh` | tab / browser / split in a verified target workspace |
 | `scripts/spawn-workspace.sh` | named workspace with an agent, prompt via file, verified start |

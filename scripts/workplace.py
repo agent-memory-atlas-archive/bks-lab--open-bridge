@@ -11,7 +11,10 @@ works with a terminal multiplexer, with another one, or with none at all.
     python3 scripts/workplace.py propose [--json]      # what /briefing shows
     python3 scripts/workplace.py open [--only A,B] [--resume]        # dry run
     python3 scripts/workplace.py open --yes            # hand the plan to the driver
+    python3 scripts/workplace.py launch --items A,B [--mode report|go|context] [--target tab|workspace|area|auto] [--yes] [--json]
     python3 scripts/workplace.py status                # every tab: task, state, last line
+    python3 scripts/workplace.py tasks [--json]        # every active task: area, priority, blocked, stale
+    python3 scripts/workplace.py teams [--json]        # team recipes; launch --team T --role R opens one role
     python3 scripts/workplace.py send TAB TEXT...      # type into one tab
     python3 scripts/workplace.py adopt TAB SLUG        # name an existing tab after a task
 
@@ -35,6 +38,9 @@ uses for owner approval:
                                               state: working | waiting | needs-you | shell
     {"verb": "sessions"}                   -> {"sessions": {"<tab name>": "<session id>"}}
     {"verb": "open", "plan": {...}, "only": [...] | null, "resume": bool, "here": ref | null}
+                                           -> {"report": ["line", ...]}
+    {"verb": "launch", "tabs": [{"label", "slug", "command", "workspace", "aliases"}],
+     "target": "tab" | "workspace" | "area", "here": ref | null}
                                            -> {"report": ["line", ...]}
     {"verb": "send", "tab": ref, "text": "..."}       -> {"report": [...]}
     {"verb": "rename", "tab": ref, "title": "..."}    -> {"report": [...]}
@@ -65,13 +71,92 @@ ROW_CAP = 10            # a slug named in every log row must not drown the rest
 LABEL_MAX = 30
 DRIVER_TIMEOUT_SEC = 120
 DEFAULT_LIMITS = {"max_workspaces": 4, "max_tabs": 3, "stale_days": 10, "activity_days": 7}
+# Every agent tab carries its slug in this variable, so the session can tell it was opened for one item.
+TAB_ENV = "BRIDGE_TAB_SLUG"
 DEFAULT_AGENT = {"new": "claude -n {slug} {prompt}", "resume": "claude --resume {session}"}
-NEW_TAB_PROMPT = (
+TASK_READ_PROMPT = (
     "You are the tab for the task {slug}. Get a short overview: read {status_path}, the rows about "
     "{slug} in work/log.md (grep) and its recent commits (git log --oneline -5 -- {task_dir}), and the "
     "open inbox items for it (python3 scripts/inbox.py list). Then print at most eight lines: state, open "
-    "points, next step, and whether you could take it without asking. Then wait; on 'go on' take the "
-    "next step. Never close a tab or a workspace.")
+    "points, next step, and whether you could take it without asking.")
+# What a tab achieves reaches anyone else (a briefing, any UI or script that reads the inbox) only through the inbox.
+FILE_TAIL = (
+    " When you reach a result, a question only the person can answer, or a draft, file it once: "
+    "python3 scripts/inbox.py add --from tab:{slug} --kind <result|question|draft> --task {slug} "
+    "--gate only-you --closer person --key tab-{slug}-<short-topic> --summary '<one line>' "
+    "--detail '<what, and where it is>'.")
+NEW_TAB_PROMPT = (
+    TASK_READ_PROMPT + " Then wait; on 'go on' take the "
+    "next step." + FILE_TAIL + " Never close a tab or a workspace.")
+GO_TAIL = ("Then start on the next step right away. Before anything that leaves this machine (a push, "
+           "a message, a board write) ask first.")
+INBOX_REPORT_PROMPT = (
+    "You are the tab for inbox item {id}. Read it with python3 scripts/inbox.py show {id} and the task it "
+    "names, if any. Then print at most eight lines: what it is, what would settle it, and whether you "
+    "could do that without asking. Note what you found on the item with python3 scripts/inbox.py note {id} "
+    "'<finding>'. Then wait; on 'go on' take the next step. Never close a tab or a workspace.")
+INBOX_GO_PROMPT = (
+    "You are the tab for inbox item {id}. Read it with python3 scripts/inbox.py show {id} and the task it "
+    "names, if any. " + GO_TAIL + " When it is settled, close the item with python3 scripts/inbox.py close "
+    "{id} --note '<what settled it>'. Never close a tab or a workspace.")
+CONTEXT_PROMPT = (
+    "You are the tab that finds the missing context for {what}. Read it first ({read}). Then search for "
+    "what a person picking it up would need and cannot see there: its rows in work/log.md (grep), related "
+    "open inbox items (python3 scripts/inbox.py list), commits, issues or PRs it names, mails, meeting "
+    "notes and transcripts under work/ and the wiki where it points. Keep only facts with their source "
+    "(path, link or date). Show them here in at most twelve lines, then write the essentials back with "
+    "{write} '<facts with sources>' (one call, short). Change nothing else, send nothing. Never close a "
+    "tab or a workspace.")
+INBOX_LABEL_MAX = 30
+
+# A team is a small, ordered group of role tabs on one task. Each role starts on its own,
+# when the person asks for it; roles hand over through <task dir>/team.md. ASCII briefs:
+# cmux re-encodes non-ASCII. `team_names` in the config renames teams and roles for display,
+# `teams` adds or replaces whole teams.
+TEAM_PROMPT = (
+    "You are the {role} tab of a small team on the task {slug} (roles in order: {roles}). Read "
+    "{status_path} and the handoffs in {task_dir}/team.md (no file means you are first). Your part: "
+    "{brief}{tail} When your part is done, append a handoff to {task_dir}/team.md: date, your role, what you "
+    "did, what the next role needs. Before anything that leaves this machine (a push, a message, a board "
+    "write) ask first." + FILE_TAIL + " Then wait. Never close a tab or a workspace.")
+# A role's mode shapes its start: go starts on its part, report reports first and waits.
+TEAM_MODE_TAIL = {
+    "go": " Start on your part right away.",
+    "report": " Report what you find here in at most eight lines; change nothing on your own.",
+}
+DEFAULT_TEAMS = {
+    "build": {"label": "Build", "for_types": ["feature", "bug", "refactor"], "roles": [
+        {"id": "implement", "name": "Implement", "mode": "go",
+         "brief": "take the next step of the task: test first where the repo has tests, commit on a branch."},
+        {"id": "review", "name": "Review", "mode": "report",
+         "brief": "review what the implement role changed (its handoff, git log and diff): correctness, "
+                  "tests, leftovers. Report findings; change nothing yourself."}]},
+    "tdd": {"label": "TDD", "for_types": [], "roles": [
+        {"id": "tests", "name": "Tests", "mode": "go",
+         "brief": "write failing tests for the acceptance criteria of the next step and commit them red."},
+        {"id": "implement", "name": "Implement", "mode": "go",
+         "brief": "make the red tests green with the smallest change and commit."},
+        {"id": "review", "name": "Review", "mode": "report",
+         "brief": "review tests and implementation: do the tests prove the criteria, is the change minimal. "
+                  "Report findings; change nothing yourself."}]},
+    "research": {"label": "Research", "for_types": ["research"], "roles": [
+        {"id": "evidence", "name": "Evidence", "mode": "go",
+         "brief": "collect the facts and sources the question needs, each with its link or path."},
+        {"id": "counter", "name": "Counter", "mode": "go",
+         "brief": "look for the strongest counter-evidence, risks and open gaps in what evidence found."},
+        {"id": "summary", "name": "Summary", "mode": "report",
+         "brief": "weigh both into a short recommendation with sources and what is still unknown."}]},
+    "reply": {"label": "Reply", "for_types": ["customer-comm"], "roles": [
+        {"id": "context", "name": "Context", "mode": "go",
+         "brief": "read the whole history (mails, wiki, log, issues) and list the facts the answer needs."},
+        {"id": "draft", "name": "Draft", "mode": "go",
+         "brief": "write the reply as a draft only and show it here. Never send anything."}]},
+    "ops": {"label": "Ops", "for_types": ["infra", "ops"], "roles": [
+        {"id": "diagnose", "name": "Diagnose", "mode": "report",
+         "brief": "diagnose read-only against the live source: state, logs, cause, proposed fix. Change nothing."},
+        {"id": "fix", "name": "Fix", "mode": "go",
+         "brief": "apply the fix the diagnosis proposed after asking once, then verify against the live source."}]},
+}
 
 
 # ---------------------------------------------------------------- tasks
@@ -128,7 +213,7 @@ def collect_tasks(root: Path) -> list:
                 continue
             tasks.append({
                 "slug": fm.get("slug") or status.parent.name, "kind": kind, "status": fm.get("status"),
-                "context": fm.get("context"), "priority": fm.get("priority"),
+                "context": fm.get("context"), "priority": fm.get("priority"), "type": fm.get("type"),
                 "blocked_by": fm.get("blocked_by"), "updated": _date(fm.get("last_updated")),
                 "status_path": str(status.relative_to(root)), "heading": heading(text),
             })
@@ -183,7 +268,264 @@ def tab_command(tab: dict, root: Path, cwd: str, cfg: dict) -> str:
         prompt = NEW_TAB_PROMPT.format(slug=tab["slug"], status_path=status_path,
                                        task_dir=str(Path(status_path).parent))
         run = agent["new"].format(slug=shlex.quote(tab["slug"]), prompt=shlex.quote(prompt))
-    return f"cd -- {shlex.quote(cwd)} && {run}"
+    return f"cd -- {shlex.quote(cwd)} && export {TAB_ENV}={shlex.quote(tab['slug'])} && {run}"
+
+
+# ---------------------------------------------------------------- launch
+
+def teams(cfg: dict) -> list:
+    """The teams this Bridge offers: the defaults, replaced or added to by `teams`, named by `team_names`."""
+    names = cfg.get("team_names") or {}
+    out = []
+    for tid, team in {**DEFAULT_TEAMS, **(cfg.get("teams") or {})}.items():
+        roles = [{"id": r["id"], "name": names.get(r["id"]) or r.get("name") or r["id"],
+                  "mode": r.get("mode") if r.get("mode") in ("report", "go") else "go",
+                  "brief": r.get("brief") or ""}
+                 for r in team.get("roles") or [] if r.get("id")]
+        out.append({"id": tid, "label": names.get(tid) or team.get("label") or tid,
+                    "for_types": list(team.get("for_types") or []), "roles": roles})
+    return out
+
+
+def team_tab_names(task_label: str, slug: str, team: dict, role: dict) -> tuple[str, str]:
+    """Label and session slug of one role tab. Both carry the team: two teams share role names
+    (build and tdd both have implement and review), and status must tell them apart."""
+    return f"{task_label} · {team['label']} {role['name']}", f"{slug}--{team['id']}-{role['id']}"
+
+
+def launch_prompt(kind: str, mode: str, item: str, status_path: str = "") -> str:
+    """ASCII-only prompt for one launched tab (cmux re-encodes non-ASCII; the agent reads details itself)."""
+    if mode == "context":
+        if kind == "task":
+            return CONTEXT_PROMPT.format(what=f"the task {item}", read=status_path,
+                                         write=f"python3 scripts/task.py note {item}")
+        return CONTEXT_PROMPT.format(what=f"inbox item {item}", read=f"python3 scripts/inbox.py show {item}",
+                                     write=f"python3 scripts/inbox.py note {item}")
+    if kind == "task":
+        read = TASK_READ_PROMPT.format(slug=item, status_path=status_path,
+                                       task_dir=str(Path(status_path).parent))
+        if mode == "go":
+            return f"{read} {GO_TAIL}{FILE_TAIL.format(slug=item)} Never close a tab or a workspace."
+        return NEW_TAB_PROMPT.format(slug=item, status_path=status_path,
+                                     task_dir=str(Path(status_path).parent))
+    return (INBOX_GO_PROMPT if mode == "go" else INBOX_REPORT_PROMPT).format(id=item)
+
+
+def _inbox_words(item_id: str) -> tuple[str, str]:
+    parts = item_id.split("-")
+    has_hash = len(parts) > 3 and re.fullmatch(r"[0-9a-f]{4}", parts[-1])
+    words = parts[2:-1] if has_hash else parts[2:]
+    return re.sub(r"[^a-z0-9-]+", "-", "-".join(words).lower()).strip("-"), parts[-1] if has_hash else ""
+
+
+def inbox_slug(item_id: str) -> str:
+    """The words of an inbox id plus its hash, ASCII, at most INBOX_LABEL_MAX.
+
+    The hash stays: two findings of the same kind (two alerts from the same vendor a day apart)
+    share their first thirty characters, and a tab must name exactly one of them.
+    """
+    text, tail = _inbox_words(item_id)
+    if not tail:
+        return text[:INBOX_LABEL_MAX].rstrip("-") or "item"
+    return f"{text[:INBOX_LABEL_MAX - len(tail) - 1].rstrip('-') or 'item'}-{tail}"
+
+
+def _legacy_inbox_slug(item_id: str) -> str:
+    """The name tabs got before the hash was kept; still read so running tabs stay matched."""
+    return _inbox_words(item_id)[0][:INBOX_LABEL_MAX].rstrip("-") or "item"
+
+
+def _inbox_module():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("bridge_inbox", ROOT / "scripts" / "inbox.py")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault("bridge_inbox", mod)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _open_inbox_item(root: Path, name: str) -> tuple | None:
+    """(full id, linked task or None) of an open inbox item, or None when there is none (closed, dropped, unknown)."""
+    box_dir = root / "work" / "inbox"
+    if not box_dir.is_dir():
+        return None
+    mod = _inbox_module()
+    box = mod.Inbox(box_dir, actor="workplace")
+    try:
+        item = box.get(box.resolve(name))
+    except (KeyError, ValueError, OSError, yaml.YAMLError):
+        return None
+    return (item.id, item.task) if item.state in mod.ACTIVE_STATES else None
+
+
+def inbox_tab_index(root: Path) -> dict:
+    """Launch label -> id of every open inbox item, so a status row can name the item its tab works on."""
+    box_dir = root / "work" / "inbox"
+    if not box_dir.is_dir():
+        return {}
+    mod = _inbox_module()
+    try:
+        items = mod.Inbox(box_dir, actor="workplace").items()
+    except (OSError, yaml.YAMLError):
+        return {}
+    active = [i for i in items if i.state in mod.ACTIVE_STATES]
+    # A tab shows either the launch label or, once claude names its session, the slug.
+    index = {}
+    legacy: dict = {}
+    for i in active:
+        legacy.setdefault(_legacy_inbox_slug(i.id), []).append(i.id)
+    for short, ids in legacy.items():
+        if len(ids) == 1:   # an old name that two items share names neither
+            index[f"Inbox {short}"] = index[f"inbox-{short}"] = ids[0]
+    for i in active:
+        short = inbox_slug(i.id)
+        index[f"Inbox {short}"] = index[f"inbox-{short}"] = i.id
+    return index
+
+
+def _task_dir(root: Path, name: str) -> Path | None:
+    return next((root / "work" / k / name for k in ("tasks", "streams")
+                 if (root / "work" / k / name).is_dir() and not name.startswith("_")), None)
+
+
+def _task_area(root: Path, slug: str, cfg: dict) -> dict:
+    """The workspace workplace open would give this task."""
+    task_dir = _task_dir(root, slug)
+    status = task_dir / "STATUS.md" if task_dir else None
+    fm = frontmatter(status.read_text(encoding="utf-8")) if status and status.is_file() else {}
+    return workspace_for({"slug": slug, "context": fm.get("context")}, cfg)
+
+
+def build_launch(root: Path, cfg: dict, items: list, mode: str, team: str | None = None,
+                 role: str | None = None) -> list:
+    """One entry per requested item: label + command, or an error. Labels are unique.
+    With team and role: the tab of that role of the team on each task (inbox items have no team)."""
+    the_team = next((t for t in teams(cfg) if t["id"] == team), None) if team else None
+    the_role = next((r for r in (the_team or {}).get("roles", []) if r["id"] == role), None)
+    agent = {**DEFAULT_AGENT, **(cfg.get("agent") or {})}
+    out, used, seen = [], set(), set()
+    for name in items:
+        name = name.strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        task_dir = _task_dir(root, name)
+        if team and not (the_team and the_role):
+            out.append({"item": name, "kind": "unknown", "error": f"no team {team!r} with a role {role!r}"})
+            continue
+        if team and not task_dir:
+            out.append({"item": name, "kind": "unknown", "error": f"a team works on an active task, not {name!r}"})
+            continue
+        env_slug = name
+        if task_dir:
+            status = task_dir / "STATUS.md"
+            text = status.read_text(encoding="utf-8") if status.is_file() else ""
+            label = tab_label({"slug": name, "heading": heading(text)}, cfg)
+            kind, slug = "task", name
+            area = _task_area(root, name, cfg)
+            prompt = launch_prompt("task", mode, name, str(task_dir.relative_to(root) / "STATUS.md"))
+            if the_team and the_role:
+                status_path = str(task_dir.relative_to(root) / "STATUS.md")
+                label, slug = team_tab_names(label, name, the_team, the_role)
+                prompt = TEAM_PROMPT.format(
+                    role=the_role["id"], slug=name, roles=", then ".join(r["id"] for r in the_team["roles"]),
+                    status_path=status_path, task_dir=str(task_dir.relative_to(root)), brief=the_role["brief"],
+                    tail=TEAM_MODE_TAIL[the_role["mode"]])
+        else:
+            item = _open_inbox_item(root, name)
+            if not item:
+                out.append({"item": name, "kind": "unknown", "error": f"no active task and no open inbox item {name!r}"})
+                continue
+            full, linked = item
+            short = inbox_slug(full)
+            kind, slug, label = "inbox", f"inbox-{short}", f"Inbox {short}"
+            name = env_slug = full
+            # an item follows its task; an unlinked one goes to the default workspace (its
+            # summary words are no area: "platform broke" must not match a platform-* pattern)
+            area = (_task_area(root, linked, cfg) if linked and _task_dir(root, linked)
+                    else workspace_for({"slug": "", "context": None}, cfg))
+            prompt = launch_prompt("inbox", mode, full)
+        base, n = label, 1
+        while label in used:
+            n += 1
+            label = f"{base} {n}"
+        used.add(label)
+        run = agent["new"].format(slug=shlex.quote(slug), prompt=shlex.quote(prompt))
+        extra = {"team": the_team["id"], "role": the_role["id"]} if the_team and the_role else {}
+        out.append({"item": name, "kind": kind, "label": label, "slug": slug, "workspace": area["name"],
+                    "aliases": list(area.get("aliases") or []), **extra,
+                    "command": f"cd -- {shlex.quote(str(root))} && export {TAB_ENV}={shlex.quote(env_slug if team else slug)} && {run}"})
+    return out
+
+
+# ---------------------------------------------------------------- routing (target auto)
+
+ROUTER_PROMPT = """Place each item of work in one workspace.
+
+Workspaces:
+{areas}
+
+Items:
+{items}
+
+Answer with a JSON array only, one object per item:
+[{{"item": "<item id>", "workspace": "<a name from the list>", "own": false, "why": "<at most eight words>"}}]
+"own" is true only for a large piece of work over several days that deserves a workspace of its own;
+a single finding, question, fix or reply is false and goes into its area's workspace."""
+
+
+def _describe(root: Path, item: str) -> str:
+    """One line a router can place: the task headline (else its heading) or the inbox summary."""
+    task_dir = _task_dir(root, item)
+    if task_dir:
+        status = task_dir / "STATUS.md"
+        text = status.read_text(encoding="utf-8") if status.is_file() else ""
+        fm = frontmatter(text)
+        title = heading(text)
+        if re.fullmatch(r"<[^>]*>", title):
+            title = ""                       # the template's placeholder says nothing
+        return f"task {item}: {fm.get('headline') or title or item} (context {fm.get('context') or 'none'})"
+    box_dir = root / "work" / "inbox"
+    try:
+        found = _inbox_module().Inbox(box_dir, actor="workplace").get(item)
+        return f"inbox item: {found.summary}" + (f" (task {found.task})" if found.task else "")
+    except (KeyError, ValueError, OSError, yaml.YAMLError, AttributeError):
+        return item
+
+
+def route(root: Path, cfg: dict, entries: list) -> list:
+    """Area and own-workspace per entry from the configured router (one call for all entries).
+
+    The router is any command that reads the prompt on stdin and prints the JSON answer,
+    e.g. a small model. Without one, or when it fails or names an unknown workspace, the
+    configured rules stand and nothing gets its own workspace.
+    """
+    out = [{**e, "own": False} for e in entries]
+    command = (cfg.get("router") or {}).get("command")
+    spaces = {ws["name"]: ws for ws in cfg.get("workspaces") or [] if ws.get("name")}
+    todo = [e for e in out if "command" in e]
+    if not command or not spaces or not todo:
+        return out
+    prompt = ROUTER_PROMPT.format(
+        areas="\n".join(f"- {n}: {ws.get('description') or ''}".rstrip(": ") for n, ws in spaces.items()),
+        items="\n".join(f"- {e['item']}: {_describe(root, e['item'])}" for e in todo))
+    argv = shlex.split(command) if isinstance(command, str) else [str(c) for c in command]
+    try:
+        run = subprocess.run(argv, input=prompt, capture_output=True, text=True, timeout=120)
+        text = run.stdout if run.returncode == 0 else ""
+        start, end = text.find("["), text.rfind("]")
+        answer = json.loads(text[start:end + 1]) if 0 <= start < end else []
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        answer = []
+    picks = {str(a.get("item")): a for a in answer if isinstance(a, dict)}
+    for e in todo:
+        pick = picks.get(e["item"]) or {}
+        ws = spaces.get(str(pick.get("workspace") or ""))
+        if not ws:
+            continue
+        e.update({"workspace": ws["name"], "aliases": list(ws.get("aliases") or []),
+                  "own": pick.get("own") is True, "why": str(pick.get("why") or "")[:80] or "no reason given"})
+    return out
 
 
 # ---------------------------------------------------------------- the plan
@@ -239,6 +581,28 @@ def propose(tasks: list, cfg: dict, mentions: dict, sessions: dict, open_tabs: d
             "stale": sorted(stale, key=lambda t: -t["age"])}
 
 
+def task_rows(root: Path, cfg: dict, today: dt.date) -> list:
+    """Every active task, flat: label, area (its workspace), priority, score, blocked_by, stale.
+    The whole list, for any UI or script that drives workplace.py; propose decides which of them get a
+    tab today."""
+    limits = {**DEFAULT_LIMITS, **(cfg.get("limits") or {})}
+    tasks = collect_tasks(root)
+    log_path = root / "work" / "log.md"
+    log = log_path.read_text(encoding="utf-8") if log_path.exists() else ""
+    mentions = log_mentions(log, [t["slug"] for t in tasks], today, limits["activity_days"])
+    rows = []
+    for t in tasks:
+        score, age = _score(t, mentions.get(t["slug"]), today)
+        area = workspace_for(t, cfg)
+        rows.append({"slug": t["slug"], "label": tab_label(t, cfg), "area": area["name"],
+                     "area_aliases": list(area.get("aliases") or []),
+                     "priority": t.get("priority"), "type": t.get("type"), "status": t.get("status"),
+                     "score": score, "age": age,
+                     "blocked_by": t.get("blocked_by"), "stale": age > limits["stale_days"]})
+    rank = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
+    return sorted(rows, key=lambda r: (rank.get(r["priority"] or "", 4), -r["score"], r["slug"]))
+
+
 def slug_index(tasks: list, cfg: dict) -> dict:
     index = {}
     for t in tasks:
@@ -288,9 +652,22 @@ def status_rows(root: Path, cfg: dict, driver) -> list | None:
     tabs = driver.tabs_or_none()
     if tabs is None:
         return None
-    index = slug_index(collect_tasks(root), cfg)
+    tasks = collect_tasks(root)
+    index = slug_index(tasks, cfg)
+    items = inbox_tab_index(root)
+    roles: dict = {}
+    for t in tasks:
+        for team in teams(cfg):
+            for r in team["roles"]:
+                # by the label it opens with, and by the session slug claude titles it with later
+                for key in team_tab_names(tab_label(t, cfg), t["slug"], team, r):
+                    roles.setdefault(key, (t["slug"], team["id"], r["id"]))
     order = {"needs-you": 0, "waiting": 1, "working": 2, "shell": 3}
-    rows = [{**t, "slug": index.get(t.get("name", ""))} for t in tabs]
+    rows = []
+    for t in tabs:
+        name = t.get("name", "")
+        slug, team, role = roles.get(name, (index.get(name), None, None))
+        rows.append({**t, "slug": slug, "item": items.get(name), "team": team, "role": role})
     return sorted(rows, key=lambda r: (order.get(r.get("state"), 9), r.get("workspace") or ""))
 
 
@@ -323,6 +700,11 @@ class NoneDriver:
             for t in ws["tabs"]:
                 if t.get("command") and (resume or t["action"] != "resume"):
                     lines.append(f"  {t['label']}: {t['command']}")
+        return lines
+
+    def launch(self, tabs: list, target: str, here) -> list:
+        lines = ["No driver configured (workplace.driver): start these yourself, one terminal each."]
+        lines += [f"  {t['label']}: {t['command']}" for t in tabs]
         return lines
 
     def send(self, tab: str, text: str) -> list:
@@ -387,7 +769,8 @@ class CommandDriver:
         data = self._call(payload)
         if data is None:
             self.failed = True
-            return [getattr(self, "error", f"driver {self.name} failed")]
+            # an ERROR line, like a refused step: a caller must not count anything as started
+            return [f"ERROR {getattr(self, 'error', f'driver {self.name} failed')}"]
         lines = [str(line) for line in data.get("report") or []]
         # A step the terminal refused is reported as an ERROR line; the run as a
         # whole then failed, and a script or workload must see that too.
@@ -397,6 +780,10 @@ class CommandDriver:
     def open(self, plan: dict, only, resume: bool, here) -> list:
         return self._report({"verb": "open", "plan": plan, "only": sorted(only) if only else None,
                              "resume": resume, "here": here})
+
+    def launch(self, tabs: list, target: str, here) -> list:
+        return self._report({"verb": "launch", "target": target, "here": here,
+                             "tabs": [{k: t.get(k) for k in ("label", "slug", "command", "workspace", "aliases")} for t in tabs]})
 
     def send(self, tab: str, text: str) -> list:
         return self._report({"verb": "send", "tab": tab, "text": text})
@@ -415,6 +802,17 @@ def driver_from(spec):
     raise ValueError(f"workplace.driver must be 'none' or {{command: [argv]}}, got {spec!r}")
 
 
+def _destination(entry: dict, target: str) -> str:
+    """Where a launched tab would go, in words, for the dry run."""
+    if target == "tab":
+        return "this workspace"
+    if target == "workspace" or (target == "auto" and entry.get("own")):
+        where = "new workspace"
+    else:
+        where = entry.get("workspace") or "the default workspace"
+    return f"{where} (router: {entry['why']})" if target == "auto" and entry.get("why") else f"{where} ({target})"
+
+
 def load_cfg(root: Path) -> dict:
     path = root / "bridge-config.yaml"
     if not path.is_file():
@@ -424,6 +822,10 @@ def load_cfg(root: Path) -> dict:
 
 
 def find_tab(tabs: list, name: str, index: dict) -> dict:
+    # a caller that addresses tabs by live ref (surface:91) gets that tab; people use a name or task slug
+    by_ref = [t for t in tabs if t.get("ref") == name]
+    if len(by_ref) == 1:
+        return by_ref[0]
     want = name.lower()
     exact = [t for t in tabs if str(t.get("name", "")).lower() == want or str(index.get(t.get("name"))) == name]
     if len(exact) == 1:
@@ -446,7 +848,24 @@ def main(argv=None) -> int:
     op.add_argument("--yes", action="store_true", help="hand the plan to the driver (default: dry run)")
     op.add_argument("--resume", action="store_true", help="also reopen tabs of earlier sessions")
     op.add_argument("--here", help="driver ref of the calling tab, which becomes the control tab")
+    ln = sub.add_parser("launch", help="one new agent tab (or workspace) per task slug or inbox id")
+    ln.add_argument("--items", required=True, help="task slugs or open inbox ids, comma separated")
+    ln.add_argument("--mode", choices=("report", "go", "context"),
+                    help="report (default): read and wait · go: start working · context: find what is missing "
+                         "and note it. Ignored with --team: a role's mode comes from its team")
+    ln.add_argument("--target", choices=("tab", "workspace", "area", "auto"), default="tab",
+                    help="tab: caller's workspace; workspace: one new each; area: the workspace of the item's area; "
+                         "auto: workplace.router decides area and own workspace per item")
+    ln.add_argument("--here", help="driver ref of the calling tab; its workspace receives the tabs")
+    ln.add_argument("--yes", action="store_true", help="hand the tabs to the driver (default: dry run)")
+    ln.add_argument("--json", action="store_true")
+    ln.add_argument("--team", help="a team id (workplace.py teams); with --role opens that role's tab")
+    ln.add_argument("--role", help="the role of --team to open")
+    sub.add_parser("teams", help="the team recipes: ordered role tabs on one task").add_argument(
+        "--json", action="store_true")
     sub.add_parser("status").add_argument("--json", action="store_true")
+    sub.add_parser("tasks", help="every active task with area, priority and flags").add_argument(
+        "--json", action="store_true")
     sd = sub.add_parser("send")
     sd.add_argument("tab")
     sd.add_argument("text", nargs="+")
@@ -490,6 +909,62 @@ def main(argv=None) -> int:
             return 0
         print("\n".join(driver.open(plan, only, args.resume, args.here)))
         return 1 if getattr(driver, "failed", False) else 0
+    if args.cmd == "tasks":
+        rows = task_rows(args.root, cfg, today)
+        if args.json:
+            print(json.dumps(rows, ensure_ascii=False, indent=1))
+        else:
+            for r in rows:
+                flag = " blocked" if r["blocked_by"] else " stale" if r["stale"] else ""
+                print(f"{r['priority'] or '--':<3} {r['area']:<12} {r['label']}{flag}")
+        return 0
+    if args.cmd == "teams":
+        rows = teams(cfg)
+        if args.json:
+            print(json.dumps(rows, ensure_ascii=False, indent=1))
+        else:
+            for t in rows:
+                print(f"{t['id']:<10} {t['label']:<12} {' → '.join(r['name'] for r in t['roles'])}"
+                      f"  ({', '.join(t['for_types']) or 'any task'})")
+        return 0
+    if args.cmd == "launch":
+        if bool(args.team) != bool(args.role):
+            print("--team and --role go together", file=sys.stderr)
+            return 2
+        if args.team and args.mode:
+            # not refused: a caller may pass its usual --mode along; the role's own mode decides
+            print("note: --mode is ignored with --team; each role runs in the mode its team gives it",
+                  file=sys.stderr)
+        entries = build_launch(args.root, cfg, args.items.split(","), args.mode or "report", args.team, args.role)
+        good = [e for e in entries if "command" in e]
+        report: list = []
+        failed = any("error" in e for e in entries)
+        if args.target == "auto":
+            entries = route(args.root, cfg, entries)
+            good = [e for e in entries if "command" in e]
+        if args.yes and good:
+            groups = ([("workspace", [e for e in good if e["own"]]), ("area", [e for e in good if not e["own"]])]
+                      if args.target == "auto" else [(args.target, good)])
+            for target, batch in groups:
+                if batch:
+                    report += driver.launch(batch, target, args.here)
+                    failed = failed or getattr(driver, "failed", False)
+        if args.json:
+            print(json.dumps({"ok": not failed, "items": [{k: v for k, v in e.items() if k != "slug"}
+                                                          for e in entries], "report": report},
+                             ensure_ascii=False, indent=1))
+        else:
+            if not args.yes:
+                print(f"Dry run with driver {driver.name}; add --yes to open:")
+                for e in good:
+                    print(f"  {e['label']} -> {_destination(e, args.target)}")
+                    print(f"    {e['command']}")
+            for e in entries:
+                if "error" in e:
+                    print(f"ERROR {e['item']}: {e['error']}")
+            if report:
+                print("\n".join(report))
+        return 1 if failed else 0
     if args.cmd == "status":
         rows = status_rows(args.root, cfg, driver)
         if rows is None:

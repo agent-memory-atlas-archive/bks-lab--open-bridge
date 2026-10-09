@@ -10,6 +10,8 @@ JSON protocol: one request on stdin, one answer on stdout.
     {"verb": "tabs"}       -> {"tabs": [{"name", "workspace", "ref", "ws_ref", "state", "last"}]}
     {"verb": "sessions"}   -> {"sessions": {"<tab title>": "<agent session id>"}}
     {"verb": "open", "plan": {...}, "only": [...] | null, "resume": bool, "here": ref | null}
+    {"verb": "launch", "tabs": [{"label", "slug", "command", "workspace", "aliases"}],
+     "target": "tab" | "workspace" | "area", "here": ref | null}
     {"verb": "send", "tab": ref, "text": "..."}
     {"verb": "rename", "tab": ref, "title": "..."}
 
@@ -111,8 +113,8 @@ def live_tabs(session: dict, hooks: dict) -> list[dict]:
 
 
 def read_tree() -> dict:
-    """`cmux tree --all --json`: every window, live. Raises when unreadable."""
-    out = cl.cmux_checked("tree", "--all", "--json")
+    """`cmux tree --all --json`: every window, live, refs and UUIDs. Raises when unreadable."""
+    out = cl.cmux_checked("tree", "--all", "--json", "--id-format", "both")
     try:
         tree = json.loads(out)
     except ValueError as exc:
@@ -165,6 +167,7 @@ def socket_tabs(tree: dict) -> list[dict]:
                     tabs.append({"workspace": cl.strip_status_glyph(ws.get("title") or "").strip(),
                                  "ws_ref": ws.get("ref"),
                                  "surface": sf.get("ref"),
+                                 "id": sf.get("id"),
                                  "title": cl.strip_status_glyph(sf.get("title") or "")})
     return tabs
 
@@ -199,12 +202,16 @@ def tabs() -> list[dict]:
     Tabs are joined by (workspace, title without status glyph) instead.
     """
     live = {_key(t): t for t in live_tabs(_load_json(cl.DEFAULT_SOURCE), _load_json(HOOKS_FILE))}
+    # The tab this process runs in (cmux sets the UUID), marked is_self so a caller running in a tab
+    # can skip its own tab.
+    own = os.environ.get("CMUX_SURFACE_ID") or None
     out = []
     for t in current_tabs():
         info = live.get(_key(t), {})
         out.append({"name": t["title"], "workspace": t["workspace"], "ref": t["surface"],
                     "ws_ref": t.get("ws_ref"), "state": info.get("state", "shell"),
-                    "last": info.get("last", "")})
+                    "last": info.get("last", ""), "id": t.get("id"),
+                    "is_self": own is not None and t.get("id") == own})
     return out
 
 
@@ -464,6 +471,72 @@ def open_plan(req: dict) -> list[str]:
     return notes + run_calls(calls, existing)
 
 
+def caller_workspace(here: str | None, tree: dict) -> str | None:
+    """The workspace of the calling tab: `here` first, else the tree's own `caller`.
+    None when neither is known; the selected workspace is never a fallback."""
+    surface = resolve_here(here, tree)
+    if surface:
+        home = surface_homes(tree).get(surface)
+        if home:
+            return home
+    return (tree.get("caller") or {}).get("workspace_ref")
+
+
+def launch(req: dict) -> list[str]:
+    """One new tab per entry: in the caller's workspace (tab), in a new workspace each (workspace), or in
+    the workspace named after the entry's area, created once when missing (area). Never closes anything."""
+    tabs = req.get("tabs") or []
+    target = req.get("target") or "tab"
+    if target not in ("tab", "workspace", "area"):
+        raise ValueError(f"unknown launch target {target!r}")
+    report = []
+    if target == "workspace":
+        for t in tabs:
+            try:
+                out = cl.cmux_checked("workspace", "create", "--name", t["label"], "--cwd", str(ROOT),
+                                      "--focus", "false", "--command", cl.ascii_command(_with_shell(t["command"])))
+                ref = cl.parse_ref(out, "workspace")
+                report.append(f"workspace {t['label']} ({ref})" if ref
+                              else f"ERROR workspace {t['label']} not created: {out.strip()[:120]}")
+            except cl.CmuxError as exc:
+                report.append(f"ERROR workspace {t['label']}: {exc}")
+        return report
+    try:
+        tree = read_tree()
+    except (DriverError, cl.CmuxError) as exc:
+        raise DriverError(f"cannot read cmux workspaces, nothing opened ({exc})") from exc
+    caller = caller_workspace(req.get("here"), tree)
+    # area: each tab goes into the workspace named after its area, created once when missing
+    areas = workspace_index(tree) if target == "area" else {}
+    for t in tabs:
+        area = t.get("workspace") if target == "area" else None
+        ws_ref = resolve_workspace({"name": area, "aliases": t.get("aliases")}, areas) if area else caller
+        try:
+            if area and not ws_ref:
+                out = cl.cmux_checked("workspace", "create", "--name", area, "--cwd", str(ROOT), "--focus", "false")
+                ws_ref = cl.parse_ref(out, "workspace")
+                if not ws_ref:
+                    report.append(f"ERROR workspace {area} not created: {out.strip()[:120]}")
+                    continue
+                areas[area] = ws_ref
+                report.append(f"new workspace {area} ({ws_ref})")
+            if not ws_ref:
+                report.append(f"ERROR tab {t['label']}: calling workspace not found, not opened "
+                              "(never the selected workspace)")
+                continue
+            out = cl.cmux_checked("new-surface", "--workspace", ws_ref, "--command",
+                                  cl.ascii_command(_with_shell(t["command"])), "--focus", "false")
+            sref = cl.parse_ref(out, "surface")
+            if not sref:
+                report.append(f"ERROR tab {t['label']}: no surface ref")
+                continue
+            rename_tab(sref, ws_ref, t["label"])
+            report.append(f"tab {t['label']} ({sref})")
+        except cl.CmuxError as exc:
+            report.append(f"ERROR tab {t['label']}: {exc}")
+    return report
+
+
 def _ws_ref_of(surface: str) -> str | None:
     """The workspace of an open tab. A ref that is not open is an error, not a guess."""
     for t in current_tabs():
@@ -496,6 +569,8 @@ def handle(req: dict) -> dict:
         return {"sessions": sessions()}
     if verb == "open":
         return {"report": open_plan(req)}
+    if verb == "launch":
+        return {"report": launch(req)}
     if verb == "send":
         return {"report": send(req)}
     if verb == "rename":
