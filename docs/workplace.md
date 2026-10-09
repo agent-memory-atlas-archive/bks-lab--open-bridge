@@ -8,6 +8,7 @@ related:
   - inbox.md
   - ../skills/briefing/references/control.md
   - ../skills/cmux/SKILL.md
+  - briefing-dashboard.md
 ---
 
 # Workplace
@@ -68,8 +69,10 @@ cmux is the recommendation because it was built for running many coding agents
 side by side: workspaces with colors, tab status the agent itself reports (working,
 waiting, needs you), notifications, and an API for all of it. It is also the driver
 that ships and is tested, and so far the only one: every workplace feature,
-`launch`, teams and the tab steering (`status`, `send`, `adopt`) included, has run
-only with Claude Code as the agent and cmux as the terminal. Other agents and
+`launch`, teams and the tab steering (`status`, `send`, `adopt`) included, and the
+dashboard's tab actions built on them (setup in
+[`briefing-dashboard.md`](briefing-dashboard.md)), has run only with Claude Code as
+the agent and cmux as the terminal. Other agents and
 terminals are untested until an issue for that combination says otherwise. The
 others are good choices too; their driver is a small program speaking the protocol
 below, and the plan, the briefing and the inbox stay exactly the same.

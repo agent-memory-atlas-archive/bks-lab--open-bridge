@@ -277,6 +277,15 @@ skills.
 
 **Activate:** Run `/bridge-dashboard`; skill autoloads.
 
+### Briefing Dashboard in Claude Code (mod, early access)
+**What:** The briefing as a clickable card in the conversation: what waits for you, what you can hand off, your tasks, and tabs for health checks, dates, trackers and today's commits. Tabs, columns and customer marks come from the briefing profile; German or English. Claude Code only (function hooks, 2.1.291+); agent tabs need cmux.
+
+**When you need it:** You run `/briefing` daily and would rather click than type, or you steer several agent tabs and want to see which one waits for you.
+
+**Activate:** `docs/briefing-dashboard.md` (install the mod from `mods/` with `claude plugin marketplace add ./mods --scope local` and `claude plugin install briefing-ui@open-bridge-mods --scope local`, set `briefing.claude_code_ui.enabled: true`, then `/briefing-ui`).
+
+**Offer only when** the session runs in Claude Code and `mods/briefing-ui/` exists in this Bridge.
+
 ### Themes
 **What:** YAML files in `themes/` control user-facing vocabulary only — never tools, delegation, or goals. Switch via `theme:` in `bridge-config.yaml`.
 

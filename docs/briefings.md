@@ -1,8 +1,9 @@
 ---
 summary: "Briefing profiles: each person describes the briefing they want in workflow/briefings/<id>.yaml (sections, trackers, queries, inbox rules, and a view: how it is shown); scripts/briefing.py executes it and the agent advises on the result. Section kinds, provider query keys, selection, views (sources, triage, brevity, plan), change marks, inbox rules, org profiles."
 type: guide
-last_updated: 2026-10-08
+last_updated: 2026-10-09
 related:
+  - briefing-dashboard.md
   - ../workflow/briefings/_schema.yaml
   - ../workflow/briefings/_template.yaml
   - ../scripts/briefing.py
@@ -305,7 +306,9 @@ so a mute never makes something disappear without a trace.
 
 ## Dashboard pages
 
-A dashboard shows the
+Setting the dashboard up, step by step: [`briefing-dashboard.md`](briefing-dashboard.md).
+
+A dashboard (the briefing-ui mod for Claude Code in `mods/briefing-ui`, later a web tab) shows the
 briefing as one page and every other section on tabs beside it. Which section
 stands on which tab differs per person, so the profile says it:
 
@@ -414,7 +417,9 @@ and projects come and go, so they belong in the profile, never in code.
 ### Your settings, and where they live
 
 Everything a person tunes lives in their own files (USER tier); the code reads
-it and carries no names or customers of its own.
+it and carries no names or customers of its own. A few display defaults stay
+fixed in the mod: rows per block before "+N more", ten rows per section on a
+tab, an hour before a tab counts as long-running.
 
 | What | Where |
 |---|---|
@@ -422,7 +427,20 @@ it and carries no names or customers of its own.
 | Tabs and their columns (`when`, `detail`, `link`, `empty`, `alarm`, `badge`) | same profile, `view.pages`, `view.page_rest` |
 | Marks in front of rows (customers, projects) | same profile, `view.marks` |
 | Wording of the briefing (headline, tab names, "today") | same profile, `view.labels` |
-| Name of the control tab that steers the others | `bridge-config.yaml` `workplace.control.name` ([workplace](workplace.md)) |
+| Dashboard on or off, card or side panel, band, voice, poll interval, how old the full run may be, layout backup, launch target | `bridge-config.yaml` `briefing.claude_code_ui` |
+| Language of the dashboard's own words (`de`, `en`) | `briefing.claude_code_ui.language`, else `language.conversation`, else English |
+| Name of the control tab that steers the others; the dashboard in that tab's session polls the agent tabs | `bridge-config.yaml` `workplace.control.name` ([workplace](workplace.md)) |
+
+The dashboard's own words (buttons, help, the prompts it sends) sit in one
+German and one English table inside the mod (`mods/briefing-ui/hooks/text.ts`);
+a profile's labels never mix with them. `bridge-config.yaml.template` lists
+every `claude_code_ui` key with its default.
+
+**Tested so far only with Claude Code and cmux.** The pages are plain data, but
+the one dashboard that draws them is a Claude Code mod, and its tab actions go
+through the cmux driver. Other agents (Codex, Gemini CLI, Copilot) and other
+terminals (tmux, WezTerm, kitty) have not been tried; that work is to be
+tracked as issues, one per combination.
 
 ## Change marks
 
