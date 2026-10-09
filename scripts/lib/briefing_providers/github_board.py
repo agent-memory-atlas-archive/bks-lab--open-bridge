@@ -124,22 +124,27 @@ def collect(section: dict, ctx) -> list:
 
 ISSUE_ID = re.compile(r"^([\w.-]+)/([\w.-]+)#(\d+)$")
 STAMP_LIMIT = 100
-STAMP_ALONE = 20   # cards asked one by one when the shared call fails
 
 
 def _stamp_changes(items: list, ctx) -> None:
     """When each card's issue or PR last changed: a board list carries no date, so one
     GraphQL call asks for all kept rows at once. One card GitHub cannot answer (a deleted
-    issue, a private repo) fails the whole call, so then each card is asked alone: the
-    others keep their date, and a date that comes and goes would mark rows as changed."""
+    issue, a private repo) fails the whole call, so a failed call is split in halves until
+    only the unanswerable cards are left without a date: every other row keeps its date,
+    since a date that comes and goes would mark rows as changed. The section's time limit
+    (ctx.run) bounds the splitting."""
     wanted = [(i, ISSUE_ID.match(str(item.get("id")))) for i, item in enumerate(items[:STAMP_LIMIT])
               if not item.get("changed_at")]
     wanted = [(i, m) for i, m in wanted if m]
-    if not wanted:
+    _ask_halving(wanted, items, ctx)
+
+
+def _ask_halving(wanted: list, items: list, ctx) -> None:
+    if not wanted or _ask_dates(wanted, items, ctx) or len(wanted) == 1:
         return
-    if not _ask_dates(wanted, items, ctx):
-        for one in wanted[:STAMP_ALONE]:
-            _ask_dates([one], items, ctx)
+    half = len(wanted) // 2
+    _ask_halving(wanted[:half], items, ctx)
+    _ask_halving(wanted[half:], items, ctx)
 
 
 def _ask_dates(wanted: list, items: list, ctx) -> bool:

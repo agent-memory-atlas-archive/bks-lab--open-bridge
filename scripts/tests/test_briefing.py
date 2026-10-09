@@ -301,9 +301,39 @@ def test_one_unanswerable_card_does_not_take_the_other_dates(tmp_path):
             raise bf.SourceError("gh: Could not resolve to a Repository")
         return json.dumps({"data": {"i0": {"issueOrPullRequest": {"updatedAt": "2026-10-03T14:00:00Z"}}}})
     run = FakeRun({("gh", "project", "item-list"): json.dumps(listing), ("gh", "api", "graphql"): graphql})
-    section = {"kind": "tracker", "provider": "github-board", "query": {"assigned_to_me": True}}
-    item = bf.collect(root, {"id": "p", "sections": [section]}, ctx(root, run))["sections"][0]["items"][0]
-    assert item["changed_at"] == "2026-10-03T14:00:00Z" and len(calls) == 2
+    section = {"kind": "tracker", "provider": "github-board", "query": {"include_done": True}}
+    items = bf.collect(root, {"id": "p", "sections": [section]}, ctx(root, run))["sections"][0]["items"]
+    assert len(items) > 1 and len(calls) >= 2      # the shared call failed, the halves were asked
+    assert any(i.get("changed_at") == "2026-10-03T14:00:00Z" for i in items)
+
+
+def test_one_unanswerable_card_among_many_leaves_every_other_date(tmp_path):
+    """The fallback must reach every row, not the first few: a row that loses its date
+    whenever the shared call fails is marked changed on that run and the next."""
+    import re as _re
+    root = bridge(tmp_path, config={"integrations": {"github": {"assignee_me": "octo"}}})
+    (root / "ecosystem.yaml").write_text(yaml.safe_dump({"github_projects": [
+        {"org": "example-org", "number": 3, "name": "Tool board"}]}), encoding="utf-8")
+    cards = [{"status": "In Progress", "assignees": ["octo"], "labels": [], "title": f"Card {n}",
+              "content": {"number": n, "title": f"Card {n}", "type": "Issue", "repository": "example-org/tool",
+                          "url": f"https://github.com/example-org/tool/issues/{n}"}} for n in range(1, 61)]
+    bad = 47
+
+    def graphql(argv):
+        query = argv[-1]
+        if f"issueOrPullRequest(number: {bad})" in query:
+            raise bf.SourceError("gh: Could not resolve to an issue or pull request")
+        aliases = _re.findall(r"(i\d+): repository", query)
+        return json.dumps({"data": {a: {"issueOrPullRequest": {"updatedAt": "2026-10-03T14:00:00Z"}}
+                                    for a in aliases}})
+    run = FakeRun({("gh", "project", "item-list"): json.dumps({"items": cards}), ("gh", "api", "graphql"): graphql})
+    section = {"kind": "tracker", "provider": "github-board", "query": {"assigned_to_me": True, "limit": 100}}
+    items = bf.collect(root, {"id": "p", "sections": [section]}, ctx(root, run))["sections"][0]["items"]
+    assert len(items) == 60
+    undated = sorted(i["id"] for i in items if not i.get("changed_at"))
+    assert undated == [f"example-org/tool#{bad}"]
+    asked = [c for c in run.calls if c[:3] == ["gh", "api", "graphql"]]
+    assert len(asked) <= 20       # halves, not one call per card
 
 
 def test_section_state_map_overrides_the_provider(tmp_path):
