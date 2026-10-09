@@ -130,7 +130,7 @@ $defs:
           required: [id, sections]
           additionalProperties: false
           properties:
-            id: {type: string, not: {const: briefing}}
+            id: {type: string, minLength: 1, not: {enum: [briefing, more]}, description: "briefing and more are taken: the briefing page and the page for the rest."}
             title: {type: string, description: "Tab name. Default: the label page_<id>, else the id."}
             sections:
               type: array
@@ -149,7 +149,7 @@ $defs:
                           - {type: string}
                           - {type: array, items: {type: string}}
                         description: "Item field(s) for the column on the right, joined with ' · '. Default by kind."
-                      link: {type: string, description: "Item field holding the web address. Default url; only http(s) links."}
+                      link: {type: string, description: "Item field holding the link. Default url. An http(s) address (credentials stripped, left out when its query carries a key) or a path inside this Bridge that exists, which becomes file://."}
                       empty: {type: string, description: "What the section says with nothing in it. Default: label page_empty."}
                       alarm: {type: boolean, description: "Every row is a finding (red), and empty means all green."}
                       badge: {type: boolean, description: "false: listed, but left out of the number on the tab. Default true."}
@@ -160,7 +160,8 @@ $defs:
         type: array
         description: |
           A label in front of every row whose title, id, project, repo, task, context,
-          area, labels or link contains one of `match` (case does not matter). The first
+          area, labels or link contains one of `match` (case does not matter; the source's
+          name is never matched). The first
           mark that fits wins. Keep names that change (customers, projects) here, never in code.
         items:
           type: object

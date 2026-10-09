@@ -34,7 +34,7 @@ VIEW_KEYS = {"style", "headline", "dayline", "agenda", "overview", "report", "si
 MARK_KEYS = {"label", "match", "color"}
 MARK_COLORS = ("red", "green", "yellow", "blue", "magenta", "cyan", "gray", "white")
 # Where a mark looks: the row's own words and what names its source, never a body.
-MARK_FIELDS = ("id", "project", "url", "task", "context", "area", "repo", "labels", "tracker")
+MARK_FIELDS = ("id", "project", "url", "task", "context", "area", "repo", "labels")   # never `tracker`: the source's name
 BUCKET_KEYS = {"id", "title", "options", "nudge_after_days"}
 DEFAULT_BUCKETS = {
     "do": {"title": "Do (you, today)", "options": ["yes", "later", "drop"]},
@@ -1035,7 +1035,7 @@ def draw(view: dict, color: bool = False, width: int | None = None) -> str:
     if view["style"] == "brevity":
         for r in view.get("top", []):
             out.append("")
-            out += wrap(r["title"], style="1")
+            out += wrap(_marked(r) + r["title"], style="1")
             out += wrap(f"{labels['why']}: " + " · ".join(r["why"]), indent="  ", hang="  ", style="2")
     elif view["style"] == "plan" and view.get("plan"):
         plan = view["plan"]

@@ -1052,9 +1052,10 @@ def _keep(root: Path, profile: dict, section: dict, ctx: Context, items: list) -
 
 
 def collect(root: Path, profile: dict, ctx: Context, previous: dict | None = None, skip=(),
-            style: str | None = None) -> dict:
+            style: str | None = None, only=()) -> dict:
     """Run every section. `skip` names kinds left out (the briefing's --quick and
     --skip-trackers modes); a skipped section is listed as such and closes nothing.
+    `only` names the kinds a `--only` run keeps, so a section it leaves out says so.
     `style` is the view a caller chose for this run (`render --style`)."""
     ctx.timeout = _positive(profile.get("timeout_sec"), ctx.timeout)
     if _view().style_of(profile, style) != "sources":
@@ -1083,6 +1084,8 @@ def collect(root: Path, profile: dict, ctx: Context, previous: dict | None = Non
             entry["provider"] = s["provider"]
         ctx.deadline = time.monotonic() + ctx.timeout
         try:
+            if only and s.get("kind") not in only:
+                raise Skip(f"left out in this run (--only {', '.join(only)})")
             if s.get("kind") in skip:
                 raise Skip(f"left out in this mode (--skip {s.get('kind')})")
             cached = _cached(root, profile, s, ctx)
@@ -1569,9 +1572,10 @@ def main(argv=None) -> int:
     ctx.fresh = bool(getattr(args, "fresh", False))
     previous = load_snapshot(root, profile["id"])
     skip = set(getattr(args, "skip", None) or [])
-    if getattr(args, "only", None):
-        skip |= set(SECTION_KINDS) - set(args.only)
-    result = collect(root, profile, ctx, previous=previous, skip=tuple(sorted(skip)), style=args.style)
+    only = tuple(dict.fromkeys(getattr(args, "only", None) or []))
+    if only:
+        skip |= set(SECTION_KINDS) - set(only)
+    result = collect(root, profile, ctx, previous=previous, skip=tuple(sorted(skip)), style=args.style, only=only)
     result["owed"] = [o["id"] for o in owed(root, cfg, profile)]
     if args.file:
         box = _inbox().Inbox(root / "work" / "inbox", actor="briefing")

@@ -304,10 +304,12 @@ def test_a_row_names_its_task_so_a_dashboard_can_open_or_jump_to_its_tab():
     assert _section(pages, "workplace")["items"][0]["task"] == "t"     # a proposed tab is its task
 
 
-def test_findings_and_tracker_rows_can_be_asked_about_the_rest_not():
+def test_findings_tracker_and_inbox_rows_can_be_asked_about_the_rest_not():
     pages = bv.pages(_result(), _profile())
     assert all(r["ask"] for r in _section(pages, "probes")["items"])
     assert all(r["ask"] for r in _section(pages, "mine")["items"])
+    inbox = bv.pages(_result(), _profile({"pages": [{"id": "in", "title": "In", "sections": [{"id": "inbox"}]}]}))
+    assert all(r["ask"] for r in _section(inbox, "inbox")["items"])
     assert not any(r["ask"] for r in _section(pages, "cal")["items"] + _section(pages, "commits")["items"])
 
 
@@ -403,6 +405,8 @@ def test_only_runs_the_named_kinds_and_marks_the_rest_skipped(tmp_path, capsys):
     assert bf.main(["--root", str(root), "collect", "--json", "--no-save", "--only", "command"]) == 0
     data = json.loads(capsys.readouterr().out)
     assert {s["id"]: s["status"] for s in data["sections"]} == {"tasks": "skipped", "probe": "ok"}
+    tasks = next(s for s in data["sections"] if s["id"] == "tasks")
+    assert tasks["reason"] == "left out in this run (--only command)"
 
 
 def test_a_failed_section_tells_its_reason_on_the_page():
@@ -521,6 +525,16 @@ def test_a_mark_labels_every_row_that_names_one_of_its_words():
     assert _section(bv.pages(_result(), profile), "probes")["items"][0]["mark"] is None
 
 
+def test_a_mark_word_never_matches_the_source_name():
+    """`tracker` names the source (a provider, or a command section's id): a word that
+    happens to be a source name must not mark every row of that section."""
+    result = _result()
+    for item in result["sections"][1]["items"]:
+        item["tracker"] = "probes"
+    profile = _marked([{"label": "P", "match": "probes"}])
+    assert [r["mark"] for r in _section(bv.pages(result, profile), "probes")["items"]] == [None, None]
+
+
 def test_marks_reach_the_briefing_rows_too():
     profile = _marked([{"label": "VENDOR", "match": "vendor"}])
     rows = [r for b in bv.build(_result(), profile)["buckets"] for r in b["items"]]
@@ -544,6 +558,8 @@ def test_the_text_views_put_the_mark_in_front_of_the_title():
     for style in ("triage", "report"):
         text = bf.render_view(_result(), profile, style=style)
         assert "[VENDOR] " in text and "Answer the vendor" in text, style
+    brevity = bf.render_view(_result(), _marked([{"label": "ACME", "match": "acme/"}]), style="brevity")
+    assert "[ACME] Fix login" in brevity
 
 
 def test_a_cached_answer_never_crosses_midnight(tmp_path):
@@ -555,3 +571,15 @@ def test_a_cached_answer_never_crosses_midnight(tmp_path):
     bf.collect(root, _cached_profile(argv, minutes=60), bf.Context(root, cfg={}, now=_dt.datetime(2026, 10, 8, 23, 50)))
     bf.collect(root, _cached_profile(argv, minutes=60), bf.Context(root, cfg={}, now=_dt.datetime(2026, 10, 9, 0, 5)))
     assert marker.read_text() == "xx"
+
+
+def test_briefing_and_more_are_taken_page_ids_for_validate_and_the_schema_alike():
+    import pytest
+    jsonschema = pytest.importorskip("jsonschema")
+    schema = yaml.safe_load((ROOT / "workflow" / "briefings" / "_schema.yaml").read_text(encoding="utf-8"))
+    for taken in ("briefing", "more"):
+        profile = {"schema_version": 1, "scope": "user", "id": "p", "sections": [{"kind": "tasks"}],
+                   "view": {"pages": [{"id": taken, "sections": ["tasks"]}]}}
+        assert any(taken in p for p in bf.profile_problems(profile, "p")), taken
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(profile, schema)
