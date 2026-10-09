@@ -36,9 +36,11 @@ claude plugin marketplace add ./mods --scope local
 claude plugin install briefing-ui@open-bridge-mods --scope local
 ```
 
-An installed mod is a copy. After a pull that changed it:
-`claude plugin update briefing-ui@open-bridge-mods --scope local`, then start a
-new session. Each mod stays inert until its own switch in `bridge-config.yaml`
+Claude Code reads an installed mod straight from its folder here
+(`claude plugin list` shows "Read from"). After a pull or an edit, start a new
+session or run `/reload-plugins`. If `claude plugin list` shows no "Read from"
+line, your Claude Code keeps a copy: run
+`claude plugin update briefing-ui@open-bridge-mods --scope local` first. Each mod stays inert until its own switch in `bridge-config.yaml`
 is on (for `briefing-ui`: `briefing.claude_code_ui.enabled: true`).
 
 ## Tests
@@ -64,4 +66,6 @@ them before a pull request that touches a mod, together with
 A mod's own user-facing words (buttons, help, the prompts it sends) live in one
 table per language inside the mod, side by side under identical keys, English
 as default and fallback, chosen at run time from config. Code, comments and
-structure stay English ([`rules/language-policy.md`](../rules/language-policy.md)).
+structure stay English; tests that assert rendered output in a non-English
+table may quote that table's values verbatim
+([`rules/language-policy.md`](../rules/language-policy.md)).

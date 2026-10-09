@@ -41,7 +41,9 @@ Everything in the `core` tier:
 - `trackers/*.md`
 - `scripts/**` — both comments and any help/UI strings
 - `mods/**` (Claude Code mods): code, comments, manifests and tests; the
-  one exception is a mod's per-language UI string table (§ 3)
+  one exception is a mod's per-language UI string table (§ 3), and tests
+  that assert rendered output in a non-English table may quote that
+  table's values verbatim
 - `scope: core` skills (SKILL.md + `references/**`) and `scope: core`
   agents, including the frontmatter `description`
 - `themes/_schema.yaml` and the built-in English theme (`professional`)
@@ -66,6 +68,9 @@ Everything in the `core` tier:
     else `language.conversation`), never by editing the file;
   - structure, key names and comments stay English; only the values of a
     non-English table are in that language.
+
+  A test that checks what such a table renders may quote its values
+  verbatim as expected output; everything else in the test stays English.
 
   This is not a translation of CORE: the English table is the source, the
   others are data beside it, and a fork adds a language by adding a table
