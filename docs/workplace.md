@@ -1,9 +1,10 @@
 ---
 summary: "Plan the day's work as workspaces with one agent tab per task, and steer the tabs from one place, through a driver so the same Bridge works with any terminal tool or none."
 type: guide
-last_updated: 2026-10-04
+last_updated: 2026-10-09
 related:
   - ../scripts/workplace.py
+  - ../scripts/task.py
   - inbox.md
   - ../skills/briefing/references/control.md
   - ../skills/cmux/SKILL.md
@@ -21,7 +22,10 @@ read its task.
 python3 scripts/workplace.py propose            # the plan: workspaces, tabs, why
 python3 scripts/workplace.py open               # dry run
 python3 scripts/workplace.py open --yes         # hand the plan to the driver
+python3 scripts/workplace.py launch --items a,b # dry run: one tab per task slug or inbox id
 python3 scripts/workplace.py status             # every tab: task, state, last line
+python3 scripts/workplace.py tasks              # every active task: area, priority, blocked, stale
+python3 scripts/workplace.py teams              # team recipes: ordered role tabs on one task
 python3 scripts/workplace.py send <tab> <text>  # type into one tab
 python3 scripts/workplace.py adopt <tab> <slug> # name an open tab after its task
 ```
@@ -63,9 +67,12 @@ them; it can then only print the commands (`driver: none`).
 cmux is the recommendation because it was built for running many coding agents
 side by side: workspaces with colors, tab status the agent itself reports (working,
 waiting, needs you), notifications, and an API for all of it. It is also the driver
-that ships and is tested. The others are good choices too; their driver is a small
-program speaking the protocol below, and the plan, the briefing and the inbox stay
-exactly the same.
+that ships and is tested, and so far the only one: every workplace feature,
+`launch`, teams and the tab steering (`status`, `send`, `adopt`) included, has run
+only with Claude Code as the agent and cmux as the terminal. Other agents and
+terminals are untested until an issue for that combination says otherwise. The
+others are good choices too; their driver is a small program speaking the protocol
+below, and the plan, the briefing and the inbox stay exactly the same.
 
 ## Configuration
 
@@ -75,13 +82,21 @@ workplace:
   control: {name: Control}           # the tab that steers the others; optional `command:`
                                      # starts an agent there when a driver creates it
   workspaces:
-    - {name: Bigcorp, contexts: [bigcorp], color: "#1565C0"}
-    - {name: Platform, slugs: ["platform-*"]}
+    - {name: Bigcorp, contexts: [bigcorp], color: "#1565C0", description: "client work for Bigcorp"}
+    - {name: Platform, slugs: ["platform-*"], aliases: [Infra]}
     - {name: Misc, default: true}
   limits: {max_workspaces: 4, max_tabs: 3, stale_days: 10, activity_days: 7}
   tab_names: {payments-incident: Payments}
+  team_names: {build: Build, review: Review}   # team or role id -> display name
+  teams: {}                          # add or replace team recipes (see Teams below)
+  router: {command: "..."}           # only for launch --target auto (see below)
   agent: {new: "claude -n {slug} {prompt}", resume: "claude --resume {session}"}
 ```
+
+A workspace entry takes `name` (required), `contexts` and `slugs` (which tasks go
+there), `default`, `color`, `description` (one line a router reads to place work)
+and `aliases` (other titles under which the terminal may already show that
+workspace, so an existing one is reused rather than opened twice).
 
 `agent.new` gets `{slug}` and `{prompt}` (a short instruction to read the task's
 STATUS.md, log rows, commits and open inbox items, report in eight lines and wait),
@@ -94,9 +109,10 @@ the same shape `agents/_runtime/approval.py` uses for owner approval:
 
 | Request | Answer |
 |---|---|
-| `{"verb": "tabs"}` | `{"tabs": [{"name", "workspace", "ref", "state", "last"}]}`, state one of `working`, `waiting`, `needs-you`, `shell` |
+| `{"verb": "tabs"}` | `{"tabs": [{"name", "workspace", "ref", "state", "last"}]}`, state one of `working`, `waiting`, `needs-you`, `shell`; optionally `id` (a stable tab id) and `is_self` (the tab the caller runs in) |
 | `{"verb": "sessions"}` | `{"sessions": {"<tab name>": "<session id>"}}` |
 | `{"verb": "open", "plan": {...}, "only": [...] or null, "resume": bool, "here": ref or null}` | `{"report": ["line", ...]}` |
+| `{"verb": "launch", "tabs": [{"label", "slug", "command", "workspace", "aliases"}], "target": "tab" \| "workspace" \| "area", "here": ref \| null}`: one `target` key with one of three values, never `auto` (the CLI splits `--target auto` into one `workspace` call and one `area` call) | `{"report": ["line", ...]}` |
 | `{"verb": "send", "tab": ref, "text": "..."}` | `{"report": [...]}` |
 | `{"verb": "rename", "tab": ref, "title": "..."}` | `{"report": [...]}` |
 
@@ -122,6 +138,93 @@ workplace:
 With a driver configured, the briefing's `workplace` section proposes one tab per
 task, grouped into workspaces. On the person's yes, `workplace.py open --yes`
 opens them through the driver; `status`, `send` and `adopt` steer them afterwards.
+
+## Launching chosen items
+
+`workplace.py launch --items A,B [--mode report|go|context] [--target tab|workspace|area|auto]
+[--team T --role R] [--here <ref>] [--yes] [--json]` opens one new agent tab (or one
+new workspace) per item the person picked. An item is
+an active task slug (a directory in `work/tasks/` or `work/streams/`) or an open
+inbox item id; an unknown or closed item is an error line, the others still launch,
+and the exit code is 1. Without `--yes` it is a dry run that prints, per item, its label,
+where the tab would go (`-> this workspace`, `-> new workspace`, `-> <workspace> (area)`)
+and the command. Labels are unique within one launch.
+
+Each tab starts the configured `agent.new` command on an ASCII prompt, by `--mode`:
+
+| Mode | The tab |
+|---|---|
+| `report` (default) | reads the item, prints at most eight lines and waits |
+| `go` | starts on the next step right away, asks before anything that leaves the machine, and closes an inbox item once it is settled |
+| `context` | looks for what someone picking the item up would miss (log rows, related inbox items, commits, issues, mails, meeting notes), shows the facts with their sources and writes the essentials back as one note (`task.py note` or `inbox.py note`), changing nothing else |
+
+A task tab that reaches a result, a question only the person can answer, or a draft
+files it once into the inbox (`inbox.py add --from tab:<slug> --kind result|question|draft
+--gate only-you --closer person --key tab-<slug>-<topic>`), because the inbox is how
+it reaches the briefing and every other reader.
+
+`--target` decides where the tabs go:
+
+| Target | Where |
+|---|---|
+| `tab` (default) | the workspace of the calling tab (`--here`, else the caller the driver reports); the cmux driver refuses when it cannot find one and never falls back to the selected workspace |
+| `workspace` | one new workspace per item, named after its label |
+| `area` | the workspace of the item's area, the same one `open` would choose (`workspaces:` by slug, then context, then the default): a task by its own STATUS, an inbox item by the task it is linked to, an unlinked inbox item into the default workspace. A missing area workspace is created once, found by `name` or any of its `aliases`, and the tab goes into it as a named tab |
+| `auto` | a router decides area and own workspace per item (below); the driver then gets `workspace` for the items that get their own and `area` for the rest |
+
+The driver receives, per tab, `label` (the tab title), `slug` (the agent session
+name), `command` (the full shell command), `workspace` (the area's workspace name)
+and `aliases` (its other names). No target ever closes anything.
+
+`--target auto` asks a router where each item belongs: one call for all items, with the
+configured `workspaces:` (name and description) and one line per item (the task's
+`headline:`, else the heading of its STATUS.md, or the inbox summary). It answers with an area per item and whether the item deserves a
+workspace of its own (a large piece over several days); everything else goes into its
+area's workspace as a tab. The router is any command that reads the prompt on stdin and
+prints the JSON answer, so a small model is enough:
+
+```yaml
+workplace:
+  router: {command: "claude -p --model <small model id> --setting-sources '' --tools '' --no-session-persistence"}
+```
+
+Without a router, or when it fails or names a workspace that is not configured, the
+rules of `--target area` stand and nothing gets its own workspace. A dry run with
+`--target auto` asks the router too, so it can show the answer: each line reads
+`-> <workspace> (router: <why>)` or `-> new workspace (router: <why>)`, and `--json`
+keeps `own` and `why` per item. That is one router call, a model call if the router is
+one.
+
+Every agent tab, launched or opened by the plan, starts with `BRIDGE_TAB_SLUG=<slug>` in
+its environment, so a session, or any tool running in that tab, can tell it was started for
+one item rather than as a free session. `status` names the task (`slug`) or open inbox item (`item`) a tab works on.
+
+`workplace.py tasks [--json]` lists every active task flat, sorted by priority and then
+activity: label, area, priority, score, `blocked_by`, and `stale` (no activity for longer
+than `limits.stale_days`). `propose` decides which of them get a tab today; `tasks` is the
+whole list, for any UI or script that drives `workplace.py`.
+
+## Teams: several role tabs on one task
+
+`workplace.py teams [--json]` lists the team recipes: an ordered group of roles that work
+on one task, each in its own tab. Five ship as defaults: `build` (implement, review) for
+features, bugs and refactors; `tdd` (tests, implement, review); `research` (evidence,
+counter, summary); `reply` (context, draft, never sent) for customer communication; and
+`ops` (diagnose read-only, then fix after asking). `team_names` in the `workplace:` block
+renames teams and roles for display, `teams` adds or replaces whole recipes, each
+`{id: {label, for_types: [...], roles: [{id, name, mode, brief}]}}` with `mode` `report`
+or `go`. A `go` role starts on its part right away; a `report` role reports what it finds
+in at most eight lines and changes nothing on its own. `--mode` does not apply to a role
+tab: given together with `--team` it is ignored, with a note on stderr.
+
+`launch --items <slug> --team <id> --role <id>` opens one role's tab, labelled
+`<task label> · <team label> <role name>` with the session name `<slug>--<team>-<role>`
+(both carry the team, since `build` and `tdd` share role names), in the same workspace
+rules as any launch. Roles start one at
+a time, when the person asks for the next one; they hand over through
+`<task dir>/team.md`, where each role appends what it did and what the next one needs.
+`status` names the task, team and role of such a tab, by its label or by the session
+name the agent later titles it with. Inbox items have no team.
 
 ## Where tab state comes from
 

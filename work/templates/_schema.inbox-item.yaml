@@ -94,6 +94,12 @@ $defs:
       after:
         type: string
         description: "Date or timestamp; true once it has passed"
+      unseen_for:
+        type: object
+        required: [hours]
+        properties:
+          hours: {type: number, exclusiveMinimum: 0}
+        description: "True once no run has refiled the item's key for this many hours (reads the item's `seen` events); for reporters that refile while a condition holds"
       gh_pr:
         type: string
         pattern: "^[^/#]+/[^/#]+#[0-9]+$"

@@ -223,3 +223,476 @@ def test_open_send_adopt_exit_non_zero_when_the_driver_failed(repo, tmp_path, an
     _scripted_driver(repo, tmp_path, answer, code)
     assert wp.main(["--root", str(repo), "open", "--yes"]) == expected
     assert wp.main(["--root", str(repo), "send", "some-tab", "hello"]) == expected
+
+
+# ---------------------------------------------------------------- tasks
+
+def test_tasks_list_every_active_task_with_area_priority_and_flags(repo):
+    rows = {t["slug"]: t for t in wp.task_rows(repo, CFG, TODAY)}
+    assert set(rows) == {"payments-incident", "bigcorp-report", "bigcorp-old", "platform-upgrade", "waiting-on-vendor"}
+    pay = rows["payments-incident"]
+    assert pay["area"] == "Bigcorp" and pay["priority"] == "P0" and pay["label"]
+    assert pay["blocked_by"] is None and pay["stale"] is False and pay["score"] > rows["bigcorp-report"]["score"]
+    assert rows["platform-upgrade"]["area"] == "Platform"
+    assert rows["waiting-on-vendor"]["area"] == "Misc" and rows["waiting-on-vendor"]["blocked_by"] == "vendor answers"
+    assert rows["bigcorp-old"]["stale"] is True
+    assert rows["payments-incident"]["area_aliases"] == []
+
+
+def test_tasks_name_the_aliases_of_their_area(repo):
+    cfg = {"workspaces": [{"name": "Bigcorp", "contexts": ["bigcorp"], "aliases": ["BC", "Big"]}]}
+    rows = {t["slug"]: t for t in wp.task_rows(repo, cfg, TODAY)}
+    assert rows["payments-incident"]["area_aliases"] == ["BC", "Big"]
+
+
+def test_tasks_json_is_sorted_by_priority_then_score(repo, capsys):
+    (repo / "bridge-config.yaml").write_text("workplace:\n  workspaces: []\n")
+    assert wp.main(["--root", str(repo), "tasks", "--json"]) == 0
+    slugs = [t["slug"] for t in json.loads(capsys.readouterr().out)]
+    assert slugs[0] == "payments-incident"
+
+
+# ---------------------------------------------------------------- teams
+
+def test_teams_ship_five_defaults_each_with_ordered_roles():
+    teams = {t["id"]: t for t in wp.teams({})}
+    assert set(teams) == {"build", "tdd", "research", "reply", "ops"}
+    assert [r["id"] for r in teams["build"]["roles"]] == ["implement", "review"]
+    assert [r["id"] for r in teams["tdd"]["roles"]] == ["tests", "implement", "review"]
+    assert "feature" in teams["build"]["for_types"] and "research" in teams["research"]["for_types"]
+    for t in teams.values():
+        for r in t["roles"]:
+            assert r["mode"] in ("report", "go") and r["brief"].isascii() and r["name"]
+
+
+def test_team_and_role_names_come_from_config_and_teams_can_be_added():
+    cfg = {"team_names": {"build": "Construct", "implement": "Coding"},
+           "teams": {"docs": {"label": "Docs", "roles": [{"id": "write", "mode": "go", "brief": "Write it."}]}}}
+    teams = {t["id"]: t for t in wp.teams(cfg)}
+    assert teams["build"]["label"] == "Construct"
+    assert teams["build"]["roles"][0]["name"] == "Coding"
+    assert teams["tdd"]["roles"][1]["name"] == "Coding"           # a role name applies in every team
+    assert teams["docs"]["roles"][0]["name"] == "write" and teams["docs"]["for_types"] == []
+
+
+def test_launch_team_role_opens_a_named_tab_with_a_role_prompt(lrepo):
+    cfg = {"team_names": {"review": "Check"}}
+    (e,) = wp.build_launch(lrepo, cfg, ["payments-incident"], "report", team="build", role="review")
+    assert e["label"] == "Payments Incident · Build Check"
+    assert e["slug"] == "payments-incident--build-review" and e["role"] == "review" and e["team"] == "build"
+    assert "-n payments-incident--build-review" in e["command"]
+    assert "export BRIDGE_TAB_SLUG=payments-incident &&" in e["command"]
+    cmd = e["command"]
+    assert "team.md" in cmd and "review" in cmd and "work/tasks/payments-incident/STATUS.md" in cmd
+    assert "Never close a tab or a workspace." in cmd
+
+
+def test_launch_team_refuses_inbox_items_unknown_teams_and_roles(lrepo):
+    out = wp.build_launch(lrepo, {}, [INBOX_ID], "go", team="build", role="implement")
+    assert "error" in out[0] and "task" in out[0]["error"]
+    (bad,) = wp.build_launch(lrepo, {}, ["payments-incident"], "go", team="nope", role="implement")
+    assert "error" in bad
+    (bad,) = wp.build_launch(lrepo, {}, ["payments-incident"], "go", team="build", role="nope")
+    assert "error" in bad
+
+
+def test_status_rows_name_the_team_role_of_a_tab(lrepo):
+    driver = wp.NoneDriver()
+    driver.tabs = lambda: [{"name": "Payments Incident · Build Review", "workspace": "W", "ref": "surface:1",
+                            "state": "waiting"}]
+    (row,) = wp.status_rows(lrepo, {}, driver)
+    assert row["slug"] == "payments-incident" and row["team"] == "build" and row["role"] == "review"
+
+
+def test_status_rows_tell_a_tdd_role_from_the_same_role_of_build(lrepo):
+    # build and tdd both have implement and review; the tab must name its own team
+    (e,) = wp.build_launch(lrepo, {}, ["payments-incident"], "go", team="tdd", role="implement")
+    driver = wp.NoneDriver()
+    driver.tabs = lambda: [{"name": e["label"], "workspace": "W", "ref": "surface:1", "state": "waiting"}]
+    (row,) = wp.status_rows(lrepo, {}, driver)
+    assert (row["slug"], row["team"], row["role"]) == ("payments-incident", "tdd", "implement")
+
+
+@pytest.mark.parametrize("team, role", [("build", "review"), ("tdd", "implement")])
+def test_status_rows_know_a_team_tab_by_the_session_name_the_tab_shows(lrepo, team, role):
+    # claude -n <slug> titles the tab with the session slug once the agent runs
+    (e,) = wp.build_launch(lrepo, {}, ["payments-incident"], "go", team=team, role=role)
+    driver = wp.NoneDriver()
+    driver.tabs = lambda: [{"name": e["slug"], "workspace": "W", "ref": "surface:1", "state": "waiting"}]
+    (row,) = wp.status_rows(lrepo, {}, driver)
+    assert (row["slug"], row["team"], row["role"]) == ("payments-incident", team, role)
+
+
+def test_a_team_role_mode_shapes_its_prompt(lrepo):
+    cfg = {"teams": {"pair": {"label": "Pair", "roles": [
+        {"id": "a", "mode": "go", "brief": "Do it."}, {"id": "b", "mode": "report", "brief": "Do it."}]}}}
+    (go,) = wp.build_launch(lrepo, cfg, ["payments-incident"], "report", team="pair", role="a")
+    (rep,) = wp.build_launch(lrepo, cfg, ["payments-incident"], "report", team="pair", role="b")
+    norm = lambda e: e["command"].replace("pair-a", "X").replace("pair-b", "X").replace(" a tab ", " X tab ") \
+        .replace(" b tab ", " X tab ")
+    assert norm(go) != norm(rep)
+    assert "start on your part right away" in go["command"].lower()
+    assert "at most eight lines" in rep["command"] and "right away" not in rep["command"]
+
+
+def test_launch_says_that_mode_is_ignored_with_a_team(lrepo, capsys):
+    # the role's mode decides; --mode next to --team is named as ignored, never applied silently
+    assert wp.main(["--root", str(lrepo), "launch", "--items", "payments-incident", "--team", "build",
+                    "--role", "review", "--mode", "go", "--json"]) == 0
+    out = capsys.readouterr()
+    assert "--mode is ignored with --team" in out.err
+    (item,) = json.loads(out.out)["items"]
+    assert "at most eight lines" in item["command"] and "right away" not in item["command"]
+
+
+def test_tasks_carry_their_type(repo):
+    (repo / "work" / "tasks" / "typed").mkdir(parents=True)
+    (repo / "work" / "tasks" / "typed" / "STATUS.md").write_text(
+        "---\nslug: typed\nstatus: doing\ntype: research\n---\n\n# Typed\n", encoding="utf-8")
+    rows = {t["slug"]: t for t in wp.task_rows(repo, CFG, TODAY)}
+    assert rows["typed"]["type"] == "research" and rows["payments-incident"]["type"] is None
+
+
+def test_teams_json_and_launch_team_cli(lrepo, capsys):
+    assert wp.main(["--root", str(lrepo), "teams", "--json"]) == 0
+    assert {t["id"] for t in json.loads(capsys.readouterr().out)} >= {"build", "research"}
+    assert wp.main(["--root", str(lrepo), "launch", "--items", "payments-incident", "--team", "build",
+                    "--role", "implement", "--json"]) == 0
+    (item,) = json.loads(capsys.readouterr().out)["items"]
+    assert item["label"].endswith("· Build Implement")
+
+
+# ---------------------------------------------------------------- launch
+
+INBOX_ID = "20261006-1411-systems-remotes-buildhost-alpha-0855"
+
+
+@pytest.fixture()
+def lrepo(repo):
+    d = repo / "work" / "streams" / "long-runner"
+    d.mkdir(parents=True)
+    (d / "STATUS.md").write_text("---\nslug: long-runner\nstatus: doing\n---\n\n# Long runner\n", encoding="utf-8")
+    for iid, state_events in ((INBOX_ID, []), ("20261006-1500-closed-thing-aaaa", ["close"])):
+        idir = repo / "work" / "inbox" / iid
+        idir.mkdir(parents=True)
+        (idir / "item.yaml").write_text(
+            "schema_version: 1\nkind: question\nsummary: x\ngate: free\nurgency: today\n"
+            "created: '2026-10-06T14:11:00+02:00'\nfrom: test\n", encoding="utf-8")
+        for i, verb in enumerate(state_events):
+            ev = idir / "events"
+            ev.mkdir(exist_ok=True)
+            (ev / f"0{i}-{verb}.yaml").write_text(
+                f"verb: {verb}\nby: t\nat: '2026-10-06T15:00:00+02:00'\n", encoding="utf-8")
+    return repo
+
+
+def test_launch_resolves_task_stream_inbox_and_unknown(lrepo):
+    out = wp.build_launch(lrepo, {}, ["payments-incident", "long-runner", INBOX_ID, "nope", "20261006-1500-closed-thing-aaaa"],
+                          "report")
+    by = {e["item"]: e for e in out}
+    assert by["payments-incident"]["kind"] == "task" and by["long-runner"]["kind"] == "task"
+    assert by[INBOX_ID]["kind"] == "inbox"
+    assert "error" in by["nope"] and "command" not in by["nope"]
+    assert "error" in by["20261006-1500-closed-thing-aaaa"]    # closed is not open
+
+
+@pytest.mark.parametrize("mode, team", [("report", None), ("go", None), ("go", "build")])
+def test_task_tabs_file_their_result_in_the_inbox_linked_to_the_task(lrepo, mode, team):
+    """What a tab achieves reaches anyone else only through the inbox."""
+    (e,) = wp.build_launch(lrepo, {}, ["payments-incident"], mode, team=team, role="implement" if team else None)
+    cmd = e["command"].replace("'\"'\"'", "'")
+    assert "python3 scripts/inbox.py add --from tab:" in cmd and "--task payments-incident" in cmd
+    assert "--key tab-payments-incident" in cmd and "--closer person" in cmd
+
+
+def test_planned_tabs_file_their_result_too():
+    tab = {"slug": "payments-incident", "action": "new", "status_path": "work/tasks/payments-incident/STATUS.md"}
+    assert "--task payments-incident" in wp.tab_command(tab, Path("/r"), "/r", {})
+
+
+def test_an_inbox_tab_that_only_reports_notes_its_finding_on_the_item(lrepo):
+    (e,) = wp.build_launch(lrepo, {}, [INBOX_ID], "report")
+    assert f"inbox.py note {INBOX_ID}" in e["command"]
+
+
+@pytest.mark.parametrize("kind", ["task", "inbox"])
+def test_context_mode_gathers_and_writes_back_with_sources(lrepo, kind):
+    item = "payments-incident" if kind == "task" else INBOX_ID
+    (e,) = wp.build_launch(lrepo, {}, [item], "context")
+    cmd = e["command"]
+    assert "missing context" in cmd and "source" in cmd and "work/log.md" in cmd
+    if kind == "task":
+        assert "task.py note payments-incident" in cmd
+    else:
+        assert f"inbox.py note {INBOX_ID}" in cmd
+    assert "Never close a tab or a workspace." in cmd
+
+
+@pytest.mark.parametrize("kind, mode", [("task", "report"), ("task", "go"), ("inbox", "report"), ("inbox", "go")])
+def test_launch_prompts_are_ascii_and_name_the_item(kind, mode):
+    p = wp.launch_prompt(kind, mode, "the-id", status_path="work/tasks/the-id/STATUS.md")
+    assert p.isascii() and "the-id" in p and "Never close a tab or a workspace." in p
+    if mode == "go":
+        assert "right away" in p and "ask first" in p
+    else:
+        assert "wait" in p
+    if kind == "inbox":
+        assert "python3 scripts/inbox.py show the-id" in p
+        assert ("inbox.py close the-id --note" in p) == (mode == "go")
+
+
+def test_launch_task_report_prompt_is_exactly_the_open_prompt(lrepo):
+    (e,) = wp.build_launch(lrepo, {}, ["payments-incident"], "report")
+    status = "work/tasks/payments-incident/STATUS.md"
+    expect = wp.NEW_TAB_PROMPT.format(slug="payments-incident", status_path=status,
+                                      task_dir="work/tasks/payments-incident")
+    assert expect in e["command"].replace("'\"'\"'", "'")
+    assert e["command"].startswith(f"cd -- {lrepo} && export BRIDGE_TAB_SLUG=payments-incident && claude ")
+    assert "-n payments-incident" in e["command"]
+
+
+def test_launch_inbox_label_and_command(lrepo):
+    (e,) = wp.build_launch(lrepo, {}, [INBOX_ID], "go")
+    assert e["label"] == "Inbox systems-remotes-buildhost-0855"
+    assert e["label"].startswith("Inbox systems-remotes") and len(e["label"]) <= len("Inbox ") + 30
+    assert e["label"].isascii()
+    assert INBOX_ID in e["command"]
+
+
+def test_launch_labels_are_unique_within_one_launch(lrepo):
+    cfg = {"tab_names": {"payments-incident": "Same", "bigcorp-report": "Same"}}
+    out = wp.build_launch(lrepo, cfg, ["payments-incident", "bigcorp-report"], "report")
+    labels = [e["label"] for e in out]
+    assert len(set(labels)) == 2
+
+
+def test_launch_uses_the_configured_agent_template(lrepo):
+    cfg = {"agent": {"new": "codex -n {slug} {prompt}"}}
+    (e,) = wp.build_launch(lrepo, cfg, ["payments-incident"], "report")
+    assert "codex -n payments-incident" in e["command"]
+
+
+def test_launch_dry_run_prints_and_hands_nothing_to_the_driver(lrepo, capsys, monkeypatch):
+    calls = []
+    monkeypatch.setattr(wp.NoneDriver, "launch", lambda *a, **k: calls.append(a) or [])
+    assert wp.main(["--root", str(lrepo), "launch", "--items", f"payments-incident,{INBOX_ID}"]) == 0
+    out = capsys.readouterr().out
+    assert "Dry run" in out and "payments-incident" in out and INBOX_ID in out
+    assert calls == []
+
+
+def test_launch_unknown_item_fails_but_others_still_listed(lrepo, capsys):
+    assert wp.main(["--root", str(lrepo), "launch", "--items", "payments-incident,nope"]) == 1
+    out = capsys.readouterr().out
+    assert "payments-incident" in out and "nope" in out and "ERROR" in out
+
+
+def test_launch_json_shape(lrepo, capsys):
+    assert wp.main(["--root", str(lrepo), "launch", "--items", f"payments-incident,{INBOX_ID},nope", "--json"]) == 1
+    data = json.loads(capsys.readouterr().out)
+    assert data["ok"] is False and data["report"] == []
+    items = {i["item"]: i for i in data["items"]}
+    assert items["payments-incident"]["kind"] == "task" and items["payments-incident"]["command"]
+    assert items[INBOX_ID]["kind"] == "inbox" and items[INBOX_ID]["label"]
+    assert items["nope"]["error"]
+
+
+def test_none_driver_launch_prints_the_commands(lrepo, capsys):
+    assert wp.main(["--root", str(lrepo), "launch", "--items", "payments-incident", "--yes"]) == 0
+    out = capsys.readouterr().out
+    assert "No driver configured" in out and "claude" in out
+
+
+def test_command_driver_launch_payload_and_report(lrepo, monkeypatch, capsys):
+    (lrepo / "bridge-config.yaml").write_text("workplace:\n  driver: {command: ['fake-driver']}\n")
+    seen = []
+
+    def fake_run(argv, input=None, **kw):
+        req = json.loads(input)
+        seen.append(req)
+        out = {"report": ["tab X (surface:9)"]} if req["verb"] == "launch" else {}
+        return type("R", (), {"returncode": 0, "stdout": json.dumps(out), "stderr": ""})()
+
+    monkeypatch.setattr(wp.subprocess, "run", fake_run)
+    code = wp.main(["--root", str(lrepo), "launch", "--items", f"payments-incident,{INBOX_ID}", "--yes",
+                    "--target", "workspace", "--here", "surface:3", "--mode", "go", "--json"])
+    assert code == 0
+    (req,) = [r for r in seen if r["verb"] == "launch"]
+    assert req["target"] == "workspace" and req["here"] == "surface:3"
+    assert [set(t) for t in req["tabs"]] == [{"label", "slug", "command", "workspace", "aliases"}] * 2
+    assert "start on the next step right away" in req["tabs"][0]["command"]
+    assert json.loads(capsys.readouterr().out)["report"] == ["tab X (surface:9)"]
+
+
+def test_launch_entries_name_the_workspace_of_their_area(lrepo):
+    """A task goes where workplace open would put it; an inbox item follows its task, else the default."""
+    linked = lrepo / "work" / "inbox" / "20261006-1600-linked-thing-bbbb"
+    linked.mkdir(parents=True)
+    (linked / "item.yaml").write_text(
+        "schema_version: 1\nkind: question\nsummary: x\ngate: free\ntask: payments-incident\n"
+        "created: '2026-10-06T16:00:00+02:00'\nfrom: test\n", encoding="utf-8")
+    out = wp.build_launch(lrepo, CFG, ["payments-incident", "platform-upgrade", INBOX_ID,
+                                       "20261006-1600-linked-thing-bbbb"], "report")
+    assert [e["workspace"] for e in out] == ["Bigcorp", "Platform", "Misc", "Bigcorp"]
+
+
+def test_an_unlinked_inbox_item_goes_to_the_default_workspace_whatever_its_summary(lrepo):
+    item = lrepo / "work" / "inbox" / "20261006-1700-platform-broke-cccc"
+    item.mkdir(parents=True)
+    (item / "item.yaml").write_text(
+        "schema_version: 1\nkind: question\nsummary: platform broke\ngate: free\n"
+        "created: '2026-10-06T17:00:00+02:00'\nfrom: test\n", encoding="utf-8")
+    (e,) = wp.build_launch(lrepo, CFG, ["20261006-1700-platform-broke-cccc"], "report")
+    assert e["workspace"] == "Misc"          # not "Platform" through the slug pattern platform-*
+
+
+def test_launch_entries_carry_the_aliases_of_their_area(lrepo):
+    cfg = {"workspaces": [{"name": "Bigcorp", "contexts": ["bigcorp"], "aliases": ["BC"]}]}
+    (e,) = wp.build_launch(lrepo, cfg, ["payments-incident"], "report")
+    assert e["aliases"] == ["BC"]
+
+
+def test_launched_tabs_carry_their_slug_in_the_environment(lrepo):
+    """A session can tell it was launched for one item (and stay quiet), whatever the agent template."""
+    (task_entry, inbox_entry) = wp.build_launch(lrepo, {"agent": {"new": "codex {prompt}"}},
+                                                ["payments-incident", INBOX_ID], "go")
+    assert " && export BRIDGE_TAB_SLUG=payments-incident && codex " in task_entry["command"]
+    assert f" && export BRIDGE_TAB_SLUG=inbox-{wp.inbox_slug(INBOX_ID)} && codex " in inbox_entry["command"]
+
+
+@pytest.mark.parametrize("action", ["new", "resume"])
+def test_planned_tabs_carry_their_slug_in_the_environment(action):
+    tab = {"slug": "payments-incident", "action": action, "session_id": "s1",
+           "status_path": "work/tasks/payments-incident/STATUS.md"}
+    assert " && export BRIDGE_TAB_SLUG=payments-incident && claude " in wp.tab_command(tab, Path("/r"), "/r", {})
+
+
+def test_launch_accepts_the_area_target(lrepo, monkeypatch):
+    (lrepo / "bridge-config.yaml").write_text("workplace:\n  driver: {command: ['fake-driver']}\n")
+    seen = []
+
+    def fake_run(argv, input=None, **kw):
+        seen.append(json.loads(input))
+        return type("R", (), {"returncode": 0, "stdout": json.dumps({"report": ["tab X (surface:9)"]}),
+                              "stderr": ""})()
+
+    monkeypatch.setattr(wp.subprocess, "run", fake_run)
+    assert wp.main(["--root", str(lrepo), "launch", "--items", "payments-incident", "--yes",
+                    "--target", "area"]) == 0
+    (req,) = [r for r in seen if r["verb"] == "launch"]
+    assert req["target"] == "area"
+
+
+def test_status_rows_name_the_open_inbox_item_of_a_launched_tab(lrepo):
+    label = f"Inbox {wp.inbox_slug(INBOX_ID)}"
+    driver = wp.NoneDriver()
+    driver.tabs = lambda: [{"name": label, "workspace": "W", "ref": "surface:1", "state": "waiting"},
+                           {"name": "Inbox closed-thing", "workspace": "W", "ref": "surface:2", "state": "working"}]
+    rows = {r["ref"]: r for r in wp.status_rows(lrepo, {}, driver)}
+    assert rows["surface:1"]["item"] == INBOX_ID
+    assert rows["surface:2"]["item"] is None
+
+
+def test_command_driver_launch_error_line_fails_the_run(lrepo, monkeypatch):
+    (lrepo / "bridge-config.yaml").write_text("workplace:\n  driver: {command: ['fake-driver']}\n")
+    monkeypatch.setattr(wp.subprocess, "run", lambda *a, **k: type(
+        "R", (), {"returncode": 0, "stdout": json.dumps({"report": ["ERROR no caller"]}), "stderr": ""})())
+    assert wp.main(["--root", str(lrepo), "launch", "--items", "payments-incident", "--yes"]) == 1
+
+
+def test_find_tab_takes_the_live_ref_before_name_or_slug():
+    tabs = [{"name": "Claude Code", "ref": "surface:7"}, {"name": "Claude Code", "ref": "surface:9"}]
+    assert wp.find_tab(tabs, "surface:9", {})["ref"] == "surface:9"
+    with pytest.raises(LookupError):
+        wp.find_tab(tabs, "Claude Code", {})
+
+
+def test_inbox_slug_keeps_two_items_with_the_same_words_apart():
+    a = wp.inbox_slug("20261007-0634-vendor-rejects-inbound-webhooks-8dcc")
+    b = wp.inbox_slug("20261007-1232-vendor-rejects-inbound-webhook-at-d147")
+    assert a != b and len(a) <= wp.INBOX_LABEL_MAX and len(b) <= wp.INBOX_LABEL_MAX
+
+
+def test_status_rows_find_the_item_by_the_session_name_the_tab_shows(lrepo):
+    # claude -n <slug> titles the tab with the slug, not with the "Inbox …" label
+    driver = wp.NoneDriver()
+    driver.tabs = lambda: [{"name": f"inbox-{wp.inbox_slug(INBOX_ID)}", "workspace": "W", "ref": "surface:1",
+                            "state": "waiting"}]
+    (row,) = wp.status_rows(lrepo, {}, driver)
+    assert row["item"] == INBOX_ID
+
+
+ROUTE_CFG = {"workspaces": [{"name": "Bigcorp", "description": "company"}, {"name": "Misc", "default": True}]}
+
+
+def _router(answer: str) -> dict:
+    return {**ROUTE_CFG, "router": {"command": [sys.executable, "-c", f"import sys; sys.stdin.read(); print({answer!r})"]}}
+
+
+def test_route_lets_the_router_pick_area_and_own_workspace(lrepo):
+    entries = wp.build_launch(lrepo, ROUTE_CFG, [INBOX_ID, "payments-incident"], "go")
+    answer = json.dumps([{"item": INBOX_ID, "workspace": "Bigcorp", "own": False, "why": "company system"},
+                         {"item": "payments-incident", "workspace": "Misc", "own": True, "why": "large"}])
+    routed = {e["item"]: e for e in wp.route(lrepo, _router(answer), entries)}
+    assert routed[INBOX_ID]["workspace"] == "Bigcorp" and routed[INBOX_ID]["own"] is False
+    assert routed["payments-incident"]["own"] is True
+
+
+def test_route_keeps_the_rules_when_the_router_names_no_known_area_or_fails(lrepo):
+    entries = wp.build_launch(lrepo, ROUTE_CFG, [INBOX_ID], "go")
+    before = entries[0]["workspace"]
+    bad = wp.route(lrepo, _router('[{"item": "%s", "workspace": "Mars", "own": true}]' % INBOX_ID), entries)
+    assert bad[0]["workspace"] == before and bad[0]["own"] is False
+    junk = wp.route(lrepo, _router("no json here"), entries)
+    assert junk[0]["workspace"] == before
+    assert wp.route(lrepo, ROUTE_CFG, entries)[0]["workspace"] == before   # no router configured
+
+
+def test_the_router_sees_the_task_heading_when_there_is_no_headline(lrepo):
+    line = wp._describe(lrepo, "payments-incident")
+    assert "Payments Incident" in line and "context bigcorp" in line
+    (lrepo / "work/tasks/platform-upgrade/STATUS.md").write_text(
+        "---\nslug: platform-upgrade\nstatus: doing\n---\n\n# <Task Title>\n", encoding="utf-8")
+    assert "<Task Title>" not in wp._describe(lrepo, "platform-upgrade")
+
+
+@pytest.mark.parametrize("target, where", [("tab", "-> this workspace"), ("workspace", "-> new workspace"),
+                                           ("area", "-> Bigcorp")])
+def test_a_launch_dry_run_says_where_each_tab_would_go(lrepo, monkeypatch, capsys, target, where):
+    monkeypatch.setattr(wp, "load_cfg", lambda root: CFG)
+    assert wp.main(["--root", str(lrepo), "launch", "--items", "payments-incident", "--target", target]) == 0
+    assert f"Payments Incident {where}" in capsys.readouterr().out
+
+
+def test_an_auto_dry_run_shows_the_router_answer_and_json_keeps_own_and_why(lrepo, monkeypatch, capsys):
+    answer = json.dumps([{"item": INBOX_ID, "workspace": "Bigcorp", "own": False, "why": "company system"},
+                         {"item": "payments-incident", "workspace": "Misc", "own": True, "why": "large"}])
+    monkeypatch.setattr(wp, "load_cfg", lambda root: _router(answer))
+    assert wp.main(["--root", str(lrepo), "launch", "--items", f"{INBOX_ID},payments-incident",
+                    "--target", "auto"]) == 0
+    out = capsys.readouterr().out
+    assert "-> Bigcorp (router: company system)" in out
+    assert "Payments Incident -> new workspace (router: large)" in out
+    assert wp.main(["--root", str(lrepo), "launch", "--items", f"{INBOX_ID},payments-incident",
+                    "--target", "auto", "--json"]) == 0
+    items = {i["item"]: i for i in json.loads(capsys.readouterr().out)["items"]}
+    assert items["payments-incident"]["own"] is True and items["payments-incident"]["why"] == "large"
+    assert items[INBOX_ID]["own"] is False and items[INBOX_ID]["why"] == "company system"
+
+
+def test_launch_auto_opens_own_workspaces_and_area_tabs_in_two_calls(lrepo, monkeypatch):
+    answer = json.dumps([{"item": INBOX_ID, "workspace": "Bigcorp", "own": False},
+                         {"item": "payments-incident", "workspace": "Misc", "own": True}])
+    cfg = _router(answer)
+    monkeypatch.setattr(wp, "load_cfg", lambda root: cfg)
+    calls = []
+
+    class Fake(wp.NoneDriver):
+        def launch(self, tabs, target, here=None):
+            calls.append((target, [t["item"] for t in tabs]))
+            return [f"{target} ok"]
+
+    monkeypatch.setattr(wp, "driver_from", lambda spec: Fake())
+    assert wp.main(["--root", str(lrepo), "launch", "--items", f"{INBOX_ID},payments-incident", "--yes",
+                    "--target", "auto"]) == 0
+    assert sorted(calls) == [("area", [INBOX_ID]), ("workspace", ["payments-incident"])]

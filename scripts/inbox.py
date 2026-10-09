@@ -133,8 +133,10 @@ def _status_of_task(slug: str, base: Path) -> str | None:
 
 
 def probe(spec, *, now: dt.datetime | None = None, gh: GhRunner | None = None,
-          base: Path | None = None) -> bool | None:
+          base: Path | None = None, item: "Item | None" = None) -> bool | None:
     """Evaluate one probe. True / False, or None when it cannot be evaluated.
+
+    `item` is the item the probe belongs to; only `unseen_for` reads it.
 
     Never raises: a broken probe is UNKNOWN, and unknown never closes anything.
     """
@@ -149,7 +151,7 @@ def probe(spec, *, now: dt.datetime | None = None, gh: GhRunner | None = None,
                 parts = spec[combine]
                 if not isinstance(parts, list) or not parts:
                     return None         # an empty list proves nothing; all([]) would say True
-                results = [probe(p, now=now, gh=gh, base=base) for p in parts]
+                results = [probe(p, now=now, gh=gh, base=base, item=item) for p in parts]
                 if combine == "all":
                     return None if None in results else all(results)
                 return True if True in results else (None if None in results else False)
@@ -161,6 +163,18 @@ def probe(spec, *, now: dt.datetime | None = None, gh: GhRunner | None = None,
             return (path if path.is_absolute() else base / path).exists()
         if "after" in spec:
             return _utc(now) >= _utc(_parse_when(spec["after"]))
+        if "unseen_for" in spec:
+            # A reporter that refiles the same key every run says "still there" by firing
+            # again; when it stops, the condition is gone. Needs the item (its sightings).
+            cfg = spec["unseen_for"]
+            hours = cfg.get("hours") if isinstance(cfg, dict) else None
+            if item is None or isinstance(hours, bool) or not isinstance(hours, (int, float)) or hours <= 0:
+                return None             # no item, a malformed span, or one that would close at once
+            last = max([_event_time(item.data.get("created"))]
+                       + [_event_time(e.at) for e in item.events if e.verb == "seen"])
+            if last == _NO_TIME:
+                return None             # no sighting with a readable time: unknown, never "long ago"
+            return _utc(now) - last >= dt.timedelta(hours=hours)
         if "command" in spec:
             argv = spec["command"]
             if not isinstance(argv, list) or not argv:
@@ -279,11 +293,15 @@ def _warn(text: str) -> None:
     print(f"inbox: {text}", file=sys.stderr)
 
 
-def _event_time(at: str) -> dt.datetime:
+_NO_TIME = dt.datetime.min.replace(tzinfo=dt.timezone.utc)
+
+
+def _event_time(at) -> dt.datetime:
+    """An ISO string, or the datetime yaml.safe_load makes of an unquoted timestamp."""
     try:
-        return _utc(dt.datetime.fromisoformat(at))
+        return _utc(at if isinstance(at, dt.datetime) else dt.datetime.fromisoformat(at))
     except (TypeError, ValueError):
-        return dt.datetime.min.replace(tzinfo=dt.timezone.utc)
+        return _NO_TIME
 
 
 def _slug(text: str, limit: int = 40) -> str:
@@ -489,7 +507,7 @@ class Inbox:
                 continue
             if item.gate == "only-you" and _has_command(item.closes_when):
                 continue                # only-you means nothing of it executes, a probe command included
-            if probe(item.closes_when, now=self.clock(), gh=self.gh, base=self.base) is True:
+            if probe(item.closes_when, now=self.clock(), gh=self.gh, base=self.base, item=item) is True:
                 self.event(item.id, "close", by="check", text="closes_when holds")
                 closed.append(item.id)
         return closed

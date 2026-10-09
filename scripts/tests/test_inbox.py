@@ -22,6 +22,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "inbox.py"
@@ -529,6 +530,88 @@ def test_cli_urgency_refuses_bad_value_closed_item_and_unknown_id(tmp_path):
     assert r.returncode == 1 and "closed" in r.stderr
     r = run_cli(tmp_path, "urgency", "nope", "now")
     assert r.returncode == 1 and "inbox:" in r.stderr
+
+
+# ---------------------------------------------------------------- unseen_for
+# A reporter that files the same key every run (a daily health report) says "still
+# there" by firing again. When it stops firing, the condition is gone: nobody has to
+# tell the inbox, and nobody has to clear a log so a check can turn green.
+
+def _box_at(tmp_path, clock):
+    return inbox.Inbox(tmp_path / "work" / "inbox", actor="homebox", clock=lambda: clock[0])
+
+
+def test_unseen_for_closes_an_item_its_reporter_stopped_refiling(tmp_path):
+    clock = [NOW]
+    box = _box_at(tmp_path, clock)
+    item_id = add(box, kind="finding", key="crash:x", closes_when={"unseen_for": {"hours": 36}})
+    clock[0] = NOW + dt.timedelta(hours=35)
+    assert box.check() == []
+    clock[0] = NOW + dt.timedelta(hours=36)
+    assert box.check() == [item_id]
+    assert box.get(item_id).state == "done"
+
+
+def test_a_refiled_key_restarts_the_unseen_clock(tmp_path):
+    clock = [NOW]
+    box = _box_at(tmp_path, clock)
+    item_id = add(box, kind="finding", key="crash:x", closes_when={"unseen_for": {"hours": 36}})
+    clock[0] = NOW + dt.timedelta(hours=30)
+    add(box, kind="finding", key="crash:x")           # next day's report still lists it
+    clock[0] = NOW + dt.timedelta(hours=60)           # 30 h after the last sighting
+    assert box.check() == []
+    clock[0] = NOW + dt.timedelta(hours=66)
+    assert box.check() == [item_id]
+
+
+def test_unseen_for_without_an_item_or_a_valid_span_is_unknown(box):
+    assert inbox.probe({"unseen_for": {"hours": 36}}, now=NOW) is None      # no item to look at
+    item_id = add(box, closes_when={"unseen_for": {"hours": "soon"}})
+    assert box.check() == []
+    assert box.get(item_id).state == "open"
+    item_id = add(box, summary="zero", closes_when={"unseen_for": {"hours": 0}})
+    assert box.check() == []                                               # 0 h would close at once
+
+
+def test_a_malformed_unseen_for_is_unknown_and_the_rest_of_the_inbox_is_still_checked(box):
+    # {unseen_for: 36} is an easy slip for {unseen_for: {hours: 36}}. It must not
+    # raise out of probe() and abort check() for every other item.
+    item = inbox.Item(id="x", data={"created": "2026-10-04T18:00"}, events=[], today=NOW.date())
+    for bad in (36, [1], "36h"):
+        assert inbox.probe({"unseen_for": bad}, now=NOW, item=item) is None
+    broken = add(box, summary="broken", closes_when={"unseen_for": 36})
+    gone = add(box, summary="gone", closes_when={"path_exists": "."})
+    assert box.check() == [gone]
+    assert box.get(broken).state == "open"
+
+
+def _item_created(created):
+    data = {} if created is None else {"created": created}
+    return inbox.Item(id="x", data=data, events=[], today=NOW.date())
+
+
+def test_unseen_for_reads_an_unquoted_yaml_timestamp_as_the_creation_time():
+    # yaml.safe_load turns an unquoted `created: 2026-10-04T18:00:00+02:00` into a datetime.
+    created = yaml.safe_load("created: 2026-10-04T17:00:00+00:00")["created"]
+    assert isinstance(created, dt.datetime)
+    spec = {"unseen_for": {"hours": 36}}
+    now = dt.datetime(2026, 10, 4, 18, 0, tzinfo=dt.timezone.utc)
+    assert inbox.probe(spec, now=now, item=_item_created(created)) is False
+    assert inbox.probe(spec, now=now + dt.timedelta(hours=36), item=_item_created(created)) is True
+
+
+def test_unseen_for_without_any_sighting_time_is_unknown():
+    spec = {"unseen_for": {"hours": 36}}
+    assert inbox.probe(spec, now=NOW, item=_item_created(None)) is None
+    assert inbox.probe(spec, now=NOW, item=_item_created("not a time")) is None
+
+
+def test_the_item_schema_declares_unseen_for_with_a_positive_span():
+    path = ROOT / "work" / "templates" / "_schema.inbox-item.yaml"
+    schema = yaml.safe_load(path.read_text(encoding="utf-8"))
+    spec = schema["$defs"]["probe"]["properties"]["unseen_for"]
+    assert spec["required"] == ["hours"]
+    assert spec["properties"]["hours"]["exclusiveMinimum"] == 0
 
 
 # ---------------------------------------------------------------- closing by key, closer
