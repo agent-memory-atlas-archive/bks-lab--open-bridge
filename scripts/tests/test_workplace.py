@@ -353,6 +353,14 @@ def test_tasks_carry_their_type(repo):
     assert rows["typed"]["type"] == "research" and rows["payments-incident"]["type"] is None
 
 
+def test_tasks_say_whether_they_are_a_stream(repo):
+    d = repo / "work" / "streams" / "river"
+    d.mkdir(parents=True)
+    (d / "STATUS.md").write_text("---\nslug: river\nstatus: doing\n---\n\n# River\n", encoding="utf-8")
+    rows = {t["slug"]: t for t in wp.task_rows(repo, CFG, TODAY)}
+    assert rows["river"]["kind"] == "streams" and rows["payments-incident"]["kind"] == "tasks"
+
+
 def test_teams_json_and_launch_team_cli(lrepo, capsys):
     assert wp.main(["--root", str(lrepo), "teams", "--json"]) == 0
     assert {t["id"] for t in json.loads(capsys.readouterr().out)} >= {"build", "research"}

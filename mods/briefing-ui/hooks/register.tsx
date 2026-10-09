@@ -2,12 +2,12 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, ResolveInput } from 'claude-code'
 
 import type {
-  Info, Mark, Mode, PageId, Row, SectionId, SideTab, Tab, TabSeen, Target, Team, TeamRun, UiConfig, View,
+  Info, Mark, Mode, PageId, Review, Row, SectionId, SideTab, Tab, TabSeen, Target, Team, TeamRun, UiConfig, View,
 } from '../types'
 import {
   askAbout, askInfo, asText, ATTENTION, BRIEFING_PAGE, clockTime, DAY, evening, filedBy, followUp, isoDate,
-  isLive, isWaiting, launchItem, layout, longText, mergeView, nextMonday, overview, pageBadge, planDay, parseConfig, parseDate,
-  parseTasks, parseTeams, parseView, refNumber, rowUrl, short, SHORTCUT, stateWord, tabColor, tabFor, taskRow,
+  isLive, isWaiting, launchItem, layout, longText, mergeView, modelShort, nextMonday, overview, pageBadge, planDay,
+  parseConfig, parseDate, parseReview, parseReviewCache, parseTasks, parseTeams, parseView, refNumber, rowUrl, short, SHORTCUT, stateWord, tabColor, tabFor, taskRow,
   taskRowFor, teamState, toTab, withTasks,
 } from './logic'
 import type { Layout, Section, TaskInfo } from './logic'
@@ -70,6 +70,16 @@ const isControl = atom({ plugin: 'briefing-ui', key: 'isControl' } as const, nul
 const starting = atom({ plugin: 'briefing-ui', key: 'starting' } as const, [] as string[])
 /** The active tasks as workplace.py tasks lists them: area, priority, type; a page row opens with them */
 const taskInfo = atom({ plugin: 'briefing-ui', key: 'taskInfo' } as const, [] as TaskInfo[])
+/** The last recommendation per task (task.py review); on open read from its cache file, no model asked */
+const reviews = atom({ plugin: 'briefing-ui', key: 'reviews' } as const, {} as Record<string, Review>)
+const reviewing = atom({ plugin: 'briefing-ui', key: 'reviewing' } as const, null as string | null)
+const confirmClose = atom({ plugin: 'briefing-ui', key: 'confirmClose' } as const, null as { slug: string; at: number } | null)
+const closedTasks = atom({ plugin: 'briefing-ui', key: 'closedTasks' } as const, [] as string[])
+/** task.py keeps the whole review (evidence and both tiers) inside 190 s; this leaves a margin */
+const REVIEW_TIMEOUT_MS = 240000
+/** How long the first click on Done waits for the second */
+const CONFIRM_MS = 5000
+const REVIEW_CACHE = '.bridge/task-review.json'
 /** How long an item counts as starting after its start returned: until the tab list knows the new tab */
 const START_HOLD_MS = 15000
 /** A start may wait for the router (45 s) and for the driver to see the command run (20 s) */
@@ -196,6 +206,14 @@ async function loadView($: EngineInterface, how: LoadHow): Promise<void> {
   const now0 = await $.clock.now()
   const freshFor = ((await read($, config))?.fullMinutes ?? 10) * 60000
   const wantsFull = how === 'full' || (how === 'auto' && !(last?.isFull && now0 - (last.fullMs || 0) < freshFor))
+  if (Object.keys(await read($, reviews)).length === 0) {
+    try {
+      const cached = parseReviewCache(await $.fs.read(REVIEW_CACHE))
+      if (Object.keys(cached).length) await update($, reviews, () => cached)
+    } catch {
+      // no review yet: no verdicts on the rows
+    }
+  }
   const taskRun = await bridge($, ['scripts/workplace.py', 'tasks', '--json'], 20000)
   let taskList: TaskInfo[] = []
   try {
@@ -643,6 +661,76 @@ async function addNote($: EngineInterface, row: Row, text: string): Promise<void
   await note($, run.ok ? T().noteAdded(short(row.title, 40), short(line, 60)) : T().noteFailed(short(run.err, 100)))
 }
 
+/** Check all open tasks, or the named ones: one recommendation each, with what it cost. Changes no task. */
+async function reviewTasks($: EngineInterface, slugs: string[] | null): Promise<void> {
+  if ((await read($, reviewing)) !== null) {
+    await note($, T().reviewBusy)
+    return
+  }
+  await update($, reviewing, () => (slugs ? slugs.join(',') : 'all'))
+  try {
+    const run = await bridge($, ['scripts/task.py', 'review', ...(slugs ?? ['--all']), '--json'], REVIEW_TIMEOUT_MS)
+    if (!run.ok) throw new Error(run.err || 'task.py review failed')
+    const got = parseReview(run.out)
+    await update($, reviews, cur => ({ ...cur, ...got.reviews }))
+    const odd = got.mismatch.length ? ` · ${T().modelMismatch(got.mismatch.join('; '))}` : ''
+    await note($, `${T().reviewDone(got.count, got.toClose, got.costUsd, got.costKnown)}${odd}`)
+  } catch (error) {
+    await note($, T().reviewFailed(short(String(error).replace(/^Error: /, ''), 120)))
+  } finally {
+    await update($, reviewing, () => null)
+  }
+}
+
+/** Keep: the recommendation stays away until the task's evidence changes (stored by task.py). */
+async function keepTask($: EngineInterface, slug: string): Promise<void> {
+  const run = await bridge($, ['scripts/task.py', 'review', '--keep', slug, '--json'])
+  if (!run.ok) {
+    await note($, T().keepFailed(short(run.err, 100)))
+    return
+  }
+  await update($, reviews, cur => (cur[slug] ? { ...cur, [slug]: { ...cur[slug]!, kept: true } } : cur))
+  await note($, T().kept(slug))
+}
+
+/**
+ * Close a finished task: the first click asks (the button turns into "really close?"), a second
+ * one within a few seconds runs the 3-step close of task.py and takes the row off the card.
+ */
+async function closeTask($: EngineInterface, slug: string, declined = false): Promise<void> {
+  const now = await $.clock.now()
+  const pending = await read($, confirmClose)
+  if (!pending || pending.slug !== slug || now - pending.at > CONFIRM_MS) {
+    await update($, confirmClose, () => ({ slug, at: now }))
+    $.clock.after(CONFIRM_MS, () => {
+      void update($, confirmClose, cur => (cur && cur.slug === slug && cur.at === now ? null : cur))
+    })
+    return
+  }
+  await update($, confirmClose, () => null)
+  const rv = (await read($, reviews))[slug]
+  // the recommendation's reason says why it is finished; a close without one says where it came from
+  const reason = rv && !rv.kept && (rv.verdict === 'close' || rv.verdict === 'stale') && rv.reason
+    ? rv.reason : T().closedFromDashboard
+  // Close on a stale verdict means dropped, not finished: outcome declined
+  const run = await bridge($, ['scripts/task.py', 'close', slug, '--reason', reason, ...(declined ? ['--declined'] : []),
+    '--json'])
+  if (!run.ok) {
+    await note($, T().closeTaskFailed(short(run.err, 100)))
+    return
+  }
+  await update($, closedTasks, list => (list.includes(slug) ? list : [...list, slug]))
+  await update($, reviews, cur => {
+    const next = { ...cur }
+    delete next[slug]
+    return next
+  })
+  await update($, taskInfo, list => list.filter(t => t.slug !== slug))
+  await update($, expanded, () => null)
+  await note($, T().taskClosed(slug))
+  startLoad($, 'quick')
+}
+
 /** Do it yourself: have it run with a yes where the inbox can, otherwise have a tab work it off. */
 async function doIt($: EngineInterface, rows: Row[], where?: Target): Promise<string> {
   const cfg = await read($, config)
@@ -785,8 +873,72 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
       ? <Text color={mark.color ?? 'magenta'}>{`${mark.label} `}</Text> : null
   // An input field does not exist on every surface (not on mobile).
   const Input = 'Input' in table ? table.Input : null
-  const v = await read($, view)
+  // The verdict of the last review as a short tag behind a task's title; continue and kept ones say nothing.
+  const tagOf = (slug: string | null) => {
+    const rv = slug ? rvs[slug] : undefined
+    // a resolved signal says close whatever the model answered; a low confidence adds a question mark
+    const verdict = rv?.resolved ? 'close' : rv?.verdict
+    const tag = rv && !rv.kept && verdict ? T().verdictTag[verdict] : undefined
+    const unsure = rv?.confidence === 'low' && !rv.resolved ? '?' : ''
+    return tag ? <Text color={verdict === 'close' ? 'green' : 'yellow'}>{`  ${tag}${unsure}`}</Text> : null
+  }
+  const reviewButton = (key: string) => (reviewNow !== null
+    ? <Text dimColor>{`${T().reviewing} `}</Text>
+    : <Button key={key} plain dimColor label={T().btnReviewAll} onPress={() => reviewTasks($, null)} />)
+  // An opened task: the recommendation with Close/Keep, Done (asks once more) and a check of this one task.
+  const reviewBox = (row: Row) => {
+    const slug = row.task!
+    const rv = rvs[slug]
+    const shown = rv && !rv.kept ? rv : undefined
+    const isClose = shown?.verdict === 'close' || shown?.resolved === true
+    const isStale = !isClose && shown?.verdict === 'stale'
+    // a long-runner never closes: no Done, no Close
+    if (taskList.find(t => t.slug === slug)?.isStream) return null
+    const sure = confirm?.slug === slug
+    return (
+      <Box key={`rv-${row.key}`} flexDirection="column">
+        {shown && (
+          <Text wrap="wrap" color={isClose ? 'green' : undefined}>{T().recommendation(modelShort(shown.model), shown.reason)}</Text>
+        )}
+        {shown?.resolved && shown.closedRefs.length > 0 && (
+          <Text wrap="wrap" color="green">{T().signalClosed(shown.closedRefs.join(', '))}</Text>
+        )}
+        {shown && !shown.resolved && shown.unblocked && shown.closedRefs.length > 0 && (
+          <Text wrap="wrap" dimColor>{T().signalUnblocked(shown.closedRefs.join(', '))}</Text>
+        )}
+        <Box flexWrap="wrap">
+          {(isClose || isStale) && (
+            <Button key={`rv-close-${row.key}`} variant="primary" label={sure ? T().btnReallyClose : T().btnCloseTask}
+              onPress={() => closeTask($, slug, isStale)} />
+          )}
+          {(isClose || isStale) && (
+            <Button key={`rv-keep-${row.key}`} label={T().btnKeep} dimColor onPress={() => keepTask($, slug)} />
+          )}
+          <Button key={`done-${row.key}`} label={sure ? T().btnReallyClose : T().btnFinished} dimColor={!sure}
+            onPress={() => closeTask($, slug)} />
+          {reviewNow !== null ? <Text dimColor>{` ${T().reviewing}`}</Text> : (
+            <Button key={`rv-one-${row.key}`} label={T().btnCheckOne} dimColor onPress={() => reviewTasks($, [slug])} />
+          )}
+        </Box>
+      </Box>
+    )
+  }
+  // A task closed here leaves the card at once, before the next collect knows it.
+  const closed = await read($, closedTasks)
+  const isGone = (task: string | null, inboxId: string | null = null) => !!task && !inboxId && closed.includes(task)
+  const rawView = await read($, view)
+  const v = rawView && closed.length ? {
+    ...rawView,
+    buckets: rawView.buckets.map(b => ({ ...b, rows: b.rows.filter(r => !isGone(r.task, r.inboxId)) })),
+    pages: rawView.pages.map(pg => ({ ...pg, sections: pg.sections.map(x => {
+      const items = x.items.filter(it => !isGone(it.task))
+      return { ...x, items, count: x.count - (x.items.length - items.length) }
+    }) })),
+  } : rawView
   const done = await read($, settled)
+  const rvs = await read($, reviews)
+  const reviewNow = await read($, reviewing)
+  const confirm = await read($, confirmClose)
   const taskList = await read($, taskInfo)
   const picked = await read($, selected)
   const isConfirming = await read($, confirmAll)
@@ -970,6 +1122,7 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
             </Box>
           )
         })()}
+        {row.task && !row.inboxId && reviewBox(row)}
         <Box flexWrap="wrap">
           {launchItem(row) !== null && !agent && !hasStartRow && (
             <Button key={`ws-${row.key}`} label={inSidebar ? T().btnOwnWs : T().btnDoOwnWs}
@@ -1061,6 +1214,7 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
             <Text wrap="truncate-end">
               {markText(row.mark, row.area)}
               {isOpen ? <Text bold>{row.title}</Text> : row.title}
+              {!row.inboxId && tagOf(row.task)}
               {tab && <Text color={tabColor(tab)}>{`  ● ${stateWord(tab.state)}`}</Text>}
               {team && <Text color="magenta">{`  ${team.team.label} ${team.started}/${team.team.roles.length}`}</Text>}
             </Text>
@@ -1098,6 +1252,8 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
           <Box flexShrink={0}>
             <Text bold color={SECTION_COLOR[id]}>{T().section[id]}</Text>
             <Text dimColor>{` ${s.all.length + tabCount} `}</Text>
+            {id === 'work' && reviewButton('review-all-work')}
+            {id === 'work' && <Text> </Text>}
             {id === 'give' && s.all.length > 1 && (
               <Button key="pick-give" plain label={`${T().btnPickAll} `} dimColor
                 onPress={() => update($, selected, list => [...new Set([...list,
@@ -1234,6 +1390,8 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
                 <Text bold color={sec.alarm && sec.count > 0 ? 'red' : undefined}>{sec.title.replace(/\s*\(.*?\)/g, '')}</Text>
                 <Text dimColor>{` ${sec.status === 'skipped' ? '' : sec.count} `}</Text>
                 {sec.asOf && <Text dimColor>{`${T().sourceAsOf(sec.asOf)} `}</Text>}
+                {sec.kind === 'tasks' && reviewButton(`review-all-${sec.id}`)}
+                {sec.kind === 'tasks' && <Text> </Text>}
               </Box>
               <Box flexGrow={1} width={0} height={1} overflow="hidden"><Text dimColor>{RULE}</Text></Box>
             </Box>
@@ -1258,7 +1416,7 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
                 <Box flexGrow={1} width={0}>
                   <Text wrap="truncate-end" dimColor={it.tone === 'dim'}
                     color={it.tone === 'bad' ? 'red' : it.tone === 'warn' ? 'yellow' : undefined}>
-                    {markText(it.mark, null)}{isOpen ? <Text bold>{it.title}</Text> : it.title}</Text>
+                    {markText(it.mark, null)}{isOpen ? <Text bold>{it.title}</Text> : it.title}{tagOf(it.task)}</Text>
                 </Box>
                 {it.detail && isWide && (
                   <Box flexShrink={0} marginLeft={1}><Text dimColor>{short(it.detail, 36)}</Text></Box>
@@ -1434,6 +1592,7 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
                 <Button key={`smore-${row.key}`} label={more ? T().btnLess : T().btnMore} dimColor
                   onPress={() => update($, sideMore, x => !x)} />
               </Box>
+              {!more && row.task && !row.inboxId && reviewBox(row)}
               {more && detail(row, tab, true)}
             </Box>
           )}

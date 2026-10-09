@@ -267,3 +267,64 @@ test('a task row of a page brings its detail lines, priority and state', () => {
   assert.deepEqual(it.lines, [{ kind: 'step', text: 'first' }, { kind: 'log', text: '2026-10-07 x' }])
   assert.deepEqual(m.parseInfo({ title: 'B' }).lines, [])
 })
+
+test('task review: the json of task.py review, the cache file, the model short name', () => {
+  const out = m.parseReview(JSON.stringify({ tasks: [
+    { slug: 'alpha', title: 'A', verdict: 'close', reason: 'example-org/x#49 closed', confidence: 'high',
+      model: 'claude-haiku-5-5', cached: false, kept: false, evidence_summary: 'doing' },
+    { slug: 'beta', title: 'B', verdict: 'nonsense', reason: 'r', confidence: 'low', model: null, cached: true, kept: true }],
+  cost_usd: 0.009, models_used: ['claude-haiku-5-5'], model_mismatch: [{ requested: 'x', used: ['y'] }] }))
+  assert.equal(out.reviews.alpha.verdict, 'close')
+  assert.equal(out.reviews.alpha.model, 'claude-haiku-5-5')
+  assert.equal(out.reviews.beta.verdict, 'unclear')
+  assert.equal(out.reviews.beta.kept, true)
+  assert.equal(out.count, 2)
+  assert.equal(out.toClose, 1)
+  assert.equal(out.costUsd, 0.009)
+  assert.deepEqual(out.mismatch, ['x → y'])
+  const cached = m.parseReviewCache(JSON.stringify({ version: 1, tasks: {
+    alpha: { verdict: 'stale', reason: 'quiet', confidence: 'medium', model: 'claude-sonnet-5-5', kept: false, hash: 'h' } } }))
+  assert.equal(cached.alpha.verdict, 'stale')
+  assert.equal(cached.alpha.cached, true)
+  assert.deepEqual(m.parseReviewCache('not json'), {})
+  assert.equal(m.modelShort('claude-haiku-5-5'), 'Haiku 5.5')
+  assert.equal(m.modelShort('claude-haiku-4-5-20251001'), 'Haiku 4.5')
+  assert.equal(m.modelShort('claude-opus-5-5'), 'Opus 5.5')
+  assert.equal(m.modelShort('some-model'), 'some-model')
+  assert.equal(m.modelShort(null), '?')
+})
+
+test('task review: the summary names count, to close and cost in cents, per language', () => {
+  const { de, en } = text.TABLES
+  assert.equal(de.reviewDone(14, 3, 0.009, true), '14 geprüft, 3 zum Schließen, 0,9 ct')
+  assert.equal(en.reviewDone(14, 3, 0.009, true), '14 reviewed, 3 to close, 0.9 ct')
+  assert.equal(en.reviewDone(2, 0, 0, true), '2 reviewed, 0 to close, 0 ct')
+  assert.equal(de.verdictTag.close, 'schließen?')
+  assert.equal(de.verdictTag.stale, 'steht?')
+  assert.equal(en.verdictTag.close, 'close?')
+})
+
+test('task review: the signal travels with the review and the cache', () => {
+  const out = m.parseReview(JSON.stringify({ tasks: [{ slug: 'a', verdict: 'continue', reason: 'r', confidence: 'medium',
+    resolved: true, signals: { own_refs_closed: true, blocker_resolved: false, closed_refs: ['o/r#1 2026-10-03'] } }] }))
+  assert.equal(out.reviews.a.resolved, true)
+  assert.deepEqual(out.reviews.a.closedRefs, ['o/r#1 2026-10-03'])
+  assert.equal(out.toClose, 1)
+  assert.equal(m.parseReviewCache(JSON.stringify({ tasks: { a: { verdict: 'continue', resolved: true } } })).a.resolved, true)
+  assert.equal(text.TABLES.de.signalClosed('o/r#1 2026-10-03'), 'erledigt laut GitHub: o/r#1 2026-10-03')
+})
+
+test('task review: unknown cost is said, a resolved blocker is a hint, a stream is known', () => {
+  const { de, en } = text.TABLES
+  assert.equal(de.reviewDone(3, 1, 0, false), '3 geprüft, 1 zum Schließen, Kosten unbekannt')
+  assert.equal(en.reviewDone(3, 1, 0.009, false), '3 reviewed, 1 to close, cost unknown')
+  assert.equal(en.reviewDone(3, 1, 0.009, true), '3 reviewed, 1 to close, 0.9 ct')
+  const out = m.parseReview(JSON.stringify({ cost_known: false, tasks: [{ slug: 'a', verdict: 'continue', resolved: false,
+    signals: { own_refs_closed: false, blocker_resolved: true, closed_refs: ['o/r#1 2026-10-03'] } }] }))
+  assert.equal(out.costKnown, false)
+  assert.equal(out.reviews.a.unblocked, true)
+  assert.equal(out.toClose, 0)
+  assert.equal(de.signalUnblocked('o/r#1'), 'Blocker erledigt: o/r#1')
+  assert.equal(m.parseTasks(JSON.stringify([{ slug: 's', kind: 'streams' }]))[0].isStream, true)
+  assert.equal(m.parseTasks(JSON.stringify([{ slug: 't', kind: 'tasks' }]))[0].isStream, false)
+})

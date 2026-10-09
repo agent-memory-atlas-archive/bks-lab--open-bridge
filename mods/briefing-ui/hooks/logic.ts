@@ -1,5 +1,5 @@
 import type {
-  Bucket, Info, InfoPage, Mark, Row, SectionId, Tab, TabSeen, TaskInfo, Team, TeamRun, UiConfig, View,
+  Bucket, Info, InfoPage, Mark, Review, Row, SectionId, Tab, TabSeen, TaskInfo, Team, TeamRun, UiConfig, View,
 } from '../types'
 import { T } from './text'
 
@@ -270,7 +270,55 @@ export function parseTasks(out: string): TaskInfo[] {
     stale: t.stale === true,
     age: typeof t.age === 'number' ? t.age : 0,
     type: asTextOrNull(t.type),
+    isStream: t.kind === 'streams',
   }))
+}
+
+const VERDICTS = ['close', 'continue', 'waiting', 'stale', 'unclear'] as const
+
+function toReview(slug: string, r: Record<string, unknown>, cached: boolean): Review {
+  const verdict = VERDICTS.find(v => v === r.verdict) ?? 'unclear'
+  const sig = (r.signals && typeof r.signals === 'object' ? r.signals : {}) as Record<string, unknown>
+  return { slug, verdict, reason: asText(r.reason), confidence: asText(r.confidence), model: asTextOrNull(r.model),
+    cached, kept: r.kept === true, resolved: r.resolved === true, unblocked: sig.blocker_resolved === true,
+    closedRefs: Array.isArray(sig.closed_refs) ? sig.closed_refs.map(asText) : [] }
+}
+
+/** The answer of `task.py review --json`: one recommendation per task, what it cost, which models answered. */
+export function parseReview(out: string): { reviews: Record<string, Review>; count: number; toClose: number
+  costUsd: number; costKnown: boolean; models: string[]; mismatch: string[] } {
+  const raw = JSON.parse(out) as Record<string, unknown>
+  const tasks = (Array.isArray(raw.tasks) ? raw.tasks : []) as Record<string, unknown>[]
+  const reviews: Record<string, Review> = {}
+  for (const t of tasks) if (t && t.slug) reviews[asText(t.slug)] = toReview(asText(t.slug), t, t.cached === true)
+  const mismatch = (Array.isArray(raw.model_mismatch) ? raw.model_mismatch : []) as Record<string, unknown>[]
+  return {
+    reviews, count: tasks.length,
+    toClose: Object.values(reviews).filter(r => (r.verdict === 'close' || r.resolved) && !r.kept).length,
+    costUsd: typeof raw.cost_usd === 'number' ? raw.cost_usd : 0,
+    costKnown: raw.cost_known !== false,
+    models: Array.isArray(raw.models_used) ? raw.models_used.map(asText) : [],
+    mismatch: mismatch.map(m => `${asText(m.requested)} → ${(Array.isArray(m.used) ? m.used.map(asText) : []).join(', ')}`),
+  }
+}
+
+/** The cache file of `task.py review` (.bridge/task-review.json): the last verdicts, without asking a model. */
+export function parseReviewCache(text: string): Record<string, Review> {
+  try {
+    const raw = JSON.parse(text) as { tasks?: Record<string, Record<string, unknown>> }
+    const out: Record<string, Review> = {}
+    for (const [slug, r] of Object.entries(raw.tasks ?? {})) if (r && typeof r === 'object') out[slug] = toReview(slug, r, true)
+    return out
+  } catch {
+    return {}
+  }
+}
+
+/** claude-haiku-5-5 → Haiku 5.5; anything else stays as it is */
+export function modelShort(id: string | null): string {
+  if (!id) return '?'
+  const m = /^claude-([a-z]+)-(\d+)-(\d+)(?:-\d{8})?$/.exec(id)
+  return m ? `${m[1]!.charAt(0).toUpperCase()}${m[1]!.slice(1)} ${m[2]}.${m[3]}` : id
 }
 
 export function parseTeams(out: string): Team[] {

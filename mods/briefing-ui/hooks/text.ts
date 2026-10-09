@@ -42,6 +42,28 @@ export type Strings = {
   waitsForRole: (name: string) => string
   prevRole: string
 
+  // Task review and close (task.py review / close)
+  btnReviewAll: string
+  btnCheckOne: string
+  btnCloseTask: string
+  btnKeep: string
+  btnFinished: string
+  btnReallyClose: string
+  reviewing: string
+  reviewBusy: string
+  reviewDone: (count: number, toClose: number, costUsd: number, costKnown: boolean) => string
+  reviewFailed: (err: string) => string
+  modelMismatch: (what: string) => string
+  verdictTag: Record<string, string>
+  recommendation: (model: string, reason: string) => string
+  signalClosed: (refs: string) => string
+  signalUnblocked: (refs: string) => string
+  closedFromDashboard: string
+  taskClosed: (slug: string) => string
+  closeTaskFailed: (err: string) => string
+  kept: (slug: string) => string
+  keepFailed: (err: string) => string
+
   // Buttons
   btnDo: string
   btnAdvise: string
@@ -269,6 +291,8 @@ const de: Strings = {
     ['Mach du', 'Eintrag mit Aktion: gilt als Ja, sie läuft beim nächsten Durchlauf des Posteingangs · sonst neuer Tab im Workspace des Bereichs, der es erledigt'],
     ['Tab zuordnen (▾)', 'ein schon laufender Tab im Bereich einer Aufgabe wird ihr zugeordnet, danach steht dort „zum Tab“'],
     ['Berate mich', 'neuer Tab liest den Kontext, berichtet kurz und wartet auf dich'],
+    ['alle prüfen', 'Aufgaben-Reiter und Deine Aufgaben: ein kleines Modell liest jede offene Aufgabe (Schritte, Log, Commits, verlinkte Issues) und empfiehlt schließen, weiter, wartet, steht oder unklar · Unklares prüft ein stärkeres Modell nach · unveränderte Aufgaben kommen aus dem Zwischenspeicher · Kosten stehen in der Meldung · ▾ zeigt die Begründung, Schließen oder Behalten'],
+    ['Erledigt (▾)', 'Aufgabe abschließen: zweiter Klick bestätigt, sie wandert nach work/done/, Board und Log werden nachgezogen'],
     ['Erledigt · Weg', 'Eintrag schließen (nur du konntest es tun) · Eintrag verwerfen'],
     ['zum Tab · weiter · ✉', 'zum Tab springen · „Mach weiter.“ schicken · eigene Nachricht an den Tab · braucht dich (fragt um Erlaubnis): Ja oder Nein direkt beantworten · Ergebnis da: der Tab hat sein Ergebnis in den Posteingang gelegt, zählt nicht mehr als wartend, „Tab schließen“ räumt ihn weg'],
     ['Leitstand', 'nur die Sitzung im Leitstand-Workspace (workplace.control in bridge-config.yaml) fragt die Tabs ab, meldet und sichert; die anderen lesen ihren Stand mit und bleiben still · ist der Tab-Stand alt, steht rot warum'],
@@ -307,6 +331,28 @@ const de: Strings = {
   allRolesStarted: 'alle Rollen gestartet',
   waitsForRole: name => `wartet auf ${name}`,
   prevRole: 'die vorige Rolle',
+
+  btnReviewAll: 'alle prüfen',
+  btnCheckOne: 'prüfen',
+  btnCloseTask: 'Schließen',
+  btnKeep: 'Behalten',
+  btnFinished: 'Erledigt',
+  btnReallyClose: 'wirklich schließen?',
+  reviewing: 'prüft …',
+  reviewBusy: 'Eine Prüfung läuft schon',
+  reviewDone: (count, toClose, costUsd, costKnown) =>
+    `${count} geprüft, ${toClose} zum Schließen, ${costKnown ? `${cents(costUsd, ',')} ct` : 'Kosten unbekannt'}`,
+  reviewFailed: err => `Prüfung fehlgeschlagen: ${err}`,
+  modelMismatch: what => `anderes Modell geantwortet: ${what}`,
+  verdictTag: { close: 'schließen?', stale: 'steht?', waiting: 'wartet', unclear: 'unklar?' },
+  recommendation: (model, reason) => `Empfehlung (${model}): ${reason}`,
+  signalClosed: refs => `erledigt laut GitHub: ${refs}`,
+  signalUnblocked: refs => `Blocker erledigt: ${refs}`,
+  closedFromDashboard: 'aus dem Dashboard geschlossen',
+  taskClosed: slug => `geschlossen: ${slug}, liegt jetzt unter work/done/`,
+  closeTaskFailed: err => `Schließen fehlgeschlagen: ${err}`,
+  kept: slug => `behalten: ${slug}, bis sich an der Aufgabe etwas ändert`,
+  keepFailed: err => `Behalten fehlgeschlagen: ${err}`,
 
   btnDo: 'Mach du',
   btnAdvise: 'Berate mich',
@@ -528,6 +574,8 @@ const en: Strings = {
     ['Do it', 'an item with an action counts as your yes, it runs on the next inbox pass · otherwise a new tab in the area workspace does it'],
     ['Assign tab (▾)', 'a tab already running in the task\'s area is linked to it, then "Go to tab" shows'],
     ['Advise me', 'a new tab reads the context, reports briefly, then waits for you'],
+    ['check all', 'tasks tab and Your tasks: a small model reads every open task (steps, log, commits, linked issues) and recommends close, continue, waiting, stale or unclear · a stronger model looks again at the unclear ones · unchanged tasks come from the cache · the cost is in the note · ▾ shows the reason, Close or Keep'],
+    ['Done (▾)', 'close the task: a second click confirms, it moves to work/done/, board and log follow'],
     ['Done · Drop', 'close an item only you could do · discard the item'],
     ['Go to tab · go on · ✉', 'jump to the tab · send "Keep going." · your own message to the tab · needs you (asks for permission): answer Yes or No right here · Result filed: the tab put its result in the inbox, no longer counts as waiting, "Close tab" closes it'],
     ['Control session', 'only the session in the control workspace (workplace.control in bridge-config.yaml) polls the tabs, notifies and saves the layout; the others read its state and stay quiet · a stale tab state says why in red'],
@@ -566,6 +614,28 @@ const en: Strings = {
   allRolesStarted: 'all roles started',
   waitsForRole: name => `waiting for ${name}`,
   prevRole: 'the previous role',
+
+  btnReviewAll: 'check all',
+  btnCheckOne: 'check',
+  btnCloseTask: 'Close',
+  btnKeep: 'Keep',
+  btnFinished: 'Done',
+  btnReallyClose: 'really close?',
+  reviewing: 'checking …',
+  reviewBusy: 'A check is already running',
+  reviewDone: (count, toClose, costUsd, costKnown) =>
+    `${count} reviewed, ${toClose} to close, ${costKnown ? `${cents(costUsd, '.')} ct` : 'cost unknown'}`,
+  reviewFailed: err => `Check failed: ${err}`,
+  modelMismatch: what => `another model answered: ${what}`,
+  verdictTag: { close: 'close?', stale: 'stale?', waiting: 'waiting', unclear: 'unclear?' },
+  recommendation: (model, reason) => `Recommendation (${model}): ${reason}`,
+  signalClosed: refs => `done according to GitHub: ${refs}`,
+  signalUnblocked: refs => `unblocked: ${refs}`,
+  closedFromDashboard: 'closed from the dashboard',
+  taskClosed: slug => `closed: ${slug}, now under work/done/`,
+  closeTaskFailed: err => `Closing failed: ${err}`,
+  kept: slug => `kept: ${slug}, until something about the task changes`,
+  keepFailed: err => `Keep failed: ${err}`,
 
   btnDo: 'Do it',
   btnAdvise: 'Advise me',
@@ -766,6 +836,13 @@ const en: Strings = {
   scWaiting: 'waiting for someone else, follow up from the card',
   scOnlyYou: 'only you can do this, v for Advise me',
   scResult: said => `Briefing without Claude: ${said}`,
+}
+
+/** US dollars as cents, short: 0.9, 0.09, 12 */
+export function cents(usd: number, comma: string): string {
+  const c = (Number.isFinite(usd) ? usd : 0) * 100
+  const text = c === 0 ? '0' : c < 0.1 ? c.toFixed(2) : c < 10 ? c.toFixed(1) : c.toFixed(0)
+  return text.replace(/\.?0+$/, m => (text.includes('.') ? '' : m)).replace('.', comma)
 }
 
 /** Both tables, for the help (own switcher) and the tests */

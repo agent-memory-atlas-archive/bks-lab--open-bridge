@@ -275,6 +275,85 @@ own row under the tasks, with "N in the inbox".
 the others. The dashboard in that session polls the agent tabs and notifies;
 the dashboards in other sessions read its state quietly.
 
+### Check all, and closing a finished task
+
+A task can be finished without anybody saying so: its linked issue was closed a
+week ago, the PR merged, every box checked. Two buttons catch that.
+
+**check all** sits in the header of the tasks page and of the card's "Your tasks"
+block. It runs `python3 scripts/task.py review --all --json` and changes no task.
+For every task under `work/tasks/` in `doing` or `review` (`--backlog` adds the
+backlog; a named slug is checked whatever its status) the script gathers evidence
+that costs nothing: the frontmatter (status, priority, `blocked_by`, dates, headline), the
+first open steps and the latest log rows (the same ones the opened row shows),
+the latest notes, the date of the last commit touching the task's folder, its open
+inbox items, and the state of every GitHub issue or PR it names (`sync.github`
+issues and pull requests, plus `owner/repo#N` in `blocked_by`, headline, title
+and steps). All references of all tasks are resolved in ONE `gh api graphql`
+call; when gh fails they are marked unknown and the check goes on.
+
+Two signals are computed from that before any model: `own_refs_closed` (every
+issue and PR in `sync.github` is closed as completed or merged) and
+`blocker_resolved` (every reference `blocked_by` names, a bare `#N` meaning the
+task's own repository, is closed or merged; a PR closed without merge counts as
+not done). They head the task's evidence. `own_refs_closed` means `close`: the
+model's reason names the closed reference with its date and the steps that still
+look open, and the result carries `resolved` whatever the model answered, so the
+card tags the task `close?` and offers Close: a weak answer cannot hide a finished
+task. `blocker_resolved` alone is a hint for the model and a line on the card
+("unblocked: <ref> <date>"), never a close by itself.
+
+A model then judges. Tiered, to stay cheap:
+
+| Pass | Model | Who goes |
+|---|---|---|
+| 1 | `models.mechanical` (else `models.routine`, else `claude-haiku-5-5`) | every task whose evidence changed, all in ONE call |
+| 2 | `models.directed` (else `models.analysis`, else `claude-sonnet-5-5`) | only the answers that were `unclear`, again in one call |
+
+Aliases (`haiku`, `sonnet`, `opus`) are mapped to full model ids: the CLI alias
+`haiku` resolved to an older model than its name suggested. The answer is one of
+`close` (the evidence shows the work is done or moot), `continue`, `waiting`
+(blocked on someone or something still pending), `stale` (no activity for
+`work.review.stale_days`, default 21, and no blocker) or `unclear`, with one sentence of reason in your `language` and a
+confidence. The note on the card names count, how many to close and the cost,
+for example "14 reviewed, 3 to close, 0.9 ct", or "cost unknown" when a call
+failed, timed out or the command reports no cost. The whole review stays inside
+190 s (the second pass gets only what is left; each pass is cached as soon as it
+answers), and the card waits 240 s. When the models that answered
+are not the ones asked for (`modelUsage` of the Claude JSON output), the note
+says so.
+
+Verdicts are cached in `.bridge/task-review.json` (derived, never committed), by
+a hash of the evidence together with the language, the two model ids, `stale_days`
+and a prompt version. A task whose evidence did not change keeps its verdict
+for `work.review.max_age_days` (default 7) and reaches no model; `--fresh` asks
+again. The card reads this file on open, so the last verdicts are there without
+a click. The command is a template, any agent that reads the prompt on stdin
+and prints the JSON array will do:
+
+```yaml
+work:
+  review:
+    command: "claude -p --model {model} --output-format json --no-session-persistence --setting-sources '' --strict-mcp-config --tools ''"
+    max_age_days: 7
+    stale_days: 21
+```
+
+A collapsed row with a recommendation carries a short tag (`close?`, `stale?`,
+`waiting`, `unclear?`); a low confidence adds a question mark (`stale??`). A
+`stale` verdict offers Close and Keep too; Close then closes with
+`outcome: declined`, since a stale task was dropped, not finished. A stream
+never shows Done or Close. Opened, it reads "Recommendation (Haiku 5.5): <reason>";
+a `close` offers **Close** and **Keep**. Keep (`task.py review --keep <slug>`)
+hides the recommendation until the task's evidence changes. **check** reviews
+just this task.
+
+**Done** stands in every opened task row. The first click turns it into "really
+close?", a second click within five seconds runs `task.py close <slug> --reason
+...` with the recommendation's reason (else "closed from the dashboard"): the
+scripted 3-step close of [`work-system.md`](work-system.md). The row leaves the
+card at once.
+
 ## 5. When something is off
 
 | You see | Why, and what to do |

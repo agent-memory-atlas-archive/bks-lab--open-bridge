@@ -143,7 +143,17 @@ export type SideTab = 'all' | SectionId | 'tabs'
 
 /** One active task from `workplace.py tasks --json` */
 export type TaskInfo = { slug: string; label: string; area: string; areaNames: string[]; priority: string | null
-  blockedBy: string | null; stale: boolean; age: number; type: string | null }
+  blockedBy: string | null; stale: boolean; age: number; type: string | null
+  /** a long-runner under work/streams/: it never closes */
+  isStream: boolean }
+
+/** One recommendation of `task.py review`: what to do with a task, why, and which model said so */
+export type Review = { slug: string; verdict: 'close' | 'continue' | 'waiting' | 'stale' | 'unclear'; reason: string
+  confidence: string; model: string | null; cached: boolean; kept: boolean
+  /** GitHub says done (own refs closed, or the blocker resolved): a close is recommended whatever the model said */
+  resolved: boolean; closedRefs: string[]
+  /** what blocked_by names is closed or merged: a hint, never a close by itself */
+  unblocked: boolean }
 
 declare module 'claude-code' {
   interface PluginState {
@@ -192,6 +202,14 @@ declare module 'claude-code' {
       starting: string[]
       /** The active tasks as workplace.py tasks lists them; an opened task row of a page takes area and priority from it */
       taskInfo: TaskInfo[]
+      /** the last recommendation per task slug (task.py review, or its cache file on open) */
+      reviews: Record<string, Review>
+      /** a review is running: 'all' or the slugs it checks */
+      reviewing: string | null
+      /** the first click on Done/Close: the second within a few seconds closes */
+      confirmClose: { slug: string; at: number } | null
+      /** tasks closed from the card in this session: their rows stay away */
+      closedTasks: string[]
       /** "release all N" pressed: the confirmation prompt is showing */
       confirmAll: boolean
       /** why bridge-config.yaml could not be read; null when it was read */
