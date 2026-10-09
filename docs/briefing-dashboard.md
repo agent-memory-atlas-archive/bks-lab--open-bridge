@@ -79,6 +79,11 @@ a side panel.
 
 ![The briefing card in the conversation](assets/briefing-dashboard/card.png)
 
+The same card with the side panel open, and the band above the prompt at the bottom
+(all data in these pictures is invented):
+
+![The card and the side panel, with the band above the prompt](assets/briefing-dashboard/sidebar.png)
+
 Every other key is optional; `bridge-config.yaml.template` lists them all with
 their defaults:
 
@@ -145,7 +150,7 @@ keys are in [`briefings.md`](briefings.md).
 
 ### Tabs and columns
 
-![A status tab with marks and a cached section](assets/briefing-dashboard/tabs.png)
+![A tracker tab: marks in front of the rows, the section answered from its cache ("as of 13:55")](assets/briefing-dashboard/tabs.png)
 
 Without `view.pages` the kind decides the tab: `command` sections (your own
 probes) on Status, calendars on Dates, trackers on Trackers, commits and
