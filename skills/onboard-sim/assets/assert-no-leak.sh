@@ -21,8 +21,14 @@ else echo "  ✓ no user/* branch on the public upstream"; fi
 # Sourced from the guard itself (same as build-sandbox.sh): a private copy drifted
 # behind the hook and let work/drafts/, work/inbox/ and work/_learning/ through
 # while still reporting PASS (/onboard-sim, 09.10.2026).
-HOOK="$(cd "$(dirname "$0")/../../.." && pwd)/scripts/hooks/pre-push"
+# cd -P: invoked through the .claude/skills symlink, a logical cd lands in .claude/
+# and the hook is not found. Empty patterns then made this check report clean.
+HOOK="$(cd -P "$(dirname "$0")/../../.." && pwd)/scripts/hooks/pre-push"
 eval "$(grep -E '^(USER_PATHS|CORE_EXEMPT)=' "$HOOK")"
+if [ -z "${USER_PATHS:-}" ] || [ -z "${CORE_EXEMPT:-}" ]; then
+  echo "assert-no-leak: cannot read USER_PATHS/CORE_EXEMPT from $HOOK" >&2
+  exit 2
+fi
 leaked=$(git -C "$BARE" -c core.quotepath=false log --all --name-only --pretty=format: 2>/dev/null | sort -u | grep -Ev "$CORE_EXEMPT" | grep -E "$USER_PATHS" || true)
 if [ -n "$leaked" ]; then echo "  ✗ LEAK: USER-path commits on public:"; printf '%s\n' "$leaked" | sed 's/^/        /'; fail=1
 else echo "  ✓ no USER-path commit on the public upstream"; fi

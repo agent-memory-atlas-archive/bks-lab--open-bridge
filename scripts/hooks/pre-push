@@ -61,8 +61,8 @@ fi
 [ "$target_state" = private ] && exit 0
 
 ZERO="0000000000000000000000000000000000000000"
-# USER *instance* paths only — never CORE templates (work/templates/ stays CORE) (_template/_schema, examples/,
-# any _-prefixed basename, or a directory's own README.md). Every cluster-wrapper
+# USER *instance* paths only — never CORE templates (_template/_schema, examples/,
+# work/templates/, any _-prefixed basename, or a directory's own README.md). Every cluster-wrapper
 # family is matched GENERICALLY, (identity|infra|workflow)/<any>/: a list of
 # family names fell behind the tree by four (vehicles, secret-stores,
 # object-stores, and root ecosystem.yaml + context-budget.user.yaml), unnoticed
