@@ -28,7 +28,8 @@ from . import load_json, source_error
 _LOADING = threading.Lock()
 # Boards asked at once. Eight one after another took 64 s live (2026-10-09) against the
 # section's 30 s, the two largest 16 s each; side by side the section takes the slowest one.
-BOARD_WORKERS = 8
+# Four, not all eight: eight in one burst tripped GitHub's secondary rate limit.
+BOARD_WORKERS = 4
 
 
 def _tracker_sync(ctx):

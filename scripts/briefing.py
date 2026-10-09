@@ -38,6 +38,7 @@ import datetime as dt
 import importlib.util
 import json
 import os
+import random
 import re
 import shutil
 import subprocess
@@ -183,21 +184,26 @@ def _default_secret(ref: str) -> str:
 
 # A GitHub rate-limit error during a burst (several sessions at once) clears within
 # seconds; the token's quota is rarely what ran out. Wait, then try again, twice.
+# Each wait is stretched by up to half at random: calls that run side by side (the
+# boards of one section) would otherwise all retry in the same second and hit the
+# limit again. gh 2.x reports a throttled owner lookup as "unknown owner type".
 GH_RETRY_WAITS = (5, 15)
-GH_RATE_LIMIT = re.compile(r"rate limit|secondary rate|abuse detection", re.I)
+GH_RETRY_SPREAD = 0.5
+GH_RATE_LIMIT = re.compile(r"rate limit|secondary rate|abuse detection|unknown owner type", re.I)
 
 
 class Context:
     """What a section may use. Tests replace run/http/secret with recorded answers."""
 
     def __init__(self, root: Path, *, now: dt.datetime | None = None, run=None, http=None, secret=None,
-                 cfg: dict | None = None, timeout: int = DEFAULT_TIMEOUT, sleep=None):
+                 cfg: dict | None = None, timeout: int = DEFAULT_TIMEOUT, sleep=None, rand=None):
         self.root = Path(root)
         self.now = now or dt.datetime.now()
         self._run = run or _default_run
         self._http = http
         self._secret = secret or _default_secret
         self._sleep = sleep or time.sleep
+        self._rand = rand or random.random
         self._revealed: list = []
         self.cfg = cfg if cfg is not None else read_config(self.root)
         self.timeout = timeout
@@ -231,7 +237,7 @@ class Context:
         return min(float(self.timeout), left)
 
     def run(self, argv, timeout=None, cwd=None) -> str:
-        waits = list(GH_RETRY_WAITS) if argv and argv[0] == "gh" else []
+        waits = [w * (1 + GH_RETRY_SPREAD * self._rand()) for w in GH_RETRY_WAITS] if argv and argv[0] == "gh" else []
         while True:
             limit = self.remaining()
             try:
