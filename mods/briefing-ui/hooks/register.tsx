@@ -2,13 +2,13 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, ResolveInput } from 'claude-code'
 
 import type {
-  Mark, Mode, PageId, Row, SectionId, SideTab, Tab, TabSeen, Target, Team, TeamRun, UiConfig, View,
+  Info, Mark, Mode, PageId, Row, SectionId, SideTab, Tab, TabSeen, Target, Team, TeamRun, UiConfig, View,
 } from '../types'
 import {
   askAbout, askInfo, asText, ATTENTION, BRIEFING_PAGE, clockTime, DAY, evening, filedBy, followUp, isoDate,
-  isWaiting, launchItem, layout, longText, mergeView, nextMonday, overview, pageBadge, planDay, parseConfig, parseDate,
+  isLive, isWaiting, launchItem, layout, longText, mergeView, nextMonday, overview, pageBadge, planDay, parseConfig, parseDate,
   parseTasks, parseTeams, parseView, refNumber, rowUrl, short, SHORTCUT, stateWord, tabColor, tabFor, taskRow,
-  teamState, toTab, withTasks,
+  taskRowFor, teamState, toTab, withTasks,
 } from './logic'
 import type { Layout, Section, TaskInfo } from './logic'
 import { TABLES, T, setLanguage } from './text'
@@ -68,6 +68,12 @@ const loadTook = atom({ plugin: 'briefing-ui', key: 'loadTook' } as const, {} as
 const tabsError = atom({ plugin: 'briefing-ui', key: 'tabsError' } as const, null as string | null)
 const isControl = atom({ plugin: 'briefing-ui', key: 'isControl' } as const, null as boolean | null)
 const starting = atom({ plugin: 'briefing-ui', key: 'starting' } as const, [] as string[])
+/** The active tasks as workplace.py tasks lists them: area, priority, type; a page row opens with them */
+const taskInfo = atom({ plugin: 'briefing-ui', key: 'taskInfo' } as const, [] as TaskInfo[])
+/** How long an item counts as starting after its start returned: until the tab list knows the new tab */
+const START_HOLD_MS = 15000
+/** A start may wait for the router (45 s) and for the driver to see the command run (20 s) */
+const LAUNCH_TIMEOUT_MS = 150000
 const confirmAll = atom({ plugin: 'briefing-ui', key: 'confirmAll' } as const, false)
 /**
  * True once a collect came back without a view: the built-in profile, or a profile whose view.style is
@@ -193,7 +199,10 @@ async function loadView($: EngineInterface, how: LoadHow): Promise<void> {
   const taskRun = await bridge($, ['scripts/workplace.py', 'tasks', '--json'], 20000)
   let taskList: TaskInfo[] = []
   try {
-    if (taskRun.ok) taskList = parseTasks(taskRun.out)
+    if (taskRun.ok) {
+      taskList = parseTasks(taskRun.out)
+      await update($, taskInfo, () => taskList)
+    }
   } catch {
     // without a task list the card shows only the rows of the briefing
   }
@@ -492,47 +501,84 @@ async function closeDone($: EngineInterface, row: Row): Promise<string> {
 
 async function launch($: EngineInterface, rows: Row[], how: Mode, where: Target,
   team?: { id: string; role: string; name: string }): Promise<string> {
-  const items = rows.map(launchItem).filter((x): x is string => x !== null)
-  if (items.length === 0) return T().nothingToStart
+  const wanted = rows.map(launchItem).filter((x): x is string => x !== null)
+  if (wanted.length === 0) return T().nothingToStart
+  // One start per item at a time, whichever button or shortcut asks: a second click while the first
+  // is under way (or before the tab list shows the new tab) would open a second tab.
+  const busy = await read($, starting)
+  const items = wanted.filter(x => !busy.includes(x))
+  for (const row of rows.filter(r => busy.includes(launchItem(r) ?? ''))) {
+    await note($, T().startingAlready(short(row.title, 40)))
+  }
+  if (items.length === 0) return ''
+  await update($, starting, list => [...new Set([...list, ...items])])
+  const release = () => update($, starting, list => list.filter(x => !items.includes(x)))
   const here = (await $.env.get('CMUX_SURFACE_ID')) ?? ''
   const args = ['scripts/workplace.py', 'launch', '--items', items.join(','), '--mode', how, '--target', where,
     '--yes', '--json']
   if (here) args.push('--here', here)
   if (team) args.push('--team', team.id, '--role', team.role)
   const word = team ? T().launchTeam(team.name) : how === 'go' ? T().btnDo : how === 'context' ? T().launchContext : T().btnAdvise
-  await note($, T().launchStart(word, items.length, T().where[where]))
-  const run = await bridge($, args, 90000)
+  // into an area: name it, when the started rows share one
+  const areas = [...new Set(rows.filter(r => items.includes(launchItem(r) ?? '')).map(r => r.area).filter(Boolean))]
+  const whereText = where === 'area' && areas.length === 1 ? T().whereArea(areas[0]!) : T().where[where]
+  await note($, T().launchStart(word, items.length, whereText))
+  const run = await bridge($, args, LAUNCH_TIMEOUT_MS)
   let report = run.err
   // Part of it may have started even if the run fails as a whole: the started ones
   // count as done, otherwise a second click starts them twice.
   let started: string[] = []
+  let running: { label: string; ref: string }[] = []
+  let anySkipped = false
   try {
     const data = JSON.parse(run.out) as {
       report?: string[]
-      items?: { item?: string; error?: string; label?: string; workspace?: string; own?: boolean; why?: string }[]
+      items?: { item?: string; error?: string; label?: string; workspace?: string; own?: boolean; why?: string
+        skipped?: string; ref?: string }[]
     }
-    report = (data.report ?? []).join(' · ') || report
+    const lines = data.report ?? []
+    // the skip lines (English, from workplace.py) get a note of their own below
+    const fresh = lines.filter(line => !line.startsWith('already open:'))
+    report = fresh.join(' · ') || (lines.length ? '' : report)
     // For auto: where each item went and why, instead of the raw driver lines
     if (where === 'auto') {
-      const placed = (data.items ?? []).filter(i => i.label && !i.error)
+      const placed = (data.items ?? []).filter(i => i.label && !i.error && !i.skipped)
         .map(i => `${short(i.label ?? '', 30)} → ${i.own ? T().ownWs : i.workspace ?? '?'}${i.why ? ` (${i.why})` : ''}`)
       if (placed.length) report = placed.join(' · ')
     }
-    const hasErrorLine = (data.report ?? []).some(line => line.startsWith('ERROR'))
-    if (!hasErrorLine && (data.report ?? []).length > 0) {
-      started = (data.items ?? []).filter(i => i.item && !i.error).map(i => asText(i.item))
+    const hasErrorLine = lines.some(line => line.startsWith('ERROR'))
+    if (!hasErrorLine && lines.length > 0) {
+      // a skipped item (its agent runs already) did not start here
+      started = (data.items ?? []).filter(i => i.item && !i.error && !i.skipped).map(i => asText(i.item))
     }
+    // An agent already works on it (workplace.py never opens a second one): go there instead.
+    anySkipped = (data.items ?? []).some(i => i.skipped)
+    running = (data.items ?? []).filter(i => i.skipped === 'open' && i.ref)
+      .map(i => ({ label: asText(i.label ?? i.item), ref: asText(i.ref) }))
   } catch {
     // no JSON answer: stderr is already in report
   }
   const launched = rows.filter(r => started.some(id => id === r.task || id === r.inboxId))
+  // Every item had its agent running already: nothing started, the jump below is the answer.
+  const onlyRunning = run.ok && anySkipped && launched.length === 0
   const outcome = run.ok ? T().resStarted : launched.length ? T().partlyStarted(launched.length) : T().startFailed
-  await note($, `${outcome} (${word}): ${short(report, 160)}`)
+  if (!onlyRunning) await note($, `${outcome} (${word}): ${short(report, 160)}`)
+  const cfg = await read($, config)
+  if (running.length && cfg) {
+    await loadTabs($, cfg)
+    const tab = (await read($, tabs)).find(t => t.ref === running[0]!.ref)
+    if (tab) await jump($, tab)
+    await note($, T().alreadyOpen(short(running[0]!.label, 40)))
+  }
   if (launched.length) {
     await update($, selected, list => list.filter(k => !launched.some(r => r.key === k)))
-    const cfg = await read($, config)
     if (cfg) $.clock.after(5000, () => void loadTabs($, cfg))
   }
+  // A start that ran holds its items until the new tab shows up in the list (loadTabs 5 s after it);
+  // a failed one frees them at once for another try.
+  if (!onlyRunning && (run.ok || launched.length)) $.clock.after(START_HOLD_MS, () => void release())
+  else await release()
+  if (onlyRunning) return ''
   return run.ok ? T().resStarted : launched.length ? T().resPartly : T().resFailed
 }
 
@@ -549,6 +595,12 @@ async function startRole($: EngineInterface, row: Row, team: Team): Promise<stri
   if (isSame && !st.isReady) return T().waitsForRole(st.waitingFor ?? T().prevRole)
   const role = isSame ? st.next : team.roles[0]
   if (!role) return T().allRolesStarted
+  const item = launchItem(row)
+  if (item && (await read($, starting)).includes(item)) {
+    // a start of this task is under way: launch would start nothing, so nothing is recorded
+    await note($, T().startingAlready(short(row.title, 40)))
+    return ''
+  }
   const before = runs[row.task]
   const run: TeamRun = { team: team.id, roles: isSame && before ? [...before.roles, role.id] : [role.id], at: now }
   const save = async (next: Record<string, TeamRun>) => {
@@ -685,6 +737,12 @@ type Action = { id: string; label: string; primary?: boolean; dim?: boolean; run
 
 function rowActions($: EngineInterface, row: Row, tab: Tab | undefined): Action[] {
   const out: Action[] = []
+  if (tab && !isLive(tab) && launchItem(row) !== null && row.inboxState !== 'approved') {
+    // The tab holds no agent (its command never ran, or the agent ended): start it again, or look.
+    out.push({ id: 'restart', label: T().btnRestart, primary: true, run: () => doIt($, [row]) })
+    out.push({ id: 'hin', label: T().btnToTab, run: () => jump($, tab) })
+    return out
+  }
   if (tab) {
     out.push({ id: 'hin', label: T().btnToTab, primary: true, run: () => jump($, tab) })
     return out
@@ -729,6 +787,7 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
   const Input = 'Input' in table ? table.Input : null
   const v = await read($, view)
   const done = await read($, settled)
+  const taskList = await read($, taskInfo)
   const picked = await read($, selected)
   const isConfirming = await read($, confirmAll)
   // Without cmux there are no tabs to count, steer or back up: those lines stay away.
@@ -827,8 +886,10 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
     </Box>
   )
 
-  const detail = (row: Row, tab: Tab | undefined, inSidebar = false) => {
+  const detail = (row: Row, tab: Tab | undefined, inSidebar = false, hasStartRow = false) => {
     const url = rowUrl(row)
+    // a dead shell tab blocks nothing: what a live agent tab would make pointless stays on offer
+    const agent = tab && isLive(tab) ? tab : undefined
     const isInbox = row.inboxId !== null && row.gate !== 'free'
     return (
       <Box key={`detail-${row.key}`} flexDirection="column" marginLeft={inSidebar ? 0 : 6}
@@ -896,7 +957,7 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
             )}
           </Box>
         )}
-        {row.task && !row.inboxId && !tab && (() => {
+        {row.task && !row.inboxId && !agent && (() => {
           // Agent tabs in the area of the task that do not belong to anything yet
           const free = tabList.filter(t => row.areaNames.includes(t.workspace) && !t.slug && !t.item && t.state !== 'shell')
           return free.length > 0 && (
@@ -910,7 +971,7 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
           )
         })()}
         <Box flexWrap="wrap">
-          {launchItem(row) !== null && !tab && (
+          {launchItem(row) !== null && !agent && !hasStartRow && (
             <Button key={`ws-${row.key}`} label={inSidebar ? T().btnOwnWs : T().btnDoOwnWs}
               onPress={act($, () => doIt($, [row], 'workspace'))} />
           )}
@@ -924,11 +985,61 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
     )
   }
 
+  // An opened row of a task page: what the task is, then every way to start it or to reach its tab.
+  const taskDetail = (it: Info, row: Row, inSidebar: boolean) => {
+    const tab = tabFor(row, tabList)
+    const agent = tab && isLive(tab) ? tab : undefined
+    const entries = (v?.buckets ?? []).flatMap(b => b.rows)
+      .filter(r => r.task === row.task && r.inboxId !== null && !done.includes(r.key))
+    const state = it.state ? T().taskState[it.state] ?? it.state : null
+    const head = [it.priority ?? row.priority, row.area, state, it.when].filter(Boolean).join(' · ')
+    return (
+      <Box key={`task-${row.key}`} flexDirection="column" marginLeft={inSidebar ? 0 : 2} marginBottom={1}
+        borderStyle="round" borderDimColor paddingX={1}>
+        <Text bold wrap="wrap">{it.title}</Text>
+        {head && <Text dimColor wrap="wrap">{head}</Text>}
+        {row.why.length > 0 && <Text dimColor wrap="wrap">{row.why.join(' · ')}</Text>}
+        {it.lines.map((l, j) => (
+          <Text key={`tl-${row.key}-${j}`} wrap="wrap"><Text dimColor>{T().lineKind[l.kind] ?? ''}</Text>{l.text}</Text>
+        ))}
+        {tab && <Text dimColor wrap="wrap">{T().tabInfo(tab.workspace, tab.name, stateWord(tab.state))}</Text>}
+        <Box flexWrap="wrap">
+          {rowActions($, row, tab).map(a => (
+            <Button key={`ta-${a.id}-${row.key}`} label={a.label} variant={a.primary ? 'primary' : undefined}
+              dimColor={a.dim} onPress={act($, a.run)} />
+          ))}
+          {agent && tabButtons(agent)}
+        </Box>
+        {!agent && (
+          <Box flexWrap="wrap">
+            <Text>{T().startPrefix}</Text>
+            {(['tab', 'area', 'workspace'] as const).map(t => (
+              <Button key={`ts-${t}-${row.key}`}
+                label={t === 'area' && row.area ? T().whereArea(row.area) : T().where[t]}
+                onPress={act($, () => launch($, [row], 'go', t))} />
+            ))}
+          </Box>
+        )}
+        {entries.length > 0 && <Text bold>{T().inboxOpen(entries.length)}</Text>}
+        {entries.map(r => (
+          <Box key={`te-${r.key}`} flexWrap="wrap">
+            <Text>{`· ${short(r.title, inSidebar ? 30 : 60)} `}</Text>
+            {rowActions($, r, tabFor(r, tabList)).map(a => (
+              <Button key={`te-${a.id}-${r.key}`} label={a.label} variant={a.primary ? 'primary' : undefined}
+                dimColor={a.dim} onPress={act($, a.run)} />
+            ))}
+          </Box>
+        ))}
+        {detail(row, tab, true, true)}
+      </Box>
+    )
+  }
+
   const rowLine = (row: Row, n: number | null) => {
     const tab = tabFor(row, tabList)
     const team = teamState(row, chosen, recipes, tabList, now)
     const acts = rowActions($, row, tab)
-    const canPick = !tab && launchItem(row) !== null && row.inboxState !== 'approved'
+    const canPick = (!tab || !isLive(tab)) && launchItem(row) !== null && row.inboxState !== 'approved'
     const isOpen = open === row.key
     const toggleRow = () => update($, expanded, cur => (cur === row.key ? null : row.key))
     return (
@@ -1132,8 +1243,13 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
                 {`   ${sec.status === 'ok' ? sec.empty : T().unreadable(short(sec.reason || sec.status, 90))}`}
               </Text>
             )}
-            {sec.items.slice(0, perSection).map((it, i) => (
-              <Box key={`pi-${sec.id}-${i}`}>
+            {sec.items.slice(0, perSection).map((it, i) => {
+              // A task row opens (▾) to its details and every way to start it, at any width.
+              const trow = sec.kind === 'tasks' && it.task ? taskRowFor(it.task, it.title, taskList) : null
+              const isOpen = trow !== null && open === trow.key
+              return (
+              <Box key={`pi-${sec.id}-${i}`} flexDirection="column">
+              <Box>
                 {whenWidth > 0 && (
                   <Box width={whenWidth + 1} flexShrink={0}>
                     <Text dimColor wrap="truncate-end">{it.when}</Text>
@@ -1142,32 +1258,23 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
                 <Box flexGrow={1} width={0}>
                   <Text wrap="truncate-end" dimColor={it.tone === 'dim'}
                     color={it.tone === 'bad' ? 'red' : it.tone === 'warn' ? 'yellow' : undefined}>
-                    {markText(it.mark, null)}{it.title}</Text>
+                    {markText(it.mark, null)}{isOpen ? <Text bold>{it.title}</Text> : it.title}</Text>
                 </Box>
                 {it.detail && isWide && (
                   <Box flexShrink={0} marginLeft={1}><Text dimColor>{short(it.detail, 36)}</Text></Box>
                 )}
                 {isWide && it.task && (() => {
-                  const open = tabFor(taskRow(it.task, it.title), tabList)
+                  const open = tabFor(trow ?? taskRow(it.task, it.title), tabList)
                   return (
                     <Box flexShrink={0} marginLeft={1}>
-                      {open ? (
+                      {open && isLive(open) ? (
                         <Button key={`pt-${sec.id}-${i}`} plain label={T().btnToTab} onPress={() => jump($, open)} />
                       ) : startingNow.includes(it.task) ? (
                         <Text dimColor>{T().startingTab}</Text>
                       ) : (
                         <Button key={`pt-${sec.id}-${i}`} plain dimColor label={T().btnOpenTab}
-                          onPress={act($, async () => {
-                            const slug = it.task!
-                            if ((await read($, starting)).includes(slug)) return null
-                            await update($, starting, list => [...list, slug])
-                            try {
-                              return await launch($, [taskRow(slug, it.title)], 'report', (await read($, config))?.target ?? 'area')
-                            } finally {
-                              // until the new tab shows up in the list (loadTabs 5 s after the start)
-                              $.clock.after(15000, () => void update($, starting, list => list.filter(x => x !== slug)))
-                            }
-                          })} />
+                          onPress={act($, async () =>
+                            launch($, [trow ?? taskRow(it.task!, it.title)], 'report', (await read($, config))?.target ?? 'area'))} />
                       )}
                     </Box>
                   )
@@ -1181,8 +1288,17 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
                 {it.url && isWide && (
                   <Box flexShrink={0} marginLeft={1}><Link key={`pl-${sec.id}-${i}`} href={it.url} label={T().btnOpen} /></Box>
                 )}
+                {trow && (
+                  <Box flexShrink={0} marginLeft={1}>
+                    <Button key={`px-${sec.id}-${i}`} plain dimColor label={isOpen ? '▴' : '▾'}
+                      onPress={() => update($, expanded, cur => (cur === trow.key ? null : trow.key))} />
+                  </Box>
+                )}
               </Box>
-            ))}
+              {isOpen && trow && taskDetail(it, trow, !isWide)}
+              </Box>
+              )
+            })}
             {sec.items.length > perSection && (
               <Box paddingLeft={whenWidth + 1}>
                 <Button key={`pm-${sec.id}`} plain dimColor label={T().moreRows(sec.items.length - perSection)}
@@ -1266,7 +1382,7 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
       const tab = tabFor(row, tabList)
       const team = teamState(row, chosen, recipes, tabList, now)
       const isOpen = open === row.key
-      const canPick = !tab && launchItem(row) !== null && row.inboxState !== 'approved'
+      const canPick = (!tab || !isLive(tab)) && launchItem(row) !== null && row.inboxState !== 'approved'
       const n = lay.numbers.get(row.key)
       const urgent = row.urgency === 'now'
       const markWidth = (urgent ? 1 : 0) + (row.priority ? row.priority.length : 0) + (tab ? 1 : 0)
@@ -1746,7 +1862,7 @@ export const register: Register = on => {
         continue
       }
       const open = tabFor(row, tabList)
-      if (open && 'avw'.includes(letter)) {
+      if (open && isLive(open) && 'avw'.includes(letter)) {
         // has a tab already: jump to it instead of starting a second one
         await jump($, open)
         said.push(T().scHasTab(n, short(row.title, 30)))

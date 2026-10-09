@@ -1312,3 +1312,55 @@ def test_two_board_sections_loading_tracker_sync_at_once_both_get_it_whole(tmp_p
             if saved is not None:
                 sys.modules["tracker_sync"] = saved
         assert [s["status"] for s in result["sections"]] == ["ok"] * 8, [s.get("reason") for s in result["sections"]]
+
+
+# ---------------------------------------------------------------- the detail of a task row
+
+def test_tasks_carry_origin_type_open_steps_and_their_latest_log_rows(tmp_path):
+    root = bridge(tmp_path)
+    task(root, "alpha", origin="Asked on 2026-10-01 in chat", type="feature")
+    status = root / "work" / "tasks" / "alpha" / "STATUS.md"
+    status.write_text(status.read_text(encoding="utf-8") + "\n## Next Steps\n- write the draft\n\n"
+                      "- [x] a done box\n- [ ] first open box\n- [ ] second open box\n", encoding="utf-8")
+    task(root, "beta")
+    status = root / "work" / "tasks" / "beta" / "STATUS.md"
+    status.write_text(status.read_text(encoding="utf-8") + "\n## Next steps\n\n- one\n- two\n"
+                      "- three\n- four\n\n## Notes\n- not a step\n", encoding="utf-8")
+    task(root, "alpha-two")
+    (root / "work" / "log.md").write_text(
+        "## Thursday 01.10\n\n| Time | | ctx | what |\n|---|---|---|---|\n"
+        "| 2026-10-01 09:00 | x | bridge | alpha started |\n"
+        "| 2026-10-02 10:00 | x | bridge | beta only, alpha-two too |\n"
+        "| 2026-10-03 11:00 | x | bridge | alpha draft done |\n"
+        "| 2026-10-03 12:00 | x | bridge | alpha review asked |\n", encoding="utf-8")
+    items = {i["id"]: i for i in bf.sec_tasks({"status": ["doing"]}, ctx(root))}
+    alpha = items["alpha"]
+    assert alpha["origin"] == "Asked on 2026-10-01 in chat" and alpha["type"] == "feature"
+    assert alpha["steps"] == ["first open box", "second open box"]       # open boxes before bullets
+    assert alpha["log"] == ["2026-10-03 11:00 alpha draft done", "2026-10-03 12:00 alpha review asked"]
+    assert items["beta"]["steps"] == ["one", "two", "three"]
+    assert items["beta"]["log"] == ["2026-10-02 10:00 beta only, alpha-two too"]
+    assert items["alpha-two"]["log"] == ["2026-10-02 10:00 beta only, alpha-two too"]
+    assert items["alpha-two"]["steps"] == [] and items["alpha-two"]["origin"] is None
+
+
+def test_task_step_headings_come_from_the_section_not_from_core(tmp_path):
+    # CORE knows the English headings only; an instance names its own in the profile's section.
+    root = bridge(tmp_path)
+    task(root, "alpha")
+    status = root / "work" / "tasks" / "alpha" / "STATUS.md"
+    status.write_text(status.read_text(encoding="utf-8") + "\n## Upcoming\n- one\n- two\n", encoding="utf-8")
+    assert bf.sec_tasks({"status": ["doing"]}, ctx(root))[0]["steps"] == []
+    (item,) = bf.sec_tasks({"status": ["doing"], "step_headings": ["upcoming"]}, ctx(root))
+    assert item["steps"] == ["one", "two"]
+
+
+def test_a_wrapped_open_box_keeps_its_continuation_and_loses_its_markdown(tmp_path):
+    root = bridge(tmp_path)
+    task(root, "alpha")
+    status = root / "work" / "tasks" / "alpha" / "STATUS.md"
+    status.write_text(status.read_text(encoding="utf-8")
+                      + "\n- [ ] **Decide** where rates live (`identity/x`\n      vs. `workflow/y`), open gap\n"
+                      "- [ ] second\n", encoding="utf-8")
+    (item,) = bf.sec_tasks({"status": ["doing"]}, ctx(root))
+    assert item["steps"] == ["Decide where rates live (identity/x vs. workflow/y), open gap", "second"]

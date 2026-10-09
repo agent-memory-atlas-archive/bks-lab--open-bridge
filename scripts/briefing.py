@@ -619,10 +619,82 @@ def sec_workplace(section: dict, ctx: Context) -> list:
     return items
 
 
+# Where a STATUS.md lists what comes next, when it has no open checkboxes. CORE knows the English
+# headings of work/templates/STATUS.md; a profile adds its own with the section's `step_headings`.
+STEP_HEADINGS = ("next steps", "next step", "next", "open points")
+TASK_STEPS = 3
+TASK_LOG_ROWS = 2
+TASK_LINE_MAX = 120
+
+
+def _clip(text: str, n: int = TASK_LINE_MAX) -> str:
+    """One plain line: whitespace folded, the markdown emphasis and code marks a TUI would print raw dropped."""
+    line = re.sub(r"\*\*|__|`", "", text)
+    line = re.sub(r"\s+", " ", line).strip()
+    return line if len(line) <= n else line[: n - 1] + "…"
+
+
+BULLET = re.compile(r"^\s*(?:[-*+]|\d+\.)\s")
+OPEN_BOX = re.compile(r"^\s*[-*] \[ \]\s+(.+)$")
+ANY_BULLET = re.compile(r"^\s*(?:[-*]|\d+\.)\s+(.+)$")
+
+
+def _wrapped(lines: list, i: int, text: str) -> str:
+    """A bullet's text with its indented continuation lines (a wrapped bullet), up to the next
+    bullet, blank line or heading."""
+    for line in lines[i + 1:]:
+        if not line.strip() or line.startswith("#") or BULLET.match(line) or line[:1] not in " \t":
+            break
+        text += " " + line.strip()
+    return text
+
+
+def task_steps(body: str, headings=STEP_HEADINGS) -> list:
+    """The first open steps of a task: unchecked boxes, else the bullets under a next-steps heading."""
+    lines = body.splitlines()
+    boxes = [_wrapped(lines, i, m.group(1)) for i, line in enumerate(lines) if (m := OPEN_BOX.match(line))]
+    if boxes:
+        return [_clip(b) for b in boxes[:TASK_STEPS]]
+    wanted = {h.strip().casefold() for h in headings}
+    steps, inside = [], False
+    for i, line in enumerate(lines):
+        if line.startswith("#"):
+            m = re.match(r"^##+\s*(.+?)\s*$", line)
+            inside = bool(m) and m.group(1).casefold() in wanted
+            continue
+        bullet = ANY_BULLET.match(line) if inside else None
+        if bullet:
+            steps.append(_clip(_wrapped(lines, i, bullet.group(1))))
+            if len(steps) == TASK_STEPS:
+                break
+    return steps
+
+
+def _log_rows(root: Path) -> list:
+    log = root / "work" / "log.md"
+    if not log.is_file():
+        return []
+    rows = []
+    for line in log.read_text(encoding="utf-8").splitlines():
+        m = LOG_ROW.match(line.strip())
+        if m:
+            rows.append((m.group(1), m.group(4)))
+    return rows
+
+
+def task_log(rows: list, slug: str) -> list:
+    """The latest log rows that name the task, oldest first."""
+    word = re.compile(rf"(?<![\w-]){re.escape(slug)}(?![\w-])")
+    hits = [f"{when} {what}" for when, what in rows if word.search(what)]
+    return [_clip(h) for h in hits[-TASK_LOG_ROWS:]]
+
+
 def sec_tasks(section: dict, ctx: Context) -> list:
     wanted = section.get("status") or ["doing", "review"]
     contexts = section.get("contexts")
+    headings = (*STEP_HEADINGS, *[str(h) for h in section.get("step_headings") or []])
     items = []
+    log_rows = None
     for status in sorted((ctx.root / "work" / "tasks").glob("*/STATUS.md")):
         if status.parent.name.startswith("_"):
             continue
@@ -634,11 +706,16 @@ def sec_tasks(section: dict, ctx: Context) -> list:
         body = re.split(r"^---\s*$", text, maxsplit=2, flags=re.M)[-1]   # never a comment in the frontmatter
         heading = re.search(r"^# (.+)$", body, flags=re.M)
         title = fm.get("title") or (heading.group(1).strip() if heading else slug)
+        if log_rows is None:
+            log_rows = _log_rows(ctx.root)   # one pass over the log for every task
         items.append({"id": slug, "title": title, "state": fm.get("status"),
                       "project": fm.get("context"), "blocked_by": fm.get("blocked_by"), "next": fm.get("next"),
                       "priority": fm.get("priority"),
                       "blocked_since": str(fm["blocked_since"]) if fm.get("blocked_since") else None,
-                      "changed_at": str(fm.get("last_updated") or ""), "url": str(status.relative_to(ctx.root))})
+                      "changed_at": str(fm.get("last_updated") or ""), "url": str(status.relative_to(ctx.root)),
+                      # what a dashboard shows when the row is opened
+                      "origin": _clip(str(fm["origin"]), 200) if fm.get("origin") else None,
+                      "type": fm.get("type"), "steps": task_steps(body, headings), "log": task_log(log_rows, slug)})
     return items
 
 

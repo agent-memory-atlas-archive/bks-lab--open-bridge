@@ -7,6 +7,7 @@ No test calls the real cmux or reads the real process table.
 """
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -363,16 +364,57 @@ def test_color_change_alone_makes_a_snapshot(tmp_path):
     assert cl.snapshot(write_src(tmp_path, data), out, now=1_000_100) is not None
 
 
-def test_ascii_command_keeps_umlauts_out_of_the_cli(tmp_path, monkeypatch):
+def test_typed_command_keeps_umlauts_out_of_the_cli(tmp_path, monkeypatch):
     # `cmux --command` double-encodes non-ASCII, `send` does not.
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr(cl.Path, "home", classmethod(lambda c: tmp_path))
-    assert cl.ascii_command("cd -- '/repo'") == "cd -- '/repo'"
+    assert cl.typed_command("cd -- '/repo'") == "cd -- '/repo'"
     cmd = "echo 'caf\u00e9 na\u00efve \u00fcber'"
-    out = cl.ascii_command(cmd)
-    assert out.isascii() and out.startswith(". '")
+    out = cl.typed_command(cmd)
+    assert out.isascii() and out.startswith("/bin/sh '")
     f = tmp_path / ".cmuxterm/commands"
     assert next(f.iterdir()).read_text(encoding="utf-8").strip() == cmd
+
+
+@pytest.mark.parametrize("cmd", ["echo " + "x" * 1300, "echo a\necho b"])
+def test_typed_command_moves_long_or_multiline_commands_into_a_private_file(tmp_path, monkeypatch, cmd):
+    # cmux types --command into a shell that may still be starting: its line buffer keeps 1024 bytes
+    # (MAX_CANON), the rest and the Enter are lost and nothing runs.
+    monkeypatch.setattr(cl.Path, "home", classmethod(lambda c: tmp_path))
+    out = cl.typed_command(cmd)
+    assert len(out.encode()) < 256 and "\n" not in out
+    (f,) = (tmp_path / ".cmuxterm/commands").iterdir()
+    assert f.read_text(encoding="utf-8").rstrip("\n") == cmd
+    assert oct(f.stat().st_mode & 0o777) == oct(0o600)
+    assert oct(f.parent.stat().st_mode & 0o777) == oct(0o700)
+
+
+def test_typed_command_with_a_marker_always_uses_a_file_that_touches_it_first(tmp_path, monkeypatch):
+    monkeypatch.setattr(cl.Path, "home", classmethod(lambda c: tmp_path))
+    marker = tmp_path / "m.started"
+    out = cl.typed_command("true", marker=marker)
+    assert out.startswith("/bin/sh '")
+    subprocess.run(out, shell=True, check=True)
+    assert marker.exists()
+
+
+@pytest.mark.parametrize("name", ["Pers\u00f6nlich", "d" * 220])
+def test_restored_terminal_tab_lands_in_its_cwd_even_through_a_launcher_file(tmp_path, monkeypatch, name):
+    # A terminal tab is only `cd -- <cwd>`: it must change the tab's own shell, so a launcher
+    # file for it is sourced, never run in a child /bin/sh whose cd is lost.
+    monkeypatch.setattr(cl.Path, "home", classmethod(lambda c: tmp_path))
+    cwd = tmp_path / name
+    cwd.mkdir()
+    calls = []
+    monkeypatch.setattr(cl, "_cmux", lambda *a: calls.append(a) or "OK surface:7")
+    plan = [{"title": "W", "create": False, "skipped_running": [],
+             "tabs": [{"kind": "terminal", "cwd": str(cwd)}]}]
+    cl.apply_plan(plan, {"W": "workspace:1"}, wait=0)
+    (call,) = [c for c in calls if c[0] == "new-surface"]
+    typed = call[call.index("--command") + 1]
+    assert typed.isascii() and len(typed.encode()) < 256
+    out = subprocess.run(["/bin/sh", "-c", f"cd /; {typed}; pwd"], capture_output=True, text=True, check=True)
+    assert out.stdout.strip() == str(cwd.resolve())
 
 
 def test_cli_without_notifier_prints_the_alarm_and_succeeds(tmp_path, monkeypatch, capsys):
@@ -462,3 +504,36 @@ def test_calls_go_to_the_resolved_binary(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", str(tmp_path / "empty"))
     monkeypatch.setattr(cl, "APP_BUNDLE_BIN", _exe(tmp_path / "app" / "cmux"))
     assert cl.cmux_reachable() is True
+
+
+OPEN_SH = Path(__file__).resolve().parents[1] / "scripts" / "cmux-open.sh"
+FAKE_OPEN_CMUX = """#!/bin/sh
+printf '%s\\0' "$@" >> "$FAKE_ARGS"; printf '\\n' >> "$FAKE_ARGS"
+case "$1" in
+  workspace) echo "* workspace:3  Platform  [selected]" ;;
+  identify) echo '{"caller": {"workspace_ref": "workspace:3", "pane_ref": "pane:1", "surface_ref": "surface:9"}}' ;;
+  new-surface) echo "OK surface:60 pane:1 workspace:3" ;;
+  list-pane-surfaces) echo "  surface:60  shell" ;;
+  *) echo OK ;;
+esac
+"""
+
+
+@pytest.mark.parametrize("command", ["claude -n x '" + "p" * 1300 + "'", "echo 'über'"])
+def test_cmux_open_tab_types_only_a_short_ascii_line(tmp_path, command):
+    # cmux-open.sh is the documented way to open a claude tab; a long prompt typed raw is cut at
+    # 1024 bytes in a shell that is still starting, the same failure the driver had.
+    fake = tmp_path / "cmux"
+    fake.write_text(FAKE_OPEN_CMUX)
+    fake.chmod(0o755)
+    args = tmp_path / "args"
+    env = {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path), "CMUX_BIN": str(fake), "FAKE_ARGS": str(args)}
+    done = subprocess.run(["bash", str(OPEN_SH), "tab", "--", command], capture_output=True, text=True,
+                          env=env, timeout=30)
+    assert done.returncode == 0, done.stderr
+    (call,) = [c.split("\0")[:-1] for c in args.read_text(encoding="utf-8").splitlines()
+               if c.startswith("new-surface\0")]
+    typed = call[call.index("--command") + 1]
+    assert typed.isascii() and len(typed.encode()) < 256, typed
+    m = __import__("re").fullmatch(r"/bin/sh '([^']+)'", typed)
+    assert m and Path(m.group(1)).read_text(encoding="utf-8").rstrip("\n") == command

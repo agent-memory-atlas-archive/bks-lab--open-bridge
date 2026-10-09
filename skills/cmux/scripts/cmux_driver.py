@@ -20,6 +20,14 @@ Wire it in bridge-config.yaml:
     workplace:
       driver: {command: ["python3", "${root}/skills/cmux/scripts/cmux_driver.py"]}
 
+A `command` may be several KB (a whole prompt). cmux types it into the new tab's shell, which
+may still be starting and then keeps only 1024 bytes of a line, so the driver never types a
+long command raw: cmux_layout.typed_command puts it in a private launcher file and types
+`/bin/sh '<file>'`. A launched tab's file first creates a start marker; a tab whose marker does
+not appear within CMUX_LAUNCH_WAIT_SEC (default 20) is reported as an ERROR line, never as
+started. It keeps its label: the typed line may still run after a slow shell start, and the
+label is how a later click finds that agent instead of opening a second one.
+
 Rules: it never closes a tab or a workspace, and never moves the last tab out of
 a workspace (cmux would drop the emptied workspace). A tab already open is reused,
 never opened twice. It reads every window (`tree --all`), not only the current
@@ -36,6 +44,8 @@ import json
 import os
 import re
 import sys
+import time
+import uuid
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -48,6 +58,9 @@ WAITING_EVENTS = ("Stop", "SessionStart")
 SPINNER = set("◐◓◑◒")   # quarter-circle spinner; Braille is matched by range
 IDLE_GLYPH = "✳"                        # eight-spoked asterisk: the agent is idle
 KEEP_SHELL = cl.KEEP_SHELL
+
+
+LAUNCH_WAIT_SEC = 20.0
 
 
 class DriverError(RuntimeError):
@@ -251,9 +264,16 @@ def to_cmux_plan(plan: dict) -> dict:
 
 
 def resolve_workspace(ws: dict, existing: dict[str, str]) -> str | None:
+    """By name, then by alias; an exact title first, else the same title in another case
+    ("open-bridge" finds "Open-Bridge")."""
+    folded: dict[str, str] = {}
+    for title, ref in existing.items():
+        folded.setdefault(title.casefold(), ref)
     for name in [ws["name"], *(ws.get("aliases") or [])]:
         if name in existing:
             return existing[name]
+        if str(name).casefold() in folded:
+            return folded[str(name).casefold()]
     return None
 
 
@@ -379,7 +399,7 @@ def run_calls(calls: list[dict], existing: dict[str, str]) -> list[str]:
             elif c["op"] == "create":
                 args = ["workspace", "create", "--name", c["ws"], "--cwd", c["cwd"], "--focus", "false"]
                 if c.get("command"):
-                    args += ["--command", cl.ascii_command(c["command"])]
+                    args += ["--command", cl.typed_command(c["command"])]
                 out = cl.cmux_checked(*args)
                 ws_ref = cl.parse_ref(out, "workspace")
                 if not ws_ref:
@@ -417,7 +437,7 @@ def run_calls(calls: list[dict], existing: dict[str, str]) -> list[str]:
                 cl.cmux_checked("reorder-workspace", "--workspace", ws_ref, "--index", str(c["index"]))
             elif c["op"] == "tab":
                 sref = cl.parse_ref(cl.cmux_checked("new-surface", "--workspace", ws_ref, "--command",
-                                                    cl.ascii_command(c["command"]), "--focus", "false"),
+                                                    cl.typed_command(c["command"]), "--focus", "false"),
                                     "surface")
                 if sref:
                     rename_tab(sref, ws_ref, c["tab"])
@@ -482,6 +502,35 @@ def caller_workspace(here: str | None, tree: dict) -> str | None:
     return (tree.get("caller") or {}).get("workspace_ref")
 
 
+def _launch_wait() -> float:
+    try:
+        return max(0.0, float(os.environ.get("CMUX_LAUNCH_WAIT_SEC", LAUNCH_WAIT_SEC)))
+    except ValueError:
+        return LAUNCH_WAIT_SEC
+
+
+def _launch_line(t: dict) -> tuple[str, Path]:
+    """The short line cmux types for a launched tab, and the marker its launcher creates first."""
+    marker = cl.launcher_dir() / f"{uuid.uuid4().hex}.started"
+    return cl.typed_command(_with_shell(t["command"]), marker=marker), marker
+
+
+def _await_started(pending: list[dict], report: list[str]) -> None:
+    """Wait until each launched tab's command has started (its marker exists). A tab whose
+    marker does not come in time is an ERROR line, so the caller never counts it as started.
+    The tab is not renamed: its command may still run late, and its label keeps it findable."""
+    wait = _launch_wait()
+    deadline = time.monotonic() + wait
+    while any(not p["marker"].exists() for p in pending) and time.monotonic() < deadline:
+        time.sleep(0.2)
+    for p in pending:
+        if p["marker"].exists():
+            p["marker"].unlink(missing_ok=True)
+            continue
+        report[p["index"]] = (f"ERROR tab {p['label']}: command did not start within {wait:g} s "
+                              f"(shell busy or typed line lost); the tab stays open and may still start late")
+
+
 def launch(req: dict) -> list[str]:
     """One new tab per entry: in the caller's workspace (tab), in a new workspace each (workspace), or in
     the workspace named after the entry's area, created once when missing (area). Never closes anything."""
@@ -489,17 +538,22 @@ def launch(req: dict) -> list[str]:
     target = req.get("target") or "tab"
     if target not in ("tab", "workspace", "area"):
         raise ValueError(f"unknown launch target {target!r}")
-    report = []
+    report: list[str] = []
+    pending: list[dict] = []
     if target == "workspace":
         for t in tabs:
             try:
+                line, marker = _launch_line(t)
                 out = cl.cmux_checked("workspace", "create", "--name", t["label"], "--cwd", str(ROOT),
-                                      "--focus", "false", "--command", cl.ascii_command(_with_shell(t["command"])))
+                                      "--focus", "false", "--command", line)
                 ref = cl.parse_ref(out, "workspace")
                 report.append(f"workspace {t['label']} ({ref})" if ref
                               else f"ERROR workspace {t['label']} not created: {out.strip()[:120]}")
+                if ref:
+                    pending.append({"label": t["label"], "marker": marker, "index": len(report) - 1})
             except cl.CmuxError as exc:
                 report.append(f"ERROR workspace {t['label']}: {exc}")
+        _await_started(pending, report)
         return report
     try:
         tree = read_tree()
@@ -508,32 +562,40 @@ def launch(req: dict) -> list[str]:
     caller = caller_workspace(req.get("here"), tree)
     # area: each tab goes into the workspace named after its area, created once when missing
     areas = workspace_index(tree) if target == "area" else {}
+    titles = {ref: title for title, ref in workspace_index(tree).items()}
     for t in tabs:
         area = t.get("workspace") if target == "area" else None
         ws_ref = resolve_workspace({"name": area, "aliases": t.get("aliases")}, areas) if area else caller
         try:
+            line, marker = _launch_line(t)
             if area and not ws_ref:
-                out = cl.cmux_checked("workspace", "create", "--name", area, "--cwd", str(ROOT), "--focus", "false")
+                # the first tab of a new area IS its starting tab: no stray shell is left behind
+                out = cl.cmux_checked("workspace", "create", "--name", area, "--cwd", str(ROOT), "--focus", "false",
+                                      "--command", line)
                 ws_ref = cl.parse_ref(out, "workspace")
                 if not ws_ref:
                     report.append(f"ERROR workspace {area} not created: {out.strip()[:120]}")
                     continue
                 areas[area] = ws_ref
+                titles[ws_ref] = area
                 report.append(f"new workspace {area} ({ws_ref})")
-            if not ws_ref:
+                sref = cl._first_surface(ws_ref)
+            elif not ws_ref:
                 report.append(f"ERROR tab {t['label']}: calling workspace not found, not opened "
                               "(never the selected workspace)")
                 continue
-            out = cl.cmux_checked("new-surface", "--workspace", ws_ref, "--command",
-                                  cl.ascii_command(_with_shell(t["command"])), "--focus", "false")
-            sref = cl.parse_ref(out, "surface")
+            else:
+                out = cl.cmux_checked("new-surface", "--workspace", ws_ref, "--command", line, "--focus", "false")
+                sref = cl.parse_ref(out, "surface")
             if not sref:
                 report.append(f"ERROR tab {t['label']}: no surface ref")
                 continue
             rename_tab(sref, ws_ref, t["label"])
-            report.append(f"tab {t['label']} ({sref})")
+            report.append(f"tab {t['label']} ({sref}) in {titles.get(ws_ref, ws_ref)}")
+            pending.append({"label": t["label"], "marker": marker, "index": len(report) - 1})
         except cl.CmuxError as exc:
             report.append(f"ERROR tab {t['label']}: {exc}")
+    _await_started(pending, report)
     return report
 
 

@@ -115,7 +115,10 @@ skills/cmux/scripts/cmux-open.sh tab --workspace Platform    # a name or workspa
 
 The wrapper takes the **caller's** workspace (live from `cmux identify`, not the
 selected one), passes it explicitly, verifies with `list-pane-surfaces` that the
-surface landed there and moves it otherwise. Use `--workspace` only when the user
+surface landed there and moves it otherwise. A long, multi-line or non-ASCII command (a
+claude prompt) is never typed raw: a shell that is still starting keeps only 1024
+bytes of a line and drops the rest with the Enter, so the wrapper writes it to a
+private launcher file and types `/bin/sh '<file>'`. Use `--workspace` only when the user
 names another destination. For browser work via MCP, call `cmux-open.sh browser
 <url>` first and continue with the returned surface.
 

@@ -332,6 +332,13 @@ $defs:
         type: array
         items: {type: string}
         description: "tasks: only tasks whose `context:` is listed."
+      step_headings:
+        type: array
+        items: {type: string}
+        description: >-
+          tasks: further STATUS.md headings whose bullets are a task's next steps (when it has no
+          open checkboxes), matched ignoring case. CORE knows "Next steps", "Next step", "Next" and
+          "Open points"; list the headings your own STATUS.md files use in another language here.
       # activity / calendar
       days:
         type: integer

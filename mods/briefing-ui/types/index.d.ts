@@ -69,7 +69,13 @@ export type Info = {
   /** Finding or issue: "ask" brings it into the conversation */
   ask: boolean
   mark: Mark | null
+  /** Task rows only: priority and status, and what opening the row shows (origin, next, blocked, steps, log) */
+  priority: string | null
+  state: string | null
+  lines: InfoLine[]
 }
+/** One line of an opened task row; the kind picks its label in the card's language */
+export type InfoLine = { kind: string; text: string }
 /** A section on a tab; skipped means: only in the full run. weight and bad count toward the number on the tab */
 export type InfoSection = {
   id: string; kind: string; title: string; status: string
@@ -135,6 +141,10 @@ export type SectionId = 'now' | 'give' | 'work' | 'later'
 /** The tabs of the sidebar: everything stacked, the four blocks individually, and the tabs */
 export type SideTab = 'all' | SectionId | 'tabs'
 
+/** One active task from `workplace.py tasks --json` */
+export type TaskInfo = { slug: string; label: string; area: string; areaNames: string[]; priority: string | null
+  blockedBy: string | null; stale: boolean; age: number; type: string | null }
+
 declare module 'claude-code' {
   interface PluginState {
     'briefing-ui': {
@@ -178,8 +188,10 @@ declare module 'claude-code' {
       /** This session is the control workspace (in the workspace from workplace.control): only it polls and reports.
        * null = not yet known or without cmux (then as before: each session on its own) */
       isControl: boolean | null
-      /** Tasks whose tab is starting right now: a second click does not start a second one */
+      /** Items (task slugs, inbox ids) whose tab is starting right now: a second click does not start a second one */
       starting: string[]
+      /** The active tasks as workplace.py tasks lists them; an opened task row of a page takes area and priority from it */
+      taskInfo: TaskInfo[]
       /** "release all N" pressed: the confirmation prompt is showing */
       confirmAll: boolean
       /** why bridge-config.yaml could not be read; null when it was read */

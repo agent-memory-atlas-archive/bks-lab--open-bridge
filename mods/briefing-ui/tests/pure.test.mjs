@@ -131,7 +131,7 @@ test('tabs from collect: briefing and empty tabs drop out, reasons and fields co
   const s = pages[0].sections[0]
   assert.equal(s.reason, 'gh: token invalid')
   assert.deepEqual(s.items[0], { title: 'T', detail: 'open', when: '09:30', tone: 'warn', url: 'https://x.test',
-    task: 'alpha', ask: true, mark: null })
+    task: 'alpha', ask: true, mark: null, priority: null, state: null, lines: [] })
   assert.equal(s.asOf, null)
 })
 
@@ -213,4 +213,57 @@ test('the backup interval is named as configured: hourly only for 60 minutes', (
   assert.equal(de.backupEvery(60), 'stündlich')
   assert.equal(en.backupEvery(30), 'every 30 min')
   assert.equal(de.backupEvery(30), 'alle 30 Min.')
+})
+
+// ---------------------------------------------------------------- tasks: rows, tabs, details
+
+const ttab = (state, extra = {}) => ({ name: 'Alpha', workspace: 'W', ref: `surface:${state}`, wsRef: 'workspace:1', state,
+  last: '', slug: 'alpha', item: null, team: null, role: null, ...extra })
+const tinfo = (slug, extra = {}) => ({ slug, label: slug, area: 'Area', areaNames: ['Area'], priority: 'P1', blockedBy: null,
+  stale: false, age: 0, type: null, ...extra })
+
+test('a task with only inbox entries keeps its own row under the tasks, with the count of the entries', () => {
+  text.setLanguage('en')
+  const v = view({ buckets: [{ id: 'drop', title: 'Later', rows: [
+    row('inbox:1', ['inbox'], { inboxId: '1', task: 'alpha', gate: 'only-you' }),
+    row('inbox:2', ['inbox'], { inboxId: '2', task: 'alpha', gate: 'only-you' })] }] })
+  const out = m.withTasks(v, [tinfo('alpha'), tinfo('beta')])
+  const tasks = out.buckets.find(b => b.id === 'tasks').rows
+  assert.deepEqual(tasks.map(r => r.key), ['task:alpha', 'task:beta'])
+  assert.deepEqual(tasks[0].why, ['2 in the inbox'])
+  // the inbox rows still carry the area of their task
+  assert.equal(out.buckets[0].rows[0].area, 'Area')
+})
+
+test('a task that the briefing already lists as a task row is not added twice', () => {
+  const v = view({ buckets: [{ id: 'do', title: 'Do', rows: [row('task:alpha', ['tasks'], { task: 'alpha' })] }] })
+  const out = m.withTasks(v, [tinfo('alpha')])
+  assert.equal(out.buckets.find(b => b.id === 'tasks'), undefined)
+})
+
+test('tabFor prefers a tab with a live agent over a dead shell tab of the same task', () => {
+  const r = row('task:alpha', ['tasks'], { task: 'alpha' })
+  assert.equal(m.tabFor(r, [ttab('working'), ttab('shell')]).state, 'working')
+  assert.equal(m.tabFor(r, [ttab('shell')]).state, 'shell')     // still found: the card offers restart and jump
+  assert.equal(m.isLive(ttab('shell')), false)
+  assert.equal(m.isLive(ttab('waiting')), true)
+})
+
+test('a task row from the task list carries area, priority, type and why it rests', () => {
+  const r = m.taskRowFor('alpha', 'Alpha title', [tinfo('alpha', { type: 'feature', blockedBy: 'vendor' })])
+  assert.equal(r.key, 'task:alpha')
+  assert.equal(r.area, 'Area')
+  assert.equal(r.priority, 'P1')
+  assert.equal(r.taskType, 'feature')
+  assert.equal(r.why.length, 1)
+  assert.equal(m.taskRowFor('gone', 'Gone', []).area, null)
+})
+
+test('a task row of a page brings its detail lines, priority and state', () => {
+  const it = m.parseInfo({ title: 'A', task: 'alpha', priority: 'P2', state: 'doing',
+    lines: [{ kind: 'step', text: 'first' }, { kind: 'log', text: '2026-10-07 x' }, { nope: 1 }] })
+  assert.equal(it.priority, 'P2')
+  assert.equal(it.state, 'doing')
+  assert.deepEqual(it.lines, [{ kind: 'step', text: 'first' }, { kind: 'log', text: '2026-10-07 x' }])
+  assert.deepEqual(m.parseInfo({ title: 'B' }).lines, [])
 })
