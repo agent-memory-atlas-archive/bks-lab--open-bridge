@@ -103,4 +103,40 @@ def collect(section: dict, ctx) -> list:
     if section.get("summary"):
         # `summary: true`: the whole board as counts per state, beside the person's own rows.
         section["_summary"] = summary
+    _stamp_changes(out, ctx)
     return out
+
+
+ISSUE_ID = re.compile(r"^([\w.-]+)/([\w.-]+)#(\d+)$")
+STAMP_LIMIT = 100
+STAMP_ALONE = 20   # cards asked one by one when the shared call fails
+
+
+def _stamp_changes(items: list, ctx) -> None:
+    """When each card's issue or PR last changed: a board list carries no date, so one
+    GraphQL call asks for all kept rows at once. One card GitHub cannot answer (a deleted
+    issue, a private repo) fails the whole call, so then each card is asked alone: the
+    others keep their date, and a date that comes and goes would mark rows as changed."""
+    wanted = [(i, ISSUE_ID.match(str(item.get("id")))) for i, item in enumerate(items[:STAMP_LIMIT])
+              if not item.get("changed_at")]
+    wanted = [(i, m) for i, m in wanted if m]
+    if not wanted:
+        return
+    if not _ask_dates(wanted, items, ctx):
+        for one in wanted[:STAMP_ALONE]:
+            _ask_dates([one], items, ctx)
+
+
+def _ask_dates(wanted: list, items: list, ctx) -> bool:
+    parts = [f'i{i}: repository(owner: "{m[1]}", name: "{m[2]}") {{ issueOrPullRequest(number: {m[3]}) '
+             f'{{ ... on Issue {{ updatedAt }} ... on PullRequest {{ updatedAt }} }} }}' for i, m in wanted]
+    try:
+        data = load_json(ctx.run(["gh", "api", "graphql", "-f", "query={ " + " ".join(parts) + " }"],
+                                 timeout=ctx.timeout), "board dates").get("data") or {}
+    except Exception:  # noqa: BLE001 - a date is a nicety, never a reason to lose the rows
+        return False
+    for i, _ in wanted:
+        node = (data.get(f"i{i}") or {}).get("issueOrPullRequest") or {}
+        if node.get("updatedAt"):
+            items[i]["changed_at"] = node["updatedAt"]
+    return True

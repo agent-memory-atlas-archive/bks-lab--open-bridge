@@ -24,11 +24,17 @@ import datetime as dt
 import re
 import string
 import textwrap
+import urllib.parse
+from pathlib import Path
 
 STYLES = ("sources", "triage", "brevity", "plan", "report")
 BUCKETS = ("do", "plan", "delegate", "waiting", "drop")
 VIEW_KEYS = {"style", "headline", "dayline", "agenda", "overview", "report", "since_last", "lookahead_days", "max_items", "answer_keys", "hygiene", "color",
-             "width", "labels", "buckets", "plan"}
+             "width", "labels", "buckets", "plan", "pages", "page_rest", "marks"}
+MARK_KEYS = {"label", "match", "color"}
+MARK_COLORS = ("red", "green", "yellow", "blue", "magenta", "cyan", "gray", "white")
+# Where a mark looks: the row's own words and what names its source, never a body.
+MARK_FIELDS = ("id", "project", "url", "task", "context", "area", "repo", "labels", "tracker")
 BUCKET_KEYS = {"id", "title", "options", "nudge_after_days"}
 DEFAULT_BUCKETS = {
     "do": {"title": "Do (you, today)", "options": ["yes", "later", "drop"]},
@@ -97,7 +103,24 @@ LABELS = {
     "col_branch": "Branch",
     "col_days": "{days} days",
     "col_commits": "Commits",
+    "page_status": "Status",
+    "page_dates": "Dates",
+    "page_trackers": "Trackers",
+    "page_today": "Today",
+    "page_more": "More",
+    "page_empty": "nothing",
+    "until": "until {time}",
+    "commits_today": "{n} today",
 }
+# Dashboard pages (`view.pages`): the briefing page itself shows these kinds; every
+# other section gets a page by its kind unless the profile places it.
+BRIEFING_KINDS = ("inbox", "advise", "tasks")
+PAGE_OF_KIND = {"command": "status", "calendar": "dates", "tracker": "trackers", "commits": "today",
+                "activity": "today"}
+DEFAULT_PAGES = ("status", "dates", "trackers", "today")
+REST_PAGE = "more"
+PAGE_KEYS = {"id", "title", "sections"}
+PAGE_SECTION_KEYS = {"id", "when", "detail", "link", "empty", "alarm", "badge"}
 BOARD_STATES = ("new", "ready", "in_progress", "review", "blocked")
 HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 # An id that names its repository is the same thing wherever it comes from; any
@@ -229,6 +252,8 @@ def problems(view, mutes) -> list:
                     out.append("view.plan.workday start must be before its end")
             if "default_minutes" in plan and not _pos_int(plan["default_minutes"]):
                 out.append("view.plan.default_minutes must be a positive integer")
+        out += _page_problems(view)
+        out += _mark_problems(view)
     if mutes is not None:
         if not isinstance(mutes, list):
             out.append("mutes must be a list")
@@ -242,6 +267,140 @@ def problems(view, mutes) -> list:
                     out.append(f"mutes rule {n}: unknown key {sorted(set(m) - {'section', 'when', 'note'})[0]}")
                 elif "note" in m and not isinstance(m["note"], str):
                     out.append(f"mutes rule {n}: note must be text")
+    return out
+
+
+def _mark_problems(view: dict) -> list:
+    """`view.marks`: a label in front of every row whose words name one of `match`."""
+    marks = view.get("marks")
+    if marks is None:
+        return []
+    if not isinstance(marks, list):
+        return ["view.marks must be a list of {label, match, color}"]
+    out = []
+    for i, m in enumerate(marks):
+        where = f"view.marks[{i}]"
+        if not isinstance(m, dict):
+            out.append(f"{where} must be a mapping")
+            continue
+        for key in sorted(set(m) - MARK_KEYS):
+            out.append(f"{where}: unknown key {key}")
+        if not (isinstance(m.get("label"), str) and 0 < len(m["label"].strip()) <= 16):
+            out.append(f"{where}.label must be text of 1 to 16 characters")
+        match = m.get("match")
+        words = [match] if isinstance(match, str) else match
+        if not (isinstance(words, list) and words and all(isinstance(w, str) and w.strip() for w in words)):
+            out.append(f"{where}.match must be text or a list of text")
+        if "color" in m and m["color"] not in MARK_COLORS:
+            out.append(f"{where}.color must be one of {', '.join(MARK_COLORS)}")
+    return out
+
+
+def marks_of(view: dict) -> list:
+    """The usable marks, words lower-cased; a broken entry is left out (validate names it)."""
+    out = []
+    for m in view.get("marks") or [] if isinstance(view.get("marks"), list) else []:
+        if not isinstance(m, dict) or not isinstance(m.get("label"), str) or not m["label"].strip():
+            continue
+        words = [m["match"]] if isinstance(m.get("match"), str) else m.get("match")
+        if not isinstance(words, list):
+            continue
+        words = [w.strip().lower() for w in words if isinstance(w, str) and w.strip()]
+        if words:
+            out.append({"label": m["label"].strip(), "color": m.get("color") if m.get("color") in MARK_COLORS else None,
+                        "words": words})
+    return out
+
+
+def mark_for(marks: list, title, item: dict):
+    """The first mark one of whose words stands in the row's title or in what names its source."""
+    if not marks:
+        return None
+    parts = [str(title or "")]
+    for field in MARK_FIELDS:
+        value = item.get(field)
+        parts += [str(v) for v in value] if isinstance(value, list) else [str(value)] if value else []
+    text = " ".join(parts).lower()
+    for m in marks:
+        if any(w in text for w in m["words"]):
+            return {"label": m["label"], "color": m["color"]}
+    return None
+
+
+def _marked(row: dict) -> str:
+    """The row's mark in front of its title in the text views, `[ACME] `; nothing without one."""
+    mark = row.get("mark")
+    return f"[{mark['label']}] " if isinstance(mark, dict) and mark.get("label") else ""
+
+
+def _page_problems(view: dict) -> list:
+    """What is wrong with `view.pages` and `view.page_rest`; section ids are checked by the profile."""
+    out = []
+    if view.get("page_rest", "show") not in ("show", "hide"):
+        out.append("view.page_rest must be show or hide")
+    pages = view.get("pages")
+    if pages is None:
+        return out
+    if not isinstance(pages, list):
+        return out + ["view.pages must be a list of pages"]
+    seen, placed = set(), {}
+    for n, page in enumerate(pages, 1):
+        where = f"view.pages {n}"
+        if not isinstance(page, dict):
+            out.append(f"{where}: must be a mapping with id and sections")
+            continue
+        pid = page.get("id")
+        if not isinstance(pid, str) or not pid:
+            out.append(f"{where}: needs an id")
+        elif pid == "briefing":
+            out.append(f"{where}: briefing is the briefing itself, pick another id")
+        elif pid == REST_PAGE:
+            out.append(f"{where}: {REST_PAGE} is the page for the rest, pick another id")
+        elif pid in seen:
+            out.append(f"{where}: page {pid} listed twice")
+        seen.add(pid)
+        for key in sorted(set(page) - PAGE_KEYS):
+            out.append(f"{where}: unknown key {key}")
+        if "title" in page and not isinstance(page["title"], str):
+            out.append(f"{where}: title must be text")
+        sections = page.get("sections")
+        if not isinstance(sections, list) or not sections:
+            out.append(f"{where}: sections must be a non-empty list")
+            continue
+        for entry in sections:
+            sid = entry if isinstance(entry, str) else entry.get("id") if isinstance(entry, dict) else None
+            if isinstance(sid, str):
+                if sid in placed:
+                    out.append(f"{where}: section {sid} already stands on page {placed[sid]}")
+                placed.setdefault(sid, pid)
+            if isinstance(entry, str):
+                continue
+            if not isinstance(entry, dict) or not isinstance(entry.get("id"), str):
+                out.append(f"{where}: a section is a section id or a mapping with id")
+                continue
+            at = f"{where}, section {entry['id']}"
+            for key in sorted(set(entry) - PAGE_SECTION_KEYS):
+                out.append(f"{at}: unknown key {key}")
+            for key in ("when", "link", "empty"):
+                if key in entry and not isinstance(entry[key], str):
+                    out.append(f"{at}: {key} must be text")
+            detail = entry.get("detail", [])
+            if not (isinstance(detail, str) or (isinstance(detail, list) and all(isinstance(d, str) for d in detail))):
+                out.append(f"{at}: detail must be a field name or a list of them")
+            for key in ("alarm", "badge"):
+                if key in entry and not isinstance(entry[key], bool):
+                    out.append(f"{at}: {key} must be true or false")
+    return out
+
+
+def page_section_ids(view: dict) -> list:
+    """(page number, section id) for every section `view.pages` names."""
+    out = []
+    for n, page in enumerate(view.get("pages") if isinstance(view.get("pages"), list) else [], 1):
+        for entry in (page.get("sections") if isinstance(page, dict) and isinstance(page.get("sections"), list) else []):
+            sid = entry if isinstance(entry, str) else entry.get("id") if isinstance(entry, dict) else None
+            if isinstance(sid, str):
+                out.append((n, sid))
     return out
 
 
@@ -382,6 +541,7 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
     for s in profile.get("sections") or []:
         if isinstance(s, dict):
             sections_cfg[str(s.get("id") or s.get("kind"))] = s
+    marks = marks_of(view)
     mutes = [m for m in (profile.get("mutes") or []) if isinstance(m, dict) and isinstance(m.get("when"), dict)]
     you = set(WHO_YOU) | ({str(profile["for"]).lower()} if profile.get("for") else set())
     horizon = now.date() + dt.timedelta(days=_int(view.get("lookahead_days"), 1))
@@ -428,7 +588,8 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
                 have["bucket"], have["forced"] = row["bucket"], row["forced"]
             have["rank"] = min(have["rank"], row["rank"])
             have["why"] += [w for w in row["why"] if w not in have["why"]]
-            for k in ("due", "nudge", "estimate"):
+            for k in ("due", "nudge", "estimate", "inbox_id", "inbox_state", "inbox_key", "gate", "urgency", "priority",
+                      "has_action", "mark"):
                 if row.get(k) and not have.get(k):
                     have[k] = row[k]
             if have.get("filed") and not row.get("filed"):
@@ -442,6 +603,7 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
 
     def row(sid, item, bucket, title, why=(), rank=5, **extra):
         r = {"title": str(title or ""), "bucket": bucket, "forced": sid in forced_ids,
+             "mark": mark_for(marks, title, item),
              "why": [w for w in why if w], "sources": [sid],
              "rank": rank, "url": item.get("url"), "task": item.get("task"), "new": bool(item.get("new")),
              "changed": bool(item.get("changed"))}
@@ -535,7 +697,9 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
                 if filed[0] == "briefing" and len(filed) == 4:
                     key = _item_key(filed[2], filed[3])
                 add(key, row(sid, item, forced or bucket, item.get("title"), why, rank, due=item.get("due"),
-                             filed=key != f"inbox:{iid}"))
+                             filed=key != f"inbox:{iid}", inbox_id=iid, gate=item.get("gate"),
+                             urgency=item.get("urgency"), has_action=bool(item.get("has_action")),
+                             inbox_state=item.get("state"), inbox_key=item.get("key")))
             elif kind == "advise":
                 check = item.get("check")
                 if check == "wip":
@@ -561,14 +725,14 @@ def _rows(result: dict, profile: dict, view: dict, labels: dict, now: dt.datetim
                            _short(item["blocked_by"], 60)]
                     nudge = iid in blocked or (age is not None and age >= nudge_days)
                     add(f"task:{iid}", row(sid, item, forced or "waiting", item.get("title"), why, 3, nudge=nudge,
-                                           task=iid))
+                                           task=iid, priority=item.get("priority")))
                 elif isinstance(nxt, dict) and nxt.get("what"):
                     who = str(nxt.get("who") or "me").lower()
                     due = _when(nxt.get("due"))
                     why = [labels["task"].format(slug=iid)]
                     if nxt.get("due"):
                         why.append(labels["due"].format(when=_fmt_when(nxt["due"], now, labels)))
-                    extra = {"task": iid, "due": nxt.get("due")}
+                    extra = {"task": iid, "due": nxt.get("due"), "priority": item.get("priority")}
                     if _pos_int(nxt.get("estimate_min")):
                         extra["estimate"] = nxt["estimate_min"]
                     if who in WHO_BRIDGE:
@@ -903,7 +1067,7 @@ def draw(view: dict, color: bool = False, width: int | None = None) -> str:
                     extras.append(labels["nudge"])
                 if r["new"]:
                     extras.append(labels["new"])
-                text = r["title"] + (f"  ({' · '.join(extras)})" if extras else "")
+                text = _marked(r) + r["title"] + (f"  ({' · '.join(extras)})" if extras else "")
                 lines = textwrap.wrap(text, width=width, initial_indent=num, subsequent_indent=" " * len(num),
                                       break_long_words=False, break_on_hyphens=False)
                 urgent = b["id"] == "do" and r["rank"] <= 1
@@ -1069,7 +1233,7 @@ def draw_report(view: dict) -> str:
         for b, r in rows[:top]:
             n += 1
             why = _why(r, labels)
-            out.append(f"{n}. **{_short(r['title'], 120)}**" + (f" ({why})" if why else ""))
+            out.append(f"{n}. {_marked(r)}**{_short(r['title'], 120)}**" + (f" ({why})" if why else ""))
         out.append("")
     shown_first = {id(r) for _, r in rows[:top]}
     for b in view.get("buckets") or []:
@@ -1083,7 +1247,7 @@ def draw_report(view: dict) -> str:
         for r in _mix(rest, per_bucket):
             n += 1
             why = _why(r, labels)
-            out.append(f"{n}. {_short(r['title'], 120)}" + (f" ({why})" if why else ""))
+            out.append(f"{n}. {_marked(r)}{_short(r['title'], 120)}" + (f" ({why})" if why else ""))
         hidden = len(rest) - per_bucket + (b.get("total", len(b["items"])) - len(b["items"]))
         if hidden > 0:
             out.append(f"\n*{labels['bucket_more'].format(n=hidden)}*")
@@ -1109,3 +1273,186 @@ def draw_report(view: dict) -> str:
         out += [f"*{labels['housekeeping']}:* " + " · ".join(view["hygiene"]), ""]
     out.append(f"*{labels['end']}*")
     return "\n".join(out)
+
+
+# ---------------------------------------------------------------- dashboard pages
+
+def _page_when(value, now: dt.datetime, labels: dict) -> str:
+    """Today as its time alone, an earlier day as its date, a later one as `_fmt_when`
+    says it; nothing for no date."""
+    when = _when(value)
+    if when is None:
+        return ""
+    if when.date() == now.date():
+        return f"{when:%H:%M}" if _has_time(value) else labels["today"]
+    if when.date() < now.date():   # the hour of an earlier change is noise
+        return f"{when:%d.%m}"
+    return _fmt_when(value, now, labels)
+
+
+def _text(value) -> str:
+    if isinstance(value, list):
+        return ", ".join(str(v) for v in value if v not in (None, ""))
+    return "" if value in (None, "") else str(value)
+
+
+def _today_count(item: dict) -> int:
+    counts = item.get("counts")
+    return counts[-1] if isinstance(counts, list) and counts and isinstance(counts[-1], int) else 0
+
+
+SECRET_QUERY = re.compile(r"(?:^|&)(?:code|token|access_token|sig|signature|key|apikey|api_key|password|secret)=",
+                          re.I)
+
+
+def _safe_link(link, root: Path | None) -> str | None:
+    """A link a dashboard may show and hand to the agent: a web address without
+    credentials (none at all when its query carries a key), or a file inside the Bridge."""
+    if not isinstance(link, str) or not link:
+        return None
+    if link.startswith(("http://", "https://")):
+        parts = urllib.parse.urlsplit(link)
+        if SECRET_QUERY.search(parts.query):
+            return None
+        host = parts.hostname or ""
+        netloc = host + (f":{parts.port}" if parts.port else "")
+        return urllib.parse.urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+    if root is None:
+        return None
+    base = root.resolve()
+    path = (Path(link) if Path(link).is_absolute() else base / link).resolve()
+    if path != base and base not in path.parents:   # never a file outside the Bridge
+        return None
+    return path.as_uri() if path.exists() else None
+
+
+def _page_row(kind: str, item: dict, entry: dict, now: dt.datetime, labels: dict, root: Path | None = None,
+              marks: list = ()) -> dict:
+    """One row as every page draws it: when, title, detail, tone, url; plus what it leads to:
+    the task (its tab) and whether it is worth asking about (a finding, an issue)."""
+    iid = _text(item.get("id"))
+    title = (_text(item.get("title")) or iid).replace("**", "")   # a log line's bold is markup, not text
+    if kind == "tracker" and GLOBAL_ID.match(iid) and not title.startswith(iid):
+        title = f"{iid} {title}"
+    state = _text(item.get("raw_state")) or _text(item.get("state"))
+
+    if "when" in entry:
+        when = _page_when(item.get(entry["when"]), now, labels)
+    elif kind == "commits":
+        when = labels["commits_today"].format(n=_today_count(item))
+    elif kind == "calendar":
+        when = _page_when(item.get("start"), now, labels)
+    elif kind == "command":
+        when = _page_when(item.get("due"), now, labels)   # a probe stamps every row with the run time
+    else:
+        when = _page_when(item.get("due") or item.get("changed_at"), now, labels)
+
+    if "detail" in entry:
+        fields = [entry["detail"]] if isinstance(entry["detail"], str) else entry["detail"]
+        parts = [_text(item.get(f)) for f in fields]
+    elif kind == "calendar":
+        end = _when(item.get("end"))
+        start = _when(item.get("start"))
+        parts = [labels["until"].format(time=f"{end:%H:%M}") if end and start and end.date() == start.date() else "",
+                 labels["info_tag"] if item.get("info") is True else ""]
+    elif kind == "tracker":
+        project = _text(item.get("project"))
+        parts = ["PR" if item.get("type") == "pr" else "", state,
+                 "" if project and iid.startswith(project) else project, _text(item.get("priority"))]
+    elif kind == "commits":
+        parts = [f"{_text(item.get('spark'))} {_text(item.get('branch'))}".strip()]
+    elif kind in ("activity", "workplace"):
+        parts = [_text(item.get("project"))]
+    elif kind == "inbox":
+        parts = [_text(item.get("kind")), _text(item.get("gate"))]
+    elif kind == "tasks":
+        parts = [_text(item.get("priority")), _text(item.get("project")), _short(_text(item.get("blocked_by")), 40)]
+    else:
+        parts = [state, _text(item.get("project"))]
+    detail = " · ".join(p for p in parts if p)
+
+    url = _safe_link(item.get(entry.get("link", "url")), root)
+    # The task a row belongs to: a dashboard jumps to its tab, or opens one.
+    task = item.get("task") if isinstance(item.get("task"), str) else iid if kind in ("workplace", "tasks") else None
+
+    stamp = _when(item.get("start") if kind == "calendar" else item.get("changed_at"))
+    own = item.get("tone")
+    if entry.get("alarm") is True:
+        tone = "bad"
+    elif own in ("bad", "warn", "dim", "none"):   # the source knows best what its row means
+        tone = None if own == "none" else own
+    elif item.get("state") == "blocked":
+        tone = "bad"
+    elif kind == "inbox" and item.get("urgency") == "now" or kind == "tasks" and item.get("blocked_by"):
+        tone = "warn"
+    elif kind == "command":
+        tone = "warn"
+    elif kind == "calendar" and stamp is not None and stamp < now:
+        tone = "dim"
+    elif kind == "activity" and stamp is not None and stamp.date() != now.date():
+        tone = "dim"
+    elif kind == "commits" and _today_count(item) == 0:
+        tone = "dim"
+    else:
+        tone = None
+    return {"title": title, "when": when, "detail": detail, "tone": tone, "url": url, "task": task or None,
+            "ask": tone in ("bad", "warn") or kind in ("tracker", "inbox"), "mark": mark_for(list(marks), title, item)}
+
+
+def _page_section(section: dict, entry: dict, now: dt.datetime, labels: dict, root: Path | None = None,
+                  marks: list = ()) -> dict:
+    kind = section.get("kind") or ""
+    # Every row: a page pages itself; `items` is only the briefing's first few.
+    items = [i for i in section.get("all") or section.get("items") or [] if isinstance(i, dict)]
+    if kind == "commits":   # whoever committed today first
+        items = sorted(items, key=_today_count, reverse=True)
+    rows = [_page_row(kind, i, entry, now, labels, root, marks) for i in items]
+    weight = sum(_today_count(i) for i in items) if kind == "commits" else \
+        sum(1 for r in rows if r["tone"] != "dim")
+    if entry.get("badge") is False:   # listed, but not what the tab's number counts
+        weight = 0
+    return {"id": section["id"], "kind": kind, "title": section.get("title") or section["id"],
+            "status": section.get("status") or "ok", "reason": _text(section.get("reason")),
+            "alarm": entry.get("alarm") is True,
+            "empty": entry.get("empty") or labels["page_empty"], "items": rows,
+            "total": section.get("total", len(rows)), "weight": weight,
+            "bad": sum(1 for r in rows if r["tone"] == "bad"),
+            # From the section's cache (`cache_minutes`): the time its source last answered.
+            "as_of": _page_when(section["cached_at"], now, labels) if section.get("cached_at") else None}
+
+
+def pages(result: dict, profile: dict, root: Path | None = None) -> list:
+    """The dashboard's pages beside the briefing: which section on which page, every row
+    in the same columns. `view.pages` decides; without it a section's kind does, and a
+    section no page names lands on the rest page, so nothing collected goes unseen."""
+    view = _cfg(profile)
+    labels = _labels(view)
+    marks = marks_of(view)
+    now = _when(result.get("collected_at")) or dt.datetime.now()
+    sections = {s.get("id"): s for s in result.get("sections") or [] if isinstance(s, dict) and s.get("id")}
+    plan = []   # (id, title, [entry])
+    configured = view.get("pages") if isinstance(view.get("pages"), list) else None
+    if configured is not None:
+        for page in configured:
+            if not isinstance(page, dict) or not isinstance(page.get("id"), str):
+                continue
+            entries = [{"id": e} if isinstance(e, str) else e for e in page.get("sections") or []
+                       if isinstance(e, str) or (isinstance(e, dict) and isinstance(e.get("id"), str))]
+            title = page.get("title") if isinstance(page.get("title"), str) else \
+                labels.get(f"page_{page['id']}", page["id"])
+            plan.append((page["id"], title, entries))
+    else:
+        for pid in DEFAULT_PAGES:
+            plan.append((pid, labels[f"page_{pid}"],
+                         [{"id": sid} for sid, s in sections.items() if PAGE_OF_KIND.get(s.get("kind")) == pid]))
+    placed = {e["id"] for _, _, entries in plan for e in entries}
+    if configured is None or view.get("page_rest", "show") != "hide":
+        rest = [{"id": sid} for sid, s in sections.items()
+                if sid not in placed and s.get("kind") not in BRIEFING_KINDS]
+        plan.append((REST_PAGE, labels["page_more"], rest))
+    out = []
+    for pid, title, entries in plan:
+        built = [_page_section(sections[e["id"]], e, now, labels, root, marks) for e in entries if e["id"] in sections]
+        if built:
+            out.append({"id": pid, "title": title, "sections": built})
+    return out

@@ -51,6 +51,13 @@ def test_core_behind_is_one_plan_row_with_the_newest_subject():
     assert "5" in row["title"] and "feat: something new" in row["title"]
 
 
+def test_a_core_row_links_to_the_commits_it_lacks():
+    (row,) = ui.core_items([CORE], run=Git("5"))
+    assert row["url"] == f"https://github.com/acme/core/commits/{CORE.get('branch') or 'main'}"
+    (row,) = ui.core_items([CORE], run=Git("5", remotes="up\t/srv/git/acme/core (fetch)\n"))
+    assert row["url"] == ""      # a remote that is no web host has no page to open
+
+
 def test_core_remote_is_found_by_url_not_by_name():
     git = Git("2", remotes="origin\tgit@github.com:me/private.git (fetch)\nob\tgit@github.com:acme/core.git (fetch)\n")
     ui.core_items([CORE], run=git)

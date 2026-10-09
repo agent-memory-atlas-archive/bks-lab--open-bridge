@@ -117,10 +117,66 @@ $defs:
       hygiene: {enum: [bottom, hide], description: "Housekeeping last, or not at all. Default bottom."}
       color: {enum: [auto, meaning, none], description: "auto/meaning: colour only where it means something."}
       width: {type: integer, minimum: 40, description: "Wrap column. Default 100. Rows wrap at a word."}
+      pages:
+        type: array
+        description: |
+          The dashboard's tabs beside the briefing (for any dashboard that draws them):
+          which section stands on which tab, and which item field fills which column.
+          Without it, a section's kind decides (command: status, calendar: dates,
+          tracker: trackers, commits and activity: today, any other kind: more).
+          docs/briefings.md § Dashboard pages.
+        items:
+          type: object
+          required: [id, sections]
+          additionalProperties: false
+          properties:
+            id: {type: string, not: {const: briefing}}
+            title: {type: string, description: "Tab name. Default: the label page_<id>, else the id."}
+            sections:
+              type: array
+              minItems: 1
+              items:
+                oneOf:
+                  - {type: string, description: "A section id of this profile."}
+                  - type: object
+                    required: [id]
+                    additionalProperties: false
+                    properties:
+                      id: {type: string}
+                      when: {type: string, description: "Item field for the first column (a date). Default by kind."}
+                      detail:
+                        oneOf:
+                          - {type: string}
+                          - {type: array, items: {type: string}}
+                        description: "Item field(s) for the column on the right, joined with ' · '. Default by kind."
+                      link: {type: string, description: "Item field holding the web address. Default url; only http(s) links."}
+                      empty: {type: string, description: "What the section says with nothing in it. Default: label page_empty."}
+                      alarm: {type: boolean, description: "Every row is a finding (red), and empty means all green."}
+                      badge: {type: boolean, description: "false: listed, but left out of the number on the tab. Default true."}
+      page_rest:
+        enum: [show, hide]
+        description: "A section no page names: show it on the tab 'more' (default) or leave it out."
+      marks:
+        type: array
+        description: |
+          A label in front of every row whose title, id, project, repo, task, context,
+          area, labels or link contains one of `match` (case does not matter). The first
+          mark that fits wins. Keep names that change (customers, projects) here, never in code.
+        items:
+          type: object
+          additionalProperties: false
+          required: [label, match]
+          properties:
+            label: {type: string, minLength: 1, maxLength: 16}
+            match:
+              oneOf:
+                - {type: string, minLength: 1}
+                - {type: array, minItems: 1, items: {type: string, minLength: 1}}
+            color: {enum: [red, green, yellow, blue, magenta, cyan, gray, white]}
       labels:
         type: object
         propertyNames:
-          enum: [activity_title, agenda_title, all_clear, back_on, boards_title, bucket_more, busy_until, capped, clash_row, clashes, col_board, col_branch, col_commits, col_days, col_note, col_repo, col_what, col_when, collides, commits, due, end, error, first_title, free_rest, free_until, hidden, housekeeping, info_tag, lage, later, meanwhile, more, muted, new, next_date, no_next, nudge, only_you, overview_file, owed, parallel, report_title, repos_skipped, shutdown, since, st_blocked, st_in_progress, st_new, st_ready, st_review, task, today, tomorrow, waiting_days, why, with, workplace, yours_today]
+          enum: [activity_title, agenda_title, all_clear, back_on, boards_title, bucket_more, busy_until, capped, clash_row, clashes, col_board, col_branch, col_commits, col_days, col_note, col_repo, col_what, col_when, collides, commits, commits_today, due, end, error, first_title, free_rest, free_until, hidden, housekeeping, info_tag, lage, later, meanwhile, more, muted, new, next_date, no_next, nudge, only_you, overview_file, owed, page_dates, page_empty, page_more, page_status, page_today, page_trackers, parallel, report_title, repos_skipped, shutdown, since, st_blocked, st_in_progress, st_new, st_ready, st_review, task, today, tomorrow, until, waiting_days, why, with, workplace, yours_today]
         additionalProperties: {type: string}
         description: |
           Any word the reader sees, by label name (docs/briefings.md lists them). A
@@ -186,6 +242,13 @@ $defs:
       max:
         type: integer
         minimum: 1
+      cache_minutes:
+        type: integer
+        minimum: 1
+        description: |
+          Answer from this section's last good run while it is younger than this
+          (.bridge/briefing-cache/). For slow sources such as GitHub. A failure is never
+          kept, a changed section asks again, and `collect --fresh` always asks.
       # inbox
       kinds:
         type: array

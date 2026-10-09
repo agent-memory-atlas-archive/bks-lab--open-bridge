@@ -38,6 +38,12 @@ view:
   #   - {id: waiting, nudge_after_days: 7}
   #   - {id: drop}
   # labels: {end: "That's all for today."}
+  # pages:                 # dashboard tabs beside the briefing; without it, the kind decides
+  #   - {id: systems, title: Systems, sections: [{id: probes, alarm: true, empty: "all green"}]}
+  #   - {id: github, title: GitHub, sections: [github-mine]}
+  # page_rest: show        # a section no page names goes to "More" (hide: left out)
+  # marks:                 # a label in front of rows that name a word; first match wins
+  #   - {label: ACME, match: [acme, acme-portal], color: magenta}
 # mutes:                   # rows you never want again
 #   - {section: advise, when: {check: quiet}}
 
@@ -60,6 +66,7 @@ sections:
     provider: github
     query: {assignee: "@me", owners: [your-org], kinds: [issues, prs]}
     max: 10
+    cache_minutes: 5       # GitHub is slow: reuse its answer for five minutes (collect --fresh asks anyway)
     to_inbox:
       - when: {state: review, assigned_to_me: true}
 
