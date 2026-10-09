@@ -37,9 +37,11 @@ cd "$ROOT" 2>/dev/null || exit 0
 # above the key, never to the right of the `=`.
 # ─────────────────────────────────────────────────────────────────────────────
 env_blocked=""
-git diff --cached --name-only -z 2>/dev/null |
+# No temp file: a sandboxed agent session may not write to /tmp, and a failed
+# redirect there silently skipped this whole check.
+env_staged=$(git diff --cached --name-only -z 2>/dev/null |
   tr '\0' '\n' |
-  grep -E '(^|/)\.env($|\.)' > /tmp/.bridge-env-staged.$$ 2>/dev/null
+  grep -E '(^|/)\.env($|\.)')
 while IFS= read -r f; do
   [ -n "$f" ] || continue
   case "${f##*/}" in
@@ -56,8 +58,9 @@ $f (Template mit ausgefülltem Wert)"
 $f"
       ;;
   esac
-done < /tmp/.bridge-env-staged.$$
-rm -f /tmp/.bridge-env-staged.$$
+done <<ENVSTAGED
+$env_staged
+ENVSTAGED
 
 if [ -n "$env_blocked" ]; then
   printf '%s\n' "── bridge pre-commit · BLOCKIERT ──────────────────────────────────" >&2
