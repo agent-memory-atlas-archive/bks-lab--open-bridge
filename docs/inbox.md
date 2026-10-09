@@ -1,7 +1,7 @@
 ---
 summary: "The inbox: one place per Bridge where everything that needs a person waits until it is done. Item and event layout, derived states, gates, closing probes, who writes and reads, CLI reference."
 type: guide
-last_updated: 2026-10-08
+last_updated: 2026-10-09
 related:
   - scripts/inbox.py
   - scripts/tests/test_inbox.py
@@ -86,8 +86,14 @@ ideas apart (`kinds: [idea]`) or leave them out (`skip_kinds: [idea]`). Urgency:
 `check` evaluates each open item's `closes_when` against the live source and
 closes what holds. Probes: `path_exists`, `command` (exit code, optional
 `expect_exit`), `after` (a date), `gh_pr` (with `state` merged, closed, open or
-green), `gh_issue` (with `state`), `task_status` (with `status`), and `all` /
-`any` to combine them.
+green), `gh_issue` (with `state`), `task_status` (with `status`), `unseen_for`
+(with `hours`), and `all` / `any` to combine them.
+
+`unseen_for` (`{hours: N}`) is for reporters that refile the same `key` on every run
+while a condition holds (a daily health report): the item closes when no run has
+filed it for N hours, so a fixed finding leaves without anyone clearing a log. It
+reads the item's own sightings (`seen` events), so it needs the item and is unknown
+without one. A one-shot alarm does not carry it: that item waits for a person.
 
 A probe that cannot be evaluated (no network, a typo, a missing task) is
 **unknown, never true**. The item stays open rather than vanishing on an error.
