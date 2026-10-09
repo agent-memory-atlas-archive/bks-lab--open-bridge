@@ -1364,3 +1364,22 @@ def test_a_wrapped_open_box_keeps_its_continuation_and_loses_its_markdown(tmp_pa
                       "- [ ] second\n", encoding="utf-8")
     (item,) = bf.sec_tasks({"status": ["doing"]}, ctx(root))
     assert item["steps"] == ["Decide where rates live (identity/x vs. workflow/y), open gap", "second"]
+
+
+# ---------------------------------------------------------------- schema and validator agree
+# `step_headings` reached the schema and the template but not SECTION_KEYS, so a profile
+# that used it as documented failed `briefing.py validate` (live 2026-10-09).
+
+def test_validator_knows_every_key_the_schema_documents():
+    schema = yaml.safe_load((ROOT / "workflow" / "briefings" / "_schema.yaml").read_text(encoding="utf-8"))
+    section = set(schema["$defs"]["section"]["properties"])
+    profile = set(schema["properties"])
+    assert section - bf.SECTION_KEYS == set(), "documented section keys the validator rejects"
+    assert bf.SECTION_KEYS - section == set(), "section keys the validator accepts but the schema does not document"
+    assert profile - bf.PROFILE_KEYS == set(), "documented profile keys the validator rejects"
+
+
+def test_a_tasks_section_with_step_headings_validates(tmp_path):
+    root = bridge(tmp_path, profiles={"a": {"id": "a", "sections": [
+        {"kind": "tasks", "status": ["doing"], "step_headings": ["Next moves"]}]}})
+    assert not [p for p in bf.validate(root) if "step_headings" in str(p)]

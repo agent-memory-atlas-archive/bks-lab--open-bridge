@@ -68,7 +68,7 @@ PROFILE_KEYS = {"schema_version", "scope", "id", "title", "for", "default", "off
 SECTION_KEYS = {"kind", "id", "title", "max", "to_inbox", "provider", "query", "account_ref", "state_map",
                 "status", "contexts", "days", "path", "argv", "exclude_calendars", "info_calendars", "bucket",
                 "repos", "author", "all_branches", "summary", "report_ok", "covers", "kinds", "skip_kinds",
-                "deferred", "cache_minutes"}
+                "deferred", "cache_minutes", "step_headings"}
 # A profile is committed and often shared: a value under one of these names is
 # a credential, and credentials only ever travel as references (account_ref).
 SECRET_NAME = re.compile(r"(token|secret|password|passwd|api[_-]?key|private[_-]?key)", re.I)
