@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "open-bridge-mods",
+  "version": "0.1.0",
+  "description": "Claude Code mods that ship with open-bridge (function hooks, early access). Add from the Bridge folder with: claude plugin marketplace add ./mods",
+  "owner": {
+    "name": "open-bridge contributors"
+  },
+  "plugins": [
+    {
+      "name": "briefing-ui",
+      "description": "The briefing as a clickable dashboard in Claude Code (German or English): decide with buttons, hand topics to new cmux tabs, watch running tabs. Active only with briefing.claude_code_ui.enabled in bridge-config.yaml; tabs, columns and marks come from the briefing profile.",
+      "source": "./briefing-ui",
+      "category": "productivity"
+    }
+  ]
+}
