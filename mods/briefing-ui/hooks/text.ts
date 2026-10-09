@@ -224,6 +224,8 @@ export type Strings = {
   cmdDesc: string
   cmdOffDesc: string
   cmdDisabled: string
+  /** bridge-config.yaml exists but could not be read; the reason follows */
+  readFailed: (err: string) => string
   /** must contain "(briefing-ui <id>)": that is how the card recognizes itself */
   cmdOutput: (id: string) => string
   bandOff: string
@@ -475,6 +477,7 @@ const de: Strings = {
   cmdDesc: 'Briefing als Dashboard: wer wartet, was gebe ich weg, woran arbeite ich; per Klick Tabs starten',
   cmdOffDesc: 'Briefing-Band für diese Sitzung ausblenden (Dashboard bleibt über /briefing-ui)',
   cmdDisabled: 'briefing-ui ist aus: briefing.claude_code_ui.enabled in bridge-config.yaml auf true setzen.',
+  readFailed: err => `bridge-config.yaml ließ sich nicht lesen: ${err}`,
   cmdOutput: id => `Briefing-Dashboard (briefing-ui ${id}). Ohne den Mod steht hier nur dieser Satz.`,
   bandOff: 'Briefing-Band ausgeblendet. /briefing-ui öffnet das Dashboard weiterhin.',
   morning: 'Guten Morgen. /briefing-ui zeigt, wer wartet und was du weggeben kannst.',
@@ -725,6 +728,7 @@ const en: Strings = {
   cmdDesc: 'Briefing as a dashboard: who waits, what I hand off, what I work on; start tabs with a click',
   cmdOffDesc: 'Hide the briefing band for this session (the dashboard stays available via /briefing-ui)',
   cmdDisabled: 'briefing-ui is off: set briefing.claude_code_ui.enabled to true in bridge-config.yaml.',
+  readFailed: err => `Could not read bridge-config.yaml: ${err}`,
   cmdOutput: id => `Briefing dashboard (briefing-ui ${id}). Without the mod, this sentence is all you see here.`,
   bandOff: 'Briefing band hidden. /briefing-ui still opens the dashboard.',
   morning: 'Good morning. /briefing-ui shows who is waiting and what you can hand off.',

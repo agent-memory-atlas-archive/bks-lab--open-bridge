@@ -92,6 +92,8 @@ export type WorldOptions = {
   ui?: Raw
   /** files the mod may read, by the path the mod passes (a relative one matches its resolved form) */
   files?: Record<string, string>
+  /** what the config reader (`python3 -c`) answers instead of the config, e.g. a YAML error */
+  configRun?: { exitCode: number; stdout: string; stderr: string }
 }
 
 export type World = {
@@ -161,7 +163,10 @@ export function world(on: On, opts: WorldOptions = {}): World {
   on('process.run', (_$, e) => {
     const argv = [...e.argv]
     w.calls.push(argv)
-    if (argv[0] === 'python3' && argv[1] === '-c') return ok(JSON.stringify(config))
+    if (argv[0] === 'python3' && argv[1] === '-c') {
+      if (opts.configRun) return { value: { ...opts.configRun, isStdoutTruncated: false, isStderrTruncated: false } }
+      return ok(JSON.stringify(config))
+    }
     const script = argv[1] ?? ''
     if (script === 'scripts/briefing.py') return ok(JSON.stringify(w.collect))
     if (script === 'scripts/workplace.py') {

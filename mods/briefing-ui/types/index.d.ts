@@ -182,6 +182,8 @@ declare module 'claude-code' {
       starting: string[]
       /** "release all N" pressed: the confirmation prompt is showing */
       confirmAll: boolean
+      /** why bridge-config.yaml could not be read; null when it was read */
+      configError: string | null
     }
   }
 }

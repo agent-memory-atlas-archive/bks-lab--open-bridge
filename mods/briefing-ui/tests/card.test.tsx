@@ -91,6 +91,27 @@ for (const lang of LANGS) {
   })
 }
 
+test('a bridge-config.yaml that cannot be read is named, not mistaken for switched off', async ($, on) => {
+  const w = world(on, { configRun: { exitCode: 1, stdout: '',
+    stderr: 'yaml.scanner.ScannerError: mapping values are not allowed here' } })
+  await $.session.start({ cwd: '/fake/bridge', surface: 'terminal', isInteractive: true })
+  await w.clock.settle()
+  expect(w.registered).toEqual(['briefing-ui'])
+  const out = await $.command.run(runInput())
+  // the language is unknown without the config: the English table answers
+  expect(out).toMatchObject({ text: expect.stringMatching(/^Could not read bridge-config\.yaml: .*ScannerError/) })
+  await w.clock.settle()
+  expect(w.find('scripts/briefing.py')).toHaveLength(0)
+})
+
+test('config reader output that is not JSON is named too', async ($, on) => {
+  const w = world(on, { configRun: { exitCode: 0, stdout: 'Traceback', stderr: '' } })
+  await $.session.start({ cwd: '/fake/bridge', surface: 'terminal', isInteractive: true })
+  await w.clock.settle()
+  const out = await $.command.run(runInput())
+  expect(out).toMatchObject({ text: expect.stringMatching(/^Could not read bridge-config\.yaml: /) })
+})
+
 test('outside a Bridge the mod registers nothing and runs nothing', async ($, on) => {
   const w = world(on, { isBridge: false })
   await $.session.start({ cwd: '/fake/bridge', surface: 'terminal', isInteractive: true })

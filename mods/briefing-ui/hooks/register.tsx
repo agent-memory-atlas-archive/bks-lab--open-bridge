@@ -69,6 +69,8 @@ const tabsError = atom({ plugin: 'briefing-ui', key: 'tabsError' } as const, nul
 const isControl = atom({ plugin: 'briefing-ui', key: 'isControl' } as const, null as boolean | null)
 const starting = atom({ plugin: 'briefing-ui', key: 'starting' } as const, [] as string[])
 const confirmAll = atom({ plugin: 'briefing-ui', key: 'confirmAll' } as const, false)
+/** Why bridge-config.yaml could not be read; null when it was read (switched on or off) */
+const configError = atom({ plugin: 'briefing-ui', key: 'configError' } as const, null as string | null)
 
 const READ_CONFIG = [
   'import json, yaml',
@@ -130,28 +132,34 @@ function act($: EngineInterface, run: () => unknown): () => Promise<void> {
   }
 }
 
-async function loadConfig($: EngineInterface): Promise<UiConfig | null> {
+/**
+ * What the session finds: outside a Bridge, a config that could not be read (with the reason),
+ * switched off, or the config. A read error is never reported as "switched off".
+ */
+type Loaded = { outside: true } | { error: string } | { off: true } | { cfg: UiConfig }
+
+async function loadConfig($: EngineInterface): Promise<Loaded> {
   const cwd = await $.session.cwd()
   const isBridge =
     (await $.fs.exists(`${cwd}/bridge-config.yaml`)) && (await $.fs.exists(`${cwd}/scripts/briefing.py`))
-  if (!isBridge) return null
+  if (!isBridge) return { outside: true }
   const run = await bridge($, ['-c', READ_CONFIG], 15000)
-  if (!run.ok) return null
+  if (!run.ok) return { error: short(run.err || 'python3 failed', 200) }
   try {
     const cfg = parseConfig(JSON.parse(run.out) as Record<string, unknown>)
     // even when switched off: the notice from /briefing-ui already speaks the configured language
     setLanguage(cfg.language)
-    return cfg.enabled ? cfg : null
-  } catch {
-    return null
+    return cfg.enabled ? { cfg } : { off: true }
+  } catch (error) {
+    return { error: short(String(error), 200) }
   }
 }
 
 
 /**
- * quick: only inbox, advice, tasks, workplace, log (after a change, ~4 s); the rest
- * stays at the last state · auto: on open; if the rest is older than FULL_FRESH_MS, it comes
- * afterwards in a second run (trackers, calendar, checks, commits, in parallel) · full: always both.
+ * quick: everything except trackers and command sections (SLOW_KINDS); those stay at the
+ * last state · auto: on open; if the last full run is older than full_minutes
+ * (briefing.claude_code_ui), a second run fetches everything · full: always both, with --fresh.
  */
 type LoadHow = 'quick' | 'auto' | 'full'
 const HOW_RANK: Record<LoadHow, number> = { quick: 0, auto: 1, full: 2 }
@@ -1604,7 +1612,9 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const started = await next(e)
-    const loaded = await loadConfig($)
+    const found = await loadConfig($)
+    const loaded = 'cfg' in found ? found.cfg : null
+    await update($, configError, () => ('error' in found ? found.error : null))
     // A tab that the bridge started for an item stays quiet: no band, no beat, no greeting.
     const isAgentTab = Boolean(await $.env.get('BRIDGE_TAB_SLUG'))
     const cfg = loaded && isAgentTab ? { ...loaded, band: false, morningHint: false } : loaded
@@ -1670,7 +1680,8 @@ export const register: Register = on => {
   on('command.run', { command: 'briefing-ui' }, async $ => {
     const cfg = await read($, config)
     if (!cfg) {
-      return { text: T().cmdDisabled }
+      const error = await read($, configError)
+      return { text: error === null ? T().cmdDisabled : T().readFailed(error) }
     }
     startLoad($, 'auto')
     void loadTabs($, cfg)
