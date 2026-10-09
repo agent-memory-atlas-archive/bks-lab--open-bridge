@@ -450,7 +450,9 @@ tracked as issues, one per combination.
 ## Change marks
 
 The time limit (`timeout_sec`, default 30 s) covers a whole section, all of
-its calls together, so a slow tracker costs at most that.
+its calls together, so a slow tracker costs at most that. A `github-board`
+section asks its boards side by side, so it takes as long as its slowest
+board, not all of them added up.
 A `gh` call that fails on a GitHub rate limit is tried again after 5 and then
 15 seconds, as long as the wait still fits that limit: such errors come in
 bursts when several sessions query at once, and clear within seconds.

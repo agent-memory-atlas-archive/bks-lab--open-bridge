@@ -19,12 +19,16 @@ import importlib.util
 import re
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from . import load_json, source_error
 
 
 _LOADING = threading.Lock()
+# Boards asked at once. Eight one after another took 64 s live (2026-10-09) against the
+# section's 30 s, the two largest 16 s each; side by side the section takes the slowest one.
+BOARD_WORKERS = 8
 
 
 def _tracker_sync(ctx):
@@ -86,10 +90,22 @@ def collect(section: dict, ctx) -> list:
             return reg_map[raw_state]
         return default_keys.get(re.sub(r"^[^0-9A-Za-z]+", "", raw_state).strip().lower())
 
-    for board in boards:
+    deadline = getattr(ctx, "deadline", None)
+
+    def fetch(board: dict):
+        """One board's cards, on a helper thread. The section's deadline lives per thread,
+        so it is carried over: the board ends with its section, not with a limit of its own."""
+        if deadline is not None:
+            ctx.deadline = deadline
         argv = ["gh", "project", "item-list", str(board["number"]), "--owner", str(board["org"]),
                 "--format", "json", "--limit", str(query.get("limit", 200))]
-        payload = load_json(ctx.run(argv, timeout=ctx.timeout), f"board {board['slug']}")
+        return load_json(ctx.run(argv, timeout=ctx.timeout), f"board {board['slug']}")
+
+    # Asked side by side, read back in the registry's order; the first board that fails
+    # (in that order) fails the section, as it did one after another.
+    with ThreadPoolExecutor(max_workers=min(BOARD_WORKERS, len(boards))) as pool:
+        payloads = list(pool.map(fetch, boards))
+    for board, payload in zip(boards, payloads):
         counts = dict.fromkeys(order, 0)
         raws = payload.get("items", []) if isinstance(payload, dict) else []
         for raw in raws:
