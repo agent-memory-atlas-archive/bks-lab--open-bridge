@@ -349,14 +349,16 @@ itself with `tone: bad | warn | dim | none` on the item (a usage figure is
 information, not a finding).
 
 Each row also says where it leads. **url** is a web address, or a file of this
-Bridge as a `file://` link when the item names a path that exists (a task's
+Bridge as a `file://` link when the item's `url` (or the field a page entry's
+`link` names) holds a path inside this Bridge that exists (a task's
 `STATUS.md`, a protocol). A path outside the Bridge never becomes a link; a web
 address loses any user and password, and one whose query carries a key (`code=`,
 `token=`, `sig=`, …) is left out, because "ask" hands the link to the agent. `commits` link to the repository's commit list when its
 `origin` is a web host; an `activity` row whose context is a task or stream links
 to its `STATUS.md`. **task** names the task a row belongs to (an activity row, a
 proposed tab, a task), so a dashboard can jump to its tab or open one. **ask** is
-true for a finding (red or yellow) and a tracker row: worth handing to the agent.
+true for a finding (red or yellow), a tracker row and an inbox row: worth handing
+to the agent.
 
 A page entry overrides that per section: `when` and `link` name an item field,
 `detail` one field or a list, `empty` the text for nothing, and `alarm: true`
@@ -370,15 +372,18 @@ Without `view.pages`, the kind decides: `command` on Status, `calendar` on Dates
 The kinds the briefing page shows itself (`inbox`, `advise`, `tasks`) stay off the
 tabs unless a page names them. Tab names come from the labels `page_status`,
 `page_dates`, `page_trackers`, `page_today`, `page_more`; `validate` names a page
-section the profile does not have.
+section the profile does not have. Two page ids are taken: `briefing` (the
+briefing page itself) and `more` (the page for the rest).
 
-A dashboard that pages through the result loads in two runs: a quick one
-(`--skip tracker --skip command`, the kinds that wait on a service; a few
-seconds) and then a full run. The full run is no slower than one with `--only`, since
-sections run side by side, and it is the only run where the headline and the
-advice see the inbox and the calendar together. A reload after a click runs
-only the quick part and keeps every section it left out, the headline included,
-from the earlier run, so a click never waits for GitHub.
+A dashboard can load in two runs: first a run of its own with
+`--skip tracker --skip command` (the kinds that wait on a service; a few
+seconds), then a full run. That first run is not the terminal's quick mode
+(`--skip tracker --skip calendar`): it keeps the calendar, because the headline
+needs it. Sections run side by side, so the full run is no slower than one with
+`--only`, and it is the only run where the headline and the advice see the inbox
+and the calendar together. `collect` keeps no rows from an earlier run: a section
+a run leaves out comes back `skipped` with no items, so a dashboard that wants to
+show the earlier rows meanwhile keeps them itself.
 
 A slow source can keep its answer: `cache_minutes: 5` on a section makes the
 next runs answer from its last good result until five minutes have passed
@@ -400,8 +405,10 @@ view:
 ```
 
 A word matches anywhere in the row's title, id, project, repo, task, context,
-area, labels or link, whatever its case; the first mark that fits wins. The
-mark reaches the briefing's rows (`mark`) and the page rows alike. Customers
+area, labels or link, whatever its case, never the name of its source; the
+first mark that fits wins. The mark is in the JSON as `mark` on the briefing's
+rows and the page rows alike. Of the text views, triage, brevity and report draw
+it as `[LABEL]` in front of the title; sources and plan leave it out. Customers
 and projects come and go, so they belong in the profile, never in code.
 
 ### Your settings, and where they live
@@ -415,7 +422,7 @@ it and carries no names or customers of its own.
 | Tabs and their columns (`when`, `detail`, `link`, `empty`, `alarm`, `badge`) | same profile, `view.pages`, `view.page_rest` |
 | Marks in front of rows (customers, projects) | same profile, `view.marks` |
 | Wording of the briefing (headline, tab names, "today") | same profile, `view.labels` |
-| Name of the control workspace that polls the tabs | `bridge-config.yaml` `workplace.control.name` |
+| Name of the control tab that steers the others | `bridge-config.yaml` `workplace.control.name` ([workplace](workplace.md)) |
 
 ## Change marks
 
@@ -464,7 +471,11 @@ config wins over the shared file's `default: true`.
 
 Anything without a provider is a `command` section: a program that prints a
 JSON list (or JSON lines) of items in the normalized schema, run from the
-Bridge root. A source that turns out to be useful to others is a new module
+Bridge root. Beyond that schema, the dashboard pages read three optional item
+fields (§ Dashboard pages): `due`, the date in the `when` column (for a
+`command` row the only one); `tone`, the row's colour (`bad`, `warn`, `dim`, or
+`none` for information that is no finding); and `task`, the slug of the task the
+row belongs to. A source that turns out to be useful to others is a new module
 under `scripts/lib/briefing_providers/` with recorded answers and tests.
 
 ## Example
