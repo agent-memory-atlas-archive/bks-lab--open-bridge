@@ -11,6 +11,22 @@ for: sam
 default: true
 offer_on: ["good morning", "briefing", "what's up"]
 
+view:
+  # Tabs a dashboard shows beside the briefing; a section no page names goes to "More".
+  pages:
+    - id: boards
+      title: Boards
+      sections:
+        - {id: fabrikam, detail: [raw_state, project]}
+        - github-mine
+    - id: dates
+      title: Dates
+      sections: [calendar]
+  page_rest: show
+  # A label in front of every row that names the client.
+  marks:
+    - {label: FAB, match: [fabrikam], color: magenta}
+
 sections:
   - kind: inbox
     max: 7
@@ -29,6 +45,7 @@ sections:
     title: "My GitHub"
     provider: github
     query: {assignee: "@me", owners: [northwind-advisory], review_requested: true}
+    cache_minutes: 5        # GitHub is slow: reuse its answer for five minutes
     to_inbox:
       - when: {category: qa, assigned_to_me: true}
   - kind: tasks
