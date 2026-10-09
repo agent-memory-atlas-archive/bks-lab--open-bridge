@@ -38,9 +38,9 @@ def _run(argv, cwd=None, timeout=30) -> str:
     return p.stdout
 
 
-def _row(name: str, title: str, state: str = "ready") -> dict:
+def _row(name: str, title: str, state: str = "ready", url: str = "") -> dict:
     return {"id": f"upstream:{name}", "title": title, "state": state, "raw_state": "drift", "type": "task",
-            "url": "", "changed_at": dt.datetime.now().isoformat(timespec="minutes"), "tracker": "upstream",
+            "url": url, "changed_at": dt.datetime.now().isoformat(timespec="minutes"), "tracker": "upstream",
             "category": "open"}
 
 
@@ -55,6 +55,23 @@ def _remote_for(repo: str, remotes: str) -> str | None:
     return None
 
 
+def _url_of(remote: str, remotes: str) -> str:
+    for line in remotes.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[0] == remote:
+            return parts[1]
+    return ""
+
+
+def _web_page(repo: str, remote_url: str, branch: str) -> str:
+    """The upstream's commit list on its web host, when its remote is one; else empty."""
+    m = re.match(r"^(?:https?://(?:[^@/]+@)?|ssh://(?:[^@/]+@)?|git@)([\w.-]+?)(?::\d+)?[:/]", remote_url.strip())
+    if not m:
+        return ""
+    host = re.sub(r"^(github\.com|gitlab\.com|bitbucket\.org)-[\w.-]+$", r"\1", m.group(1))
+    return f"https://{host}/{repo.removesuffix('.git')}/commits/{branch}"
+
+
 def core_items(upstreams: list, run=None, cwd=None) -> list:
     run = run or (lambda argv, **k: _run(argv, cwd=cwd))
     out = []
@@ -66,7 +83,8 @@ def core_items(upstreams: list, run=None, cwd=None) -> list:
                      "blocked")]
     for u in cores:
         name, repo, branch = u.get("name") or u["repo"], u["repo"], u.get("branch") or "main"
-        remote = _remote_for(repo, run(["git", "remote", "-v"]))
+        remotes = run(["git", "remote", "-v"])
+        remote = _remote_for(repo, remotes)
         if remote is None:
             out.append(_row(name, f"{repo}: no git remote points at it, inbound drift unknown", "blocked"))
             continue
@@ -78,7 +96,8 @@ def core_items(upstreams: list, run=None, cwd=None) -> list:
         behind = int(run(["git", "rev-list", "--count", f"HEAD..{remote}/{branch}"]).strip() or 0)
         if behind:
             newest = run(["git", "log", "-1", "--format=%s", f"{remote}/{branch}"]).strip()
-            out.append(_row(name, f"{repo}: {behind} commit(s) not merged yet, newest: {newest}"))
+            out.append(_row(name, f"{repo}: {behind} commit(s) not merged yet, newest: {newest}",
+                            url=_web_page(repo, _url_of(remote, remotes), branch)))
     return out
 
 

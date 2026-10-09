@@ -347,3 +347,76 @@ def test_overview_blocks_respect_width_sections_and_duplicates():
     assert "Activity (7 days)" in out and "Activity (30 days)" in out
     assert out.count("#26 Infra") == 1
     assert all(len(line) <= 50 for line in out.splitlines() if "▁▁▁▁▁▁▁" in line and len(line) and "▁" * 30 not in line)
+
+
+# ---------------------------------------------------------------- where a row leads
+
+class GitWithRemote(Git):
+    def __init__(self, dates: dict, remote: str, **kw):
+        super().__init__(dates, **kw)
+        self.remote = remote
+        self.upstream = f"origin/{self.branch}"
+
+    def __call__(self, argv, timeout=30, cwd=None):
+        if argv[3:6] == ["remote", "get-url", "origin"]:
+            return self.remote + "\n"
+        if argv[3:6] == ["rev-parse", "--abbrev-ref", "@{u}"]:
+            if self.upstream is None:
+                raise bf.SourceError("no upstream")
+            return self.upstream + "\n"
+        return super().__call__(argv, timeout, cwd)
+
+
+def test_a_repository_on_a_web_host_links_to_its_commits(tmp_path):
+    a = repo(tmp_path / "code" / "alpha")
+    root = bridge(tmp_path, {"local_root": str(tmp_path / "code"), "base": {"alpha": {"github": "o/alpha"}}})
+    for remote in ("git@github.com:o/alpha.git", "https://github.com/o/alpha.git", "https://token@github.com/o/alpha"):
+        [item] = run_commits(root, {"kind": "commits"}, GitWithRemote({str(a): ["2026-10-05"]}, remote, branch="dev"))["items"]
+        assert item["url"] == "https://github.com/o/alpha/commits/dev", remote
+
+
+def test_a_repository_without_a_web_remote_has_no_link_and_still_counts(tmp_path):
+    a = repo(tmp_path / "code" / "alpha")
+    root = bridge(tmp_path, {"local_root": str(tmp_path / "code"), "base": {"alpha": {"github": "o/alpha"}}})
+    [item] = run_commits(root, {"kind": "commits"}, Git({str(a): ["2026-10-05"]}))["items"]   # get-url fails
+    assert "url" not in item and item["total"] == 1
+    [item] = run_commits(root, {"kind": "commits"}, GitWithRemote({str(a): ["2026-10-05"]}, "/srv/git/alpha"))["items"]
+    assert "url" not in item
+
+
+def test_a_log_row_names_its_task_and_status_file_when_the_task_exists(tmp_path):
+    root = bridge(tmp_path)
+    (root / "work" / "tasks" / "alpha").mkdir()
+    (root / "work" / "streams" / "beta").mkdir(parents=True)
+    (root / "work" / "log.md").write_text(
+        "| 2026-10-05 10:00 | ✨ | alpha | did a |\n| 2026-10-05 11:00 | ✨ | beta | did b |\n"
+        "| 2026-10-05 12:00 | ✨ | some-repo | did c |\n", encoding="utf-8")
+    c = bf.Context(root, now=NOW, cfg={})
+    items = {i["project"]: i for i in bf.collect(root, {"id": "p", "sections": [{"kind": "activity"}]}, c)["sections"][0]["items"]}
+    assert items["alpha"]["task"] == "alpha" and items["alpha"]["url"] == "work/tasks/alpha/STATUS.md"
+    assert items["beta"]["url"] == "work/streams/beta/STATUS.md"
+    assert "task" not in items["some-repo"]
+
+
+def test_web_url_knows_ssh_aliases_and_ssh_urls():
+    assert bf._web_url("git@github.com-work:acme/core.git") == "https://github.com/acme/core"
+    assert bf._web_url("ssh://git@github.com/o/r.git") == "https://github.com/o/r"
+    assert bf._web_url("/srv/git/r") is None
+
+
+def test_a_branch_without_an_upstream_gets_no_link(tmp_path):
+    a = repo(tmp_path / "code" / "alpha")
+    root = bridge(tmp_path, {"local_root": str(tmp_path / "code"), "base": {"alpha": {"github": "o/alpha"}}})
+    git = GitWithRemote({str(a): ["2026-10-05"]}, "git@github.com:o/alpha.git", branch="local-only")
+    git.upstream = None
+    [item] = run_commits(root, {"kind": "commits"}, git)["items"]
+    assert "url" not in item
+
+
+def test_a_log_context_that_is_no_task_name_gets_no_task(tmp_path):
+    root = bridge(tmp_path)
+    (root / "work" / "tasks" / "_meetings").mkdir()
+    (root / "work" / "log.md").write_text("| 2026-10-05 10:00 | ✨ | _meetings | weekly |\n", encoding="utf-8")
+    c = bf.Context(root, now=NOW, cfg={})
+    [item] = bf.collect(root, {"id": "p", "sections": [{"kind": "activity"}]}, c)["sections"][0]["items"]
+    assert "task" not in item

@@ -912,3 +912,51 @@ def test_parallel_and_info_labels_can_be_relabelled():
                          ("School play", "2026-10-06T18:05", "2026-10-06T19:05", True)))
     text = bv.draw(bv.build(r, p))
     assert "parallel zu School play" in text and "School play [Info]" in text
+
+
+def test_an_inbox_row_carries_its_id_and_gate_so_a_ui_can_act_on_it():
+    r = result(sec("inbox", "inbox", [inbox_item("i7", "Renew the secret", urgency="today", gate="only-you")]))
+    rows = [i for b in bv.build(r, profile(view={"style": "triage"}))["buckets"] for i in b["items"]]
+    assert rows[0]["inbox_id"] == "i7" and rows[0]["gate"] == "only-you"
+
+
+def test_an_inbox_row_says_whether_a_yes_runs_an_action():
+    r = result(sec("inbox", "inbox", [inbox_item("i7", "Restart it", has_action=True),
+                                      inbox_item("i8", "Look at this", has_action=False)]))
+    rows = {i["inbox_id"]: i for b in bv.build(r, profile(view={"style": "triage"}))["buckets"] for i in b["items"]}
+    assert rows["i7"]["has_action"] is True and rows["i8"]["has_action"] is False
+
+
+def test_an_inbox_row_says_whether_it_already_has_its_yes():
+    r = result(sec("inbox", "inbox", [inbox_item("i7", "Restart it", state="approved"),
+                                      inbox_item("i8", "Look at this")]))
+    rows = {i["inbox_id"]: i for b in bv.build(r, profile(view={"style": "triage"}))["buckets"] for i in b["items"]}
+    assert rows["i7"]["inbox_state"] == "approved" and rows["i8"]["inbox_state"] == "open"
+
+
+def test_a_tracker_row_merged_with_its_inbox_item_keeps_the_inbox_id():
+    r = result(
+        sec("board", "tracker", [{"id": "o/r#5", "title": "Fix login", "state": "blocked", "category": "open"}]),
+        sec("inbox", "inbox", [inbox_item("i9", "Board: o/r#5 Fix login (blocked)", urgency="now",
+                                          key="briefing:morning:board:o/r#5")]))
+    rows = [i for b in bv.build(r, profile(view={"style": "triage"}))["buckets"] for i in b["items"]]
+    assert len(rows) == 1 and rows[0]["inbox_id"] == "i9"
+
+
+def test_inbox_rows_carry_urgency_and_task_rows_carry_priority():
+    nxt = {"what": "Ship it", "who": "me", "due": "2026-10-06"}
+    ti = task_item("alpha", nxt=nxt)
+    ti["priority"] = "P1"
+    r = result(sec("inbox", "inbox", [inbox_item("i7", "Renew", urgency="now")]), sec("tasks", "tasks", [ti]))
+    rows = [i for b in bv.build(r, profile(view={"style": "triage"}))["buckets"] for i in b["items"]]
+    by = {x["title"]: x for x in rows}
+    assert by["Renew"]["urgency"] == "now"
+    assert by["Ship it"]["priority"] == "P1"
+
+
+def test_an_inbox_row_carries_its_key_so_a_dashboard_sees_which_tab_filed_it():
+    item = inbox_item("i9", "Result of the tab")
+    item["key"] = "tab-alpha-result"
+    r = result(sec("inbox", "inbox", [item]))
+    rows = {i["inbox_id"]: i for b in bv.build(r, profile(view={"style": "triage"}))["buckets"] for i in b["items"]}
+    assert rows["i9"]["inbox_key"] == "tab-alpha-result"

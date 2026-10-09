@@ -1,7 +1,7 @@
 ---
 summary: "Briefing profiles: each person describes the briefing they want in workflow/briefings/<id>.yaml (sections, trackers, queries, inbox rules, and a view: how it is shown); scripts/briefing.py executes it and the agent advises on the result. Section kinds, provider query keys, selection, views (sources, triage, brevity, plan), change marks, inbox rules, org profiles."
 type: guide
-last_updated: 2026-10-05
+last_updated: 2026-10-08
 related:
   - ../workflow/briefings/_schema.yaml
   - ../workflow/briefings/_template.yaml
@@ -29,8 +29,9 @@ workflow/briefings/acme.yaml        # /briefing acme, before the customer call
 workflow/briefings/weekly.yaml      # /briefing weekly, Friday afternoon
 ```
 
-`scripts/briefing.py` runs the profile: every section, in the order written,
-each with a time limit. The agent then advises on and renders what came back
+`scripts/briefing.py` runs the profile: every section with its own time limit,
+side by side (each is its own program or service), the result in the order
+written. The agent then advises on and renders what came back
 (`skills/briefing/references/control.md`). Collection is code, not prose an
 agent re-reads each morning, because a prose step can be skipped and nobody
 notices: on one observed morning the trackers were not queried at all.
@@ -46,6 +47,9 @@ python3 scripts/briefing.py render [<id>] --file  # the morning run: collect, fi
 python3 scripts/briefing.py render [<id>]         # collect + terminal text in the profile's view
 python3 scripts/briefing.py render --style plan   # another view for this one run
 python3 scripts/briefing.py collect --skip tracker --skip calendar   # the quick mode
+python3 scripts/briefing.py collect --only tracker --only calendar   # only these kinds, the rest listed as skipped
+python3 scripts/briefing.py collect --json --max-items 500   # every row, for a dashboard that pages itself
+python3 scripts/briefing.py collect --fresh       # ask every source now, whatever cache_minutes allows
 python3 scripts/briefing.py owed [<id>]           # streams the profile does not cover, and how to run them
 python3 scripts/briefing.py validate              # every profile; exit 1 on a problem
 ```
@@ -299,6 +303,127 @@ housekeeping line, never an abort.
 (same matching as `to_inbox`). The briefing still says how many rows it hid,
 so a mute never makes something disappear without a trace.
 
+## Dashboard pages
+
+A dashboard shows the
+briefing as one page and every other section on tabs beside it. Which section
+stands on which tab differs per person, so the profile says it:
+
+```yaml
+view:
+  pages:
+    - id: systems
+      title: Systems
+      sections:
+        - {id: probes, alarm: true, empty: "all probes green"}
+        - {id: upstream, empty: "nothing behind"}
+    - id: dates
+      title: Dates
+      sections: [calendar, deadlines]
+    - id: github
+      title: GitHub
+      sections:
+        - github-mine
+        - {id: boards, detail: [raw_state, project]}
+  page_rest: show          # a section no page names goes to the tab "More"; hide leaves it out
+```
+
+`collect --json` carries the result as `pages`: every row in the same four
+columns, **when** (a date, today as its time), **title**, **detail** and a
+**link**. A column stays empty only when the item has nothing for it.
+
+| Kind | when | detail | dimmed |
+|---|---|---|---|
+| `calendar` | start | "until HH:MM", "info" | started already |
+| `tracker` | `due`, else `changed_at` | PR, state, project (when the id does not name it), priority | |
+| `command` | `due` | `raw_state` or `state` (every row is a finding: yellow, `blocked` red) | |
+| `commits` | today's commits | sparkline and branch, busiest first | none today |
+| `activity` | `changed_at` | project | an earlier day |
+| `inbox` | `due`, else `changed_at` | kind, gate (`urgency: now` yellow) | |
+| `tasks` | `due`, else `changed_at` | priority, project, `blocked_by` (blocked: yellow) | |
+| any other | `due`, else `changed_at` | state, project | |
+
+A page lists every row a section found, not only the briefing's first few
+(`max:`); the dashboard pages through them. A source may set a row's colour
+itself with `tone: bad | warn | dim | none` on the item (a usage figure is
+information, not a finding).
+
+Each row also says where it leads. **url** is a web address, or a file of this
+Bridge as a `file://` link when the item's `url` (or the field a page entry's
+`link` names) holds a path inside this Bridge that exists (a task's
+`STATUS.md`, a protocol). A path outside the Bridge never becomes a link; a web
+address loses any user and password, and one whose query carries a key (`code=`,
+`token=`, `sig=`, …) is left out, because "ask" hands the link to the agent. `commits` link to the repository's commit list when its
+`origin` is a web host; an `activity` row whose context is a task or stream links
+to its `STATUS.md`. **task** names the task a row belongs to (an activity row, a
+proposed tab, a task), so a dashboard can jump to its tab or open one. **ask** is
+true for a finding (red or yellow), a tracker row and an inbox row: worth handing
+to the agent.
+
+A page entry overrides that per section: `when` and `link` name an item field,
+`detail` one field or a list, `empty` the text for nothing, and `alarm: true`
+makes every row a red finding and an empty section "all green"; `badge: false`
+keeps a section out of the number on its tab. Each section
+also says what it adds to its tab's badge (`weight`: rows not dimmed, for
+`commits` today's commits; `bad`: red rows).
+
+Without `view.pages`, the kind decides: `command` on Status, `calendar` on Dates,
+`tracker` on Trackers, `commits` and `activity` on Today, any other kind on More.
+The kinds the briefing page shows itself (`inbox`, `advise`, `tasks`) stay off the
+tabs unless a page names them. Tab names come from the labels `page_status`,
+`page_dates`, `page_trackers`, `page_today`, `page_more`; `validate` names a page
+section the profile does not have. Two page ids are taken: `briefing` (the
+briefing page itself) and `more` (the page for the rest).
+
+A dashboard can load in two runs: first a run of its own with
+`--skip tracker --skip command` (the kinds that wait on a service; a few
+seconds), then a full run. That first run is not the terminal's quick mode
+(`--skip tracker --skip calendar`): it keeps the calendar, because the headline
+needs it. Sections run side by side, so the full run is no slower than one with
+`--only`, and it is the only run where the headline and the advice see the inbox
+and the calendar together. `collect` keeps no rows from an earlier run: a section
+a run leaves out comes back `skipped` with no items, so a dashboard that wants to
+show the earlier rows meanwhile keeps them itself.
+
+A slow source can keep its answer: `cache_minutes: 5` on a section makes the
+next runs answer from its last good result until five minutes have passed
+(`.bridge/briefing-cache/<profile>/<section>.json`). A failure is never kept, a
+section whose configuration changed asks again, and `collect --fresh` always
+asks. The page section then carries `as_of`, the time its source last
+answered, so a dashboard can say how old the rows are. Measured on one Bridge:
+a full run of 26 s took 2.3 s with GitHub and the health probes cached. A
+`github-board` row gets the date its issue or PR last changed from one GraphQL
+call for all rows, since a board listing carries none.
+
+`view.marks` puts a label in front of every row that names one of its words:
+
+```yaml
+view:
+  marks:
+    - {label: ACME, match: [acme, acme-portal], color: magenta}
+    - {label: Beta, match: beta-corp}
+```
+
+A word matches anywhere in the row's title, id, project, repo, task, context,
+area, labels or link, whatever its case, never the name of its source; the
+first mark that fits wins. The mark is in the JSON as `mark` on the briefing's
+rows and the page rows alike. Of the text views, triage, brevity and report draw
+it as `[LABEL]` in front of the title; sources and plan leave it out. Customers
+and projects come and go, so they belong in the profile, never in code.
+
+### Your settings, and where they live
+
+Everything a person tunes lives in their own files (USER tier); the code reads
+it and carries no names or customers of its own.
+
+| What | Where |
+|---|---|
+| Sections, sources, queries, `cache_minutes` per section | `workflow/briefings/<id>.yaml` `sections:` |
+| Tabs and their columns (`when`, `detail`, `link`, `empty`, `alarm`, `badge`) | same profile, `view.pages`, `view.page_rest` |
+| Marks in front of rows (customers, projects) | same profile, `view.marks` |
+| Wording of the briefing (headline, tab names, "today") | same profile, `view.labels` |
+| Name of the control tab that steers the others | `bridge-config.yaml` `workplace.control.name` ([workplace](workplace.md)) |
+
 ## Change marks
 
 The time limit (`timeout_sec`, default 30 s) covers a whole section, all of
@@ -346,7 +471,11 @@ config wins over the shared file's `default: true`.
 
 Anything without a provider is a `command` section: a program that prints a
 JSON list (or JSON lines) of items in the normalized schema, run from the
-Bridge root. A source that turns out to be useful to others is a new module
+Bridge root. Beyond that schema, the dashboard pages read three optional item
+fields (§ Dashboard pages): `due`, the date in the `when` column (for a
+`command` row the only one); `tone`, the row's colour (`bad`, `warn`, `dim`, or
+`none` for information that is no finding); and `task`, the slug of the task the
+row belongs to. A source that turns out to be useful to others is a new module
 under `scripts/lib/briefing_providers/` with recorded answers and tests.
 
 ## Example

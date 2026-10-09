@@ -266,6 +266,76 @@ def test_github_board_provider_reuses_tracker_sync_and_the_registry(tmp_path):
     assert states == {"in_progress", "done", "blocked"}
 
 
+def test_github_board_rows_get_the_date_their_issue_last_changed(tmp_path):
+    root = bridge(tmp_path, config={"integrations": {"github": {"assignee_me": "octo"}}})
+    (root / "ecosystem.yaml").write_text(yaml.safe_dump({"github_projects": [
+        {"org": "example-org", "number": 3, "name": "Tool board"}]}), encoding="utf-8")
+    dates = json.dumps({"data": {"i0": {"issueOrPullRequest": {"updatedAt": "2026-10-03T14:00:00Z"}}}})
+    # gh 2.x lists cards without any date (live 2026-10-09); the fixture's dates stand for an older gh.
+    listing = json.loads((FIX / "github-board" / "item-list.json").read_text())
+    for raw in listing["items"]:
+        raw.pop("updatedAt", None)
+        (raw.get("content") or {}).pop("updatedAt", None)
+    run = FakeRun({("gh", "project", "item-list"): json.dumps(listing),
+                   ("gh", "api", "graphql"): dates})
+    section = {"kind": "tracker", "provider": "github-board", "query": {"assigned_to_me": True}}
+    item = bf.collect(root, {"id": "p", "sections": [section]}, ctx(root, run))["sections"][0]["items"][0]
+    assert item["changed_at"] == "2026-10-03T14:00:00Z"
+    query = next(c for c in run.calls if c[:3] == ["gh", "api", "graphql"])[-1]
+    assert 'repository(owner: "example-org", name: "tool")' in query and "issueOrPullRequest(number: 5)" in query
+
+
+def test_one_unanswerable_card_does_not_take_the_other_dates(tmp_path):
+    root = bridge(tmp_path, config={"integrations": {"github": {"assignee_me": "octo"}}})
+    (root / "ecosystem.yaml").write_text(yaml.safe_dump({"github_projects": [
+        {"org": "example-org", "number": 3, "name": "Tool board"}]}), encoding="utf-8")
+    listing = json.loads((FIX / "github-board" / "item-list.json").read_text())
+    for raw in listing["items"]:
+        raw.pop("updatedAt", None)
+        (raw.get("content") or {}).pop("updatedAt", None)
+    calls = []
+
+    def graphql(argv):
+        calls.append(argv[-1])
+        if len(calls) == 1:   # the shared call: one alias GitHub cannot answer fails it all
+            raise bf.SourceError("gh: Could not resolve to a Repository")
+        return json.dumps({"data": {"i0": {"issueOrPullRequest": {"updatedAt": "2026-10-03T14:00:00Z"}}}})
+    run = FakeRun({("gh", "project", "item-list"): json.dumps(listing), ("gh", "api", "graphql"): graphql})
+    section = {"kind": "tracker", "provider": "github-board", "query": {"include_done": True}}
+    items = bf.collect(root, {"id": "p", "sections": [section]}, ctx(root, run))["sections"][0]["items"]
+    assert len(items) > 1 and len(calls) >= 2      # the shared call failed, the halves were asked
+    assert any(i.get("changed_at") == "2026-10-03T14:00:00Z" for i in items)
+
+
+def test_one_unanswerable_card_among_many_leaves_every_other_date(tmp_path):
+    """The fallback must reach every row, not the first few: a row that loses its date
+    whenever the shared call fails is marked changed on that run and the next."""
+    import re as _re
+    root = bridge(tmp_path, config={"integrations": {"github": {"assignee_me": "octo"}}})
+    (root / "ecosystem.yaml").write_text(yaml.safe_dump({"github_projects": [
+        {"org": "example-org", "number": 3, "name": "Tool board"}]}), encoding="utf-8")
+    cards = [{"status": "In Progress", "assignees": ["octo"], "labels": [], "title": f"Card {n}",
+              "content": {"number": n, "title": f"Card {n}", "type": "Issue", "repository": "example-org/tool",
+                          "url": f"https://github.com/example-org/tool/issues/{n}"}} for n in range(1, 61)]
+    bad = 47
+
+    def graphql(argv):
+        query = argv[-1]
+        if f"issueOrPullRequest(number: {bad})" in query:
+            raise bf.SourceError("gh: Could not resolve to an issue or pull request")
+        aliases = _re.findall(r"(i\d+): repository", query)
+        return json.dumps({"data": {a: {"issueOrPullRequest": {"updatedAt": "2026-10-03T14:00:00Z"}}
+                                    for a in aliases}})
+    run = FakeRun({("gh", "project", "item-list"): json.dumps({"items": cards}), ("gh", "api", "graphql"): graphql})
+    section = {"kind": "tracker", "provider": "github-board", "query": {"assigned_to_me": True, "limit": 100}}
+    items = bf.collect(root, {"id": "p", "sections": [section]}, ctx(root, run))["sections"][0]["items"]
+    assert len(items) == 60
+    undated = sorted(i["id"] for i in items if not i.get("changed_at"))
+    assert undated == [f"example-org/tool#{bad}"]
+    asked = [c for c in run.calls if c[:3] == ["gh", "api", "graphql"]]
+    assert len(asked) <= 20       # halves, not one call per card
+
+
 def test_section_state_map_overrides_the_provider(tmp_path):
     root = bridge(tmp_path)
     run = FakeRun(gh_answers())
@@ -306,6 +376,18 @@ def test_inbox_section_lists_open_items(tmp_path):
     sec = bf.collect(root, {"id": "p", "sections": [{"kind": "inbox"}]}, ctx(root))["sections"][0]
     assert [i["id"] for i in sec["items"]] == [a]
     assert sec["items"][0]["urgency"] == "now"
+
+
+def test_inbox_section_says_whether_an_item_has_an_action_to_run(tmp_path):
+    """A yes only does something when the item carries an action; a UI offers a tab otherwise."""
+    root = bridge(tmp_path)
+    box = inbox.Inbox(root / "work" / "inbox", actor="t", clock=lambda: NOW)
+    plain = box.add(source="t", kind="finding", summary="Look at this", gate="your-yes")
+    acting = box.add(source="t", kind="decision", summary="Restart it?", gate="your-yes",
+                     action={"argv": ["true"]})
+    sec = bf.collect(root, {"id": "p", "sections": [{"kind": "inbox"}]}, ctx(root))["sections"][0]
+    by = {i["id"]: i for i in sec["items"]}
+    assert by[plain]["has_action"] is False and by[acting]["has_action"] is True
 
 
 def test_inbox_section_can_keep_ideas_apart_and_show_shelved_ones(tmp_path):
@@ -1078,3 +1160,45 @@ def test_validate_info_calendars_is_a_list_of_text():
     schema = yaml.safe_load((ROOT / "workflow" / "briefings" / "_schema.yaml").read_text(encoding="utf-8"))
     jsonschema = pytest.importorskip("jsonschema")
     jsonschema.validate(ok, schema)
+
+
+def test_tasks_section_carries_priority_from_the_frontmatter(tmp_path):
+    root = bridge(tmp_path)
+    task(root, "alpha", priority="P0")
+    task(root, "beta")
+    items = bf.collect(root, {"id": "p", "sections": [{"kind": "tasks"}]}, ctx(root))["sections"][0]["items"]
+    by = {i["id"]: i for i in items}
+    assert by["alpha"]["priority"] == "P0" and by["beta"]["priority"] is None
+
+
+def test_cli_max_items_lifts_the_view_cap_for_one_run(tmp_path, capsys, monkeypatch):
+    """A dashboard with its own paging wants every row; the profile's cap stays for the text."""
+    root = bridge(tmp_path, profiles={"a": {"sections": SECTIONS, "view": {"style": "triage", "max_items": 1}}})
+    seen = []
+    real = bf._view().build
+    monkeypatch.setattr(bf._view(), "build", lambda result, profile, style=None: (
+        seen.append(profile["view"]["max_items"]) or real(result, profile, style)))
+    assert bf.main(["--root", str(root), "collect", "a", "--json", "--no-save"]) == 0
+    assert bf.main(["--root", str(root), "collect", "a", "--json", "--no-save", "--max-items", "500"]) == 0
+    capsys.readouterr()
+    assert seen == [1, 500]
+    assert "max_items: 1" in (root / "workflow" / "briefings" / "a.yaml").read_text(encoding="utf-8")
+
+
+def test_two_board_sections_loading_tracker_sync_at_once_both_get_it_whole(tmp_path):
+    """Sections run side by side: the second board section must never see a half-loaded
+    tracker-sync (it would fail with AttributeError on resolve_boards)."""
+    root = bridge(tmp_path, config={"integrations": {"github": {"assignee_me": "octo"}}})
+    (root / "ecosystem.yaml").write_text(yaml.safe_dump({"github_projects": [
+        {"org": "example-org", "number": 3, "name": "Tool board"}]}), encoding="utf-8")
+    run = FakeRun({("gh", "project", "item-list"): (FIX / "github-board" / "item-list.json").read_text()})
+    sections = [{"kind": "tracker", "provider": "github-board", "id": f"board{n}", "query": {"include_done": True}}
+                for n in range(8)]
+    for _ in range(20):
+        saved = sys.modules.pop("tracker_sync", None)
+        try:
+            result = bf.collect(root, {"id": "p", "sections": sections}, ctx(root, run))
+        finally:
+            if saved is not None:
+                sys.modules["tracker_sync"] = saved
+        assert [s["status"] for s in result["sections"]] == ["ok"] * 8, [s.get("reason") for s in result["sections"]]

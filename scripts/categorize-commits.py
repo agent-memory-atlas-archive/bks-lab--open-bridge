@@ -411,6 +411,7 @@ SCRIPTS_CORE_ALLOWLIST = frozenset({
     "scripts/tests/test_briefing_providers.py",
     "scripts/tests/test_briefing_view.py",
     "scripts/tests/test_briefing_activity.py",
+    "scripts/tests/test_briefing_pages.py",
     "scripts/tests/fixtures/briefing/ado/query.json",
     "scripts/tests/fixtures/briefing/calendar/icalbuddy.txt",
     "scripts/tests/fixtures/briefing/calendar/sample.ics",

@@ -33,13 +33,16 @@ Contract: scripts/tests/test_briefing.py.
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import datetime as dt
 import importlib.util
 import json
+import os
 import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -51,6 +54,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.modules.setdefault("briefing", sys.modules[__name__])
 FAMILY = Path("workflow") / "briefings"
 SNAPSHOTS = Path(".bridge") / "briefings"
+CACHE = Path(".bridge") / "briefing-cache"   # a section's last answer, for `cache_minutes`
 KEY_PREFIX = "briefing:"
 DEFAULT_TIMEOUT = 30
 
@@ -63,7 +67,7 @@ PROFILE_KEYS = {"schema_version", "scope", "id", "title", "for", "default", "off
 SECTION_KEYS = {"kind", "id", "title", "max", "to_inbox", "provider", "query", "account_ref", "state_map",
                 "status", "contexts", "days", "path", "argv", "exclude_calendars", "info_calendars", "bucket",
                 "repos", "author", "all_branches", "summary", "report_ok", "covers", "kinds", "skip_kinds",
-                "deferred"}
+                "deferred", "cache_minutes"}
 # A profile is committed and often shared: a value under one of these names is
 # a credential, and credentials only ever travel as references (account_ref).
 SECRET_NAME = re.compile(r"(token|secret|password|passwd|api[_-]?key|private[_-]?key)", re.I)
@@ -90,7 +94,15 @@ class UnknownProfile(Exception):
 
 # ---------------------------------------------------------------- module loading
 
+_LOADING = threading.RLock()   # sections run side by side: a half-loaded module must not be seen
+
+
 def _load_module(name: str, path: Path):
+    with _LOADING:
+        return _load_module_locked(name, path)
+
+
+def _load_module_locked(name: str, path: Path):
     if name in sys.modules:
         return sys.modules[name]
     spec = importlib.util.spec_from_file_location(name, path)
@@ -190,8 +202,24 @@ class Context:
         self.cfg = cfg if cfg is not None else read_config(self.root)
         self.timeout = timeout
         self.calendar: list | None = None   # events of the profile's calendar sections, for advise
-        self.deadline: float | None = None  # monotonic end of the running section
+        self._local = threading.local()     # sections run side by side: each thread its own deadline
         self.lookahead: int | None = None   # days a view looks ahead; deferred items returning in them show
+        self.fresh = False                  # True: ask every source, whatever `cache_minutes` allows
+
+    @staticmethod
+    def load_module(name: str, path: Path):
+        """Load a helper module under the briefing's lock: sections run side by side, and a
+        provider that loads one itself would let another thread see it half-loaded."""
+        return _load_module(name, path)
+
+    @property
+    def deadline(self) -> float | None:
+        """Monotonic end of the section running in this thread."""
+        return getattr(self._local, "deadline", None)
+
+    @deadline.setter
+    def deadline(self, value: float | None) -> None:
+        self._local.deadline = value
 
     def remaining(self) -> float:
         """Seconds left for the running section: its limit covers ALL its calls together."""
@@ -368,6 +396,8 @@ def _section_types(s: dict) -> list:
         out.append("id must be lowercase letters, digits and hyphens")
     if "max" in s and not _is_positive_int(s["max"]):
         out.append("max must be a positive integer")
+    if "cache_minutes" in s and not _is_positive_int(s["cache_minutes"]):
+        out.append("cache_minutes must be a positive whole number of minutes")
     if "days" in s and not (isinstance(s["days"], int) and not isinstance(s["days"], bool) and s["days"] >= 0):
         out.append("days must be a whole number of days, 0 or more")
     for key in ("contexts", "exclude_calendars", "info_calendars", "argv", "kinds", "skip_kinds"):
@@ -478,6 +508,9 @@ def profile_problems(data, stem: str) -> list:
         out += _view().problems(data.get("view") if isinstance(data.get("view"), dict) else None,
                                 data.get("mutes") if isinstance(data.get("mutes"), list) else None)
         ids = {section_id(s) for s in sections or [] if isinstance(s, dict)}
+        for n, sid in _view().page_section_ids(data.get("view") if isinstance(data.get("view"), dict) else {}):
+            if sid not in ids:
+                out.append(f"view.pages {n}: no section {sid!r} in this profile")
         for n, m in enumerate(data.get("mutes") if isinstance(data.get("mutes"), list) else [], 1):
             if isinstance(m, dict) and isinstance(m.get("section"), str) and m["section"] not in ids:
                 out.append(f"mutes rule {n}: no section {m['section']!r} in this profile")
@@ -533,7 +566,7 @@ def sec_inbox(section: dict, ctx: Context) -> list:
     for item in filter(wanted, box.open_items()):
         items.append({"id": item.id, "title": item.summary, "state": item.state, "urgency": item.urgency,
                       "kind": item.kind, "gate": item.gate, "task": item.task, "due": item.due,
-                      "key": item.key, "changed_at": str(item.created or "")})
+                      "key": item.key, "changed_at": str(item.created or ""), "has_action": bool(item.action)})
     if ctx.lookahead is not None or section.get("deferred") == "all":
         # A view that looks ahead also shows what was put off and comes back within
         # its window: "decide tomorrow" must not vanish until tomorrow. `deferred: all`
@@ -550,14 +583,15 @@ def sec_inbox(section: dict, ctx: Context) -> list:
             if back <= horizon:
                 items.append({"id": item.id, "title": item.summary, "state": "deferred", "until": str(until),
                               "urgency": item.urgency, "kind": item.kind, "gate": item.gate, "task": item.task,
-                              "due": item.due, "key": item.key, "changed_at": str(item.created or "")})
+                              "due": item.due, "key": item.key, "changed_at": str(item.created or ""),
+                              "has_action": bool(item.action)})
     items.sort(key=lambda i: (order.get(i["urgency"], 3), i["id"]))
     return items
 
 
 def sec_advise(section: dict, ctx: Context) -> list:
     advise = _load_module("briefing_advise", ROOT / "skills" / "briefing" / "scripts" / "advise.py")
-    found = advise.advise(ctx.root, now=ctx.now, calendar=ctx.calendar)
+    found = advise.advise(ctx.root, now=ctx.now, calendar=ctx.calendar, inbox=_inbox())
     return [{"id": f["key"], "title": f["summary"], "state": "new", "urgency": f["urgency"], "check": f["check"],
              "task": f.get("task"), "file": f.get("file", True)} for f in found]
 
@@ -596,6 +630,7 @@ def sec_tasks(section: dict, ctx: Context) -> list:
         title = fm.get("title") or (heading.group(1).strip() if heading else slug)
         items.append({"id": slug, "title": title, "state": fm.get("status"),
                       "project": fm.get("context"), "blocked_by": fm.get("blocked_by"), "next": fm.get("next"),
+                      "priority": fm.get("priority"),
                       "blocked_since": str(fm["blocked_since"]) if fm.get("blocked_since") else None,
                       "changed_at": str(fm.get("last_updated") or ""), "url": str(status.relative_to(ctx.root))})
     return items
@@ -617,14 +652,34 @@ def sec_activity(section: dict, ctx: Context) -> list:
         stamp = dt.datetime.strptime(m.group(1), "%Y-%m-%d %H:%M")
         if stamp < since or stamp > ctx.now + dt.timedelta(days=1):
             continue
-        items.append({"id": f"{m.group(1)} {m.group(3).strip()}", "title": m.group(4).strip(),
-                      "state": m.group(2).strip(), "project": m.group(3).strip(),
-                      "changed_at": stamp.isoformat(timespec="minutes")})
+        item = {"id": f"{m.group(1)} {m.group(3).strip()}", "title": m.group(4).strip(),
+                "state": m.group(2).strip(), "project": m.group(3).strip(),
+                "changed_at": stamp.isoformat(timespec="minutes")}
+        # A row whose context is a task or stream leads there: its STATUS.md, and its tab.
+        for kind in ("tasks", "streams"):
+            if TASK_NAME.match(item["project"]) and (ctx.root / "work" / kind / item["project"]).is_dir():
+                item["task"] = item["project"]
+                item["url"] = f"work/{kind}/{item['project']}/STATUS.md"
+                break
+        items.append(item)
     items.sort(key=lambda i: i["changed_at"], reverse=True)
     return items
 
 
 SPARK = "▁▂▃▄▅▆▇█"
+WEB_REMOTE = re.compile(r"^(?:https?://(?:[^@/]+@)?|ssh://(?:[^@/]+@)?|git@)([\w.-]+?)(?::\d+)?[:/]"
+                        r"([\w.-]+/[\w.-]+?)(?:\.git)?/?$")
+TASK_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+
+
+def _web_url(remote: str) -> str | None:
+    """A git remote as the web page of its repository (credentials left out); None for a local path.
+    An ssh alias for a second account (`github.com-work`) is the host it stands for."""
+    m = WEB_REMOTE.match(remote.strip())
+    if not m:
+        return None
+    host = re.sub(r"^(github\.com|gitlab\.com|bitbucket\.org)-[\w.-]+$", r"\1", m.group(1))
+    return f"https://{host}/{m.group(2)}"
 
 
 VAR = re.compile(r"\$\{([a-z_]+)\}")
@@ -743,8 +798,16 @@ def sec_commits(section: dict, ctx: Context) -> list:
             skipped.append(name)
             continue
         last = first + dt.timedelta(days=max(i for i, c in enumerate(counts) if c))
-        items.append({"id": name, "title": name, "branch": branch, "counts": counts, "total": sum(counts),
-                      "state": "active", "changed_at": last.isoformat(), "path": str(path)})
+        item = {"id": name, "title": name, "branch": branch, "counts": counts, "total": sum(counts),
+                "state": "active", "changed_at": last.isoformat(), "path": str(path)}
+        try:   # the commit list on the web, of the branch as pushed; no web remote or no upstream, no link
+            web = _web_url(ctx.run(["git", "-C", str(path), "remote", "get-url", "origin"]).strip())
+            pushed = ctx.run(["git", "-C", str(path), "rev-parse", "--abbrev-ref", "@{u}"]).strip() if web else ""
+        except SourceError:
+            web, pushed = None, ""
+        if web and "/" in pushed:
+            item["url"] = f"{web}/commits/{pushed.split('/', 1)[1]}"
+        items.append(item)
     top = max((max(i["counts"]) for i in items), default=0)
     for i in items:   # one scale for all rows, so the busiest repository reads busiest
         i["spark"] = "".join(SPARK[0] if c == 0 else SPARK[max(1, round(c / top * (len(SPARK) - 1)))]
@@ -939,10 +1002,60 @@ def _positive(value, default: int) -> int:
     return number if number > 0 else default
 
 
+def _cache_file(root: Path, profile: dict, section: dict) -> Path:
+    return root / CACHE / str(profile.get("id") or "profile") / f"{section_id(section)}.json"
+
+
+def _cache_key(section: dict, ctx: Context) -> str:
+    """The section as configured and the run's own inputs: a changed query or look-ahead is a
+    different answer, so the cache is void."""
+    return json.dumps({"section": {k: v for k, v in section.items() if not k.startswith("_")},
+                       "lookahead": ctx.lookahead}, sort_keys=True, default=str)
+
+
+def _cached(root: Path, profile: dict, section: dict, ctx: Context):
+    """The section's last answer and when it was taken, while younger than `cache_minutes`;
+    None when the section keeps none, the run asks fresh, or the answer is too old."""
+    minutes = section.get("cache_minutes")
+    if not _is_positive_int(minutes) or ctx.fresh:
+        return None
+    try:
+        data = json.loads(_cache_file(root, profile, section).read_text(encoding="utf-8"))
+        at = dt.datetime.fromisoformat(data["at"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if data.get("key") != _cache_key(section, ctx) or not isinstance(data.get("items"), list):
+        return None
+    # "today" is part of many answers (commits today, today's events): never carried past midnight.
+    if at.date() != ctx.now.date() or not dt.timedelta(0) <= ctx.now - at < dt.timedelta(minutes=minutes):
+        return None
+    for name, value in (data.get("extra") or {}).items():   # what the section hands the view beside its rows
+        section[name] = value
+    return data["items"], data["at"]
+
+
+def _keep(root: Path, profile: dict, section: dict, ctx: Context, items: list) -> None:
+    """Keep a good answer for the next run; a failure is never kept (it raises before here)."""
+    if not _is_positive_int(section.get("cache_minutes")):
+        return
+    path = _cache_file(root, profile, section)
+    extra = {k: v for k, v in section.items() if k in ("_summary", "_plan", "_skipped")}
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")   # two sessions may write at once
+        tmp.write_text(json.dumps({"at": ctx.now.isoformat(timespec="seconds"), "key": _cache_key(section, ctx),
+                                   "items": items, "extra": extra}, ensure_ascii=False, default=str),
+                       encoding="utf-8")
+        tmp.replace(path)
+    except OSError:
+        pass   # without a cache the next run asks again
+
+
 def collect(root: Path, profile: dict, ctx: Context, previous: dict | None = None, skip=(),
-            style: str | None = None) -> dict:
+            style: str | None = None, only=()) -> dict:
     """Run every section. `skip` names kinds left out (the briefing's --quick and
     --skip-trackers modes); a skipped section is listed as such and closes nothing.
+    `only` names the kinds a `--only` run keeps, so a section it leaves out says so.
     `style` is the view a caller chose for this run (`render --style`)."""
     ctx.timeout = _positive(profile.get("timeout_sec"), ctx.timeout)
     if _view().style_of(profile, style) != "sources":
@@ -960,8 +1073,10 @@ def collect(root: Path, profile: dict, ctx: Context, previous: dict | None = Non
             except Exception:  # noqa: BLE001 - its own section reports the failure
                 pass
     before = {s["id"]: s for s in (previous or {}).get("sections", [])}
-    out = []
-    for s in sections:
+
+    def run_one(s: dict):
+        """One section within its own time limit; the sections run side by side (their
+        sources are separate programs and services), the result keeps the profile's order."""
         sid = section_id(s)
         entry = {"id": sid, "kind": s.get("kind"), "title": s.get("title") or sid.replace("-", " ").capitalize(),
                  "status": "ok", "items": [], "total": 0}
@@ -969,10 +1084,16 @@ def collect(root: Path, profile: dict, ctx: Context, previous: dict | None = Non
             entry["provider"] = s["provider"]
         ctx.deadline = time.monotonic() + ctx.timeout
         try:
+            if only and s.get("kind") not in only:
+                raise Skip(f"left out in this run (--only {', '.join(only)})")
             if s.get("kind") in skip:
                 raise Skip(f"left out in this mode (--skip {s.get('kind')})")
-            fn = KINDS[s.get("kind")]
-            items = fn(s, ctx)
+            cached = _cached(root, profile, s, ctx)
+            if cached is not None:
+                items, entry["cached_at"] = cached
+            else:
+                items = KINDS[s.get("kind")](s, ctx)
+                _keep(root, profile, s, ctx, items)
         except Skip as exc:
             entry.update(status="skipped", reason=str(exc))
             items = []
@@ -984,6 +1105,12 @@ def collect(root: Path, profile: dict, ctx: Context, previous: dict | None = Non
             items = []
         finally:
             ctx.deadline = None
+        return sid, entry, items
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, min(8, len(sections)))) as pool:
+        done = list(pool.map(run_one, sections))
+    out = []
+    for s, (sid, entry, items) in zip(sections, done):
         if "_plan" in s:
             entry["plan"] = s["_plan"]
         if "_summary" in s:
@@ -1364,8 +1491,15 @@ def main(argv=None) -> int:
         p.add_argument("id", nargs="?")
         p.add_argument("--file", action="store_true", help="file to_inbox rows as inbox items")
         p.add_argument("--no-save", action="store_true", help="do not update the last-run snapshot")
+        p.add_argument("--fresh", action="store_true",
+                       help="ask every source now, whatever a section's cache_minutes allows")
         p.add_argument("--skip", action="append", default=[], choices=SECTION_KINDS, metavar="KIND",
                        help="leave out sections of this kind (repeatable; --quick: tracker and calendar)")
+        p.add_argument("--only", action="append", default=[], choices=SECTION_KINDS, metavar="KIND",
+                       help="run only sections of this kind (repeatable); the rest are listed as skipped")
+        p.add_argument("--max-items", type=int, metavar="N",
+                       help="show up to N rows in this run's view instead of the profile's view.max_items "
+                            "(for a dashboard that pages itself)")
         p.add_argument("--style", choices=("sources", "triage", "brevity", "plan", "report"),
                        help="show this run in another view than the profile's view.style")
         if name == "collect":
@@ -1431,9 +1565,17 @@ def main(argv=None) -> int:
                 print("nothing owed: the profile covers every stream that applies here")
         return 0
 
+    if getattr(args, "max_items", None):
+        view_cfg = profile.get("view") if isinstance(profile.get("view"), dict) else {}
+        profile = {**profile, "view": {**view_cfg, "max_items": max(1, args.max_items)}}
     ctx = Context(root, cfg=cfg)
+    ctx.fresh = bool(getattr(args, "fresh", False))
     previous = load_snapshot(root, profile["id"])
-    result = collect(root, profile, ctx, previous=previous, skip=tuple(args.skip), style=args.style)
+    skip = set(getattr(args, "skip", None) or [])
+    only = tuple(dict.fromkeys(getattr(args, "only", None) or []))
+    if only:
+        skip |= set(SECTION_KINDS) - set(only)
+    result = collect(root, profile, ctx, previous=previous, skip=tuple(sorted(skip)), style=args.style, only=only)
     result["owed"] = [o["id"] for o in owed(root, cfg, profile)]
     if args.file:
         box = _inbox().Inbox(root / "work" / "inbox", actor="briefing")
@@ -1457,6 +1599,7 @@ def main(argv=None) -> int:
         data = _public(result)
         if _view().style_of(profile, args.style) != "sources":
             data["view"] = _view().build(result, profile, args.style)
+        data["pages"] = _view().pages(result, profile, root=root)
         if args.json:
             print(json.dumps(data, ensure_ascii=False, indent=1, default=str))
         else:
