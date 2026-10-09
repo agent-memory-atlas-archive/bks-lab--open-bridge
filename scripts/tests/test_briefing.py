@@ -299,6 +299,31 @@ def test_github_board_loads_the_boards_side_by_side(tmp_path):
     assert sorted(i["id"] for i in sec["items"]) == ["example-org/tool#3", "example-org/tool#4", "example-org/tool#5"]
 
 
+def test_github_board_asks_at_most_four_boards_at_once(tmp_path):
+    """Side by side, but not all at once: eight boards in one burst tripped GitHub's
+    secondary rate limit (live 2026-10-09)."""
+    import threading
+    import time as _time
+    root = bridge(tmp_path, config={"integrations": {"github": {"assignee_me": "octo"}}})
+    (root / "ecosystem.yaml").write_text(yaml.safe_dump({"github_projects": [
+        {"org": "example-org", "number": n, "name": f"Board {n}"} for n in range(3, 11)]}), encoding="utf-8")
+    lock, now, most = threading.Lock(), [0], [0]
+
+    def listing(argv):
+        with lock:
+            now[0] += 1
+            most[0] = max(most[0], now[0])
+        _time.sleep(0.05)
+        with lock:
+            now[0] -= 1
+        return _cards_of(argv)
+    run = FakeRun({("gh", "project", "item-list"): listing})
+    section = {"kind": "tracker", "provider": "github-board", "query": {"assigned_to_me": True}}
+    sec = bf.collect(root, {"id": "p", "sections": [section]}, ctx(root, run))["sections"][0]
+    assert sec["status"] == "ok", sec.get("reason")
+    assert 1 < most[0] <= 4
+
+
 def test_github_board_keeps_the_registry_order_when_boards_answer_out_of_order(tmp_path):
     import time as _time
     root = bridge(tmp_path, config={"integrations": {"github": {"assignee_me": "octo"}}})
@@ -1116,9 +1141,29 @@ class Flaky:
 
 def test_gh_rate_limit_is_retried_after_a_wait(tmp_path):
     waits = []
-    ctx = bf.Context(tmp_path, now=NOW, run=Flaky(2), cfg={}, sleep=waits.append)
+    ctx = bf.Context(tmp_path, now=NOW, run=Flaky(2), cfg={}, sleep=waits.append, rand=lambda: 0.0)
     assert ctx.run(["gh", "search", "issues"]) == "ok"
     assert waits == list(bf.GH_RETRY_WAITS)
+
+
+def test_gh_retry_waits_are_spread_so_side_by_side_calls_do_not_retry_together(tmp_path):
+    """Boards are asked side by side (#317). When a burst limit hits them all, equal waits
+    send every retry in the same second and hit the limit again (live 2026-10-09)."""
+    low, high = [], []
+    bf.Context(tmp_path, now=NOW, run=Flaky(2), cfg={}, sleep=low.append, rand=lambda: 0.0).run(["gh", "x"])
+    bf.Context(tmp_path, now=NOW, run=Flaky(2), cfg={}, sleep=high.append, rand=lambda: 1.0).run(["gh", "x"])
+    assert low == list(bf.GH_RETRY_WAITS)
+    assert high == [w * 1.5 for w in bf.GH_RETRY_WAITS]
+
+
+def test_gh_unknown_owner_type_is_retried_like_a_rate_limit(tmp_path):
+    """gh 2.x reports a throttled owner lookup of `gh project item-list` as "unknown owner
+    type" (live 2026-10-09, while a single call with a valid owner failed the same way)."""
+    waits = []
+    flaky = Flaky(1, message="unknown owner type")
+    ctx = bf.Context(tmp_path, now=NOW, run=flaky, cfg={}, sleep=waits.append, rand=lambda: 0.0)
+    assert ctx.run(["gh", "project", "item-list", "3", "--owner", "example-org"]) == "ok"
+    assert waits == [bf.GH_RETRY_WAITS[0]] and flaky.calls == 2
 
 
 def test_gh_rate_limit_gives_up_after_the_retries(tmp_path):
