@@ -1,5 +1,6 @@
 // Check all, the verdict per task, and closing a finished task from the card.
 import { test, expect } from 'claude-code/testing'
+import type { Engine } from 'claude-code/testing'
 import { cardProps, collect, openCard, world } from './world'
 
 const LANGS = ['de', 'en'] as const
@@ -22,12 +23,12 @@ const REVIEW = {
   cost_usd: 0.0009, models_used: ['claude-haiku-5-5', 'claude-sonnet-5-5'], model_mismatch: [],
 }
 const T = {
-  de: { all: 'alle prüfen', done: '3 geprüft, 1 zum Schließen, 0,09 ct', tag: 'schließen?', rec: 'Empfehlung (Haiku 5.5): ',
-    close: 'Schließen', keep: 'Behalten', finished: 'Erledigt', sure: 'wirklich schließen?', one: 'prüfen',
-    dashboard: 'aus dem Dashboard geschlossen' },
-  en: { all: 'check all', done: '3 reviewed, 1 to close, 0.09 ct', tag: 'close?', rec: 'Recommendation (Haiku 5.5): ',
-    close: 'Close', keep: 'Keep', finished: 'Done', sure: 'really close?', one: 'check',
-    dashboard: 'closed from the dashboard' },
+  de: { all: '⟳ Aufgaben prüfen', done: '3 geprüft, 1 zum Schließen, 0,09 ct', tag: 'schließen?',
+    rec: 'Empfehlung (Haiku 5.5): ', close: 'Schließen', keep: 'Offen lassen', finished: 'Als erledigt schließen',
+    sure: 'Wirklich schließen?', one: 'Prüfen lassen', dashboard: 'aus dem Dashboard geschlossen' },
+  en: { all: '⟳ Check tasks', done: '3 reviewed, 1 to close, 0.09 ct', tag: 'close?',
+    rec: 'Recommendation (Haiku 5.5): ', close: 'Close', keep: 'Keep open', finished: 'Mark done',
+    sure: 'Really close?', one: 'Check', dashboard: 'closed from the dashboard' },
 }
 const taskCalls = (calls: string[][], sub: string) => calls.filter(a => a[1] === 'scripts/task.py' && a[2] === sub)
   .map(a => a.slice(2))
@@ -39,7 +40,7 @@ function setup(on: Parameters<typeof world>[0], lang: 'de' | 'en', extra: Parame
         : { stdout: '{}' }), ...extra })
 }
 
-async function tasksPage($: Parameters<Parameters<typeof test>[1]>[0], w: ReturnType<typeof world>) {
+async function tasksPage($: Engine, w: ReturnType<typeof world>) {
   const ui = await $.ui.mount({ plugin: 'briefing-ui', surface: 'terminal', component: 'CommandOutput',
     props: cardProps(await openCard($, w)), viewport: WIDE })
   await ui.press({ key: 'pgb-tasks' })
@@ -68,13 +69,14 @@ for (const lang of LANGS) {
     await ui.press({ key: 'review-all-tasks' })
     await w.clock.settle()
     await ui.press({ key: 'px-tasks-0' })
-    expect((await ui.find({ type: 'Text', text: new RegExp(REASON) }))?.text).toBe(`${T[lang].rec}${REASON}`)
+    // the overview above the sections shows the reason too; the opened row says whose recommendation it is
+    expect(await ui.find({ type: 'Text', text: `${T[lang].rec}${REASON}` })).toBeDefined()
     expect((await ui.find({ type: 'Button', key: 'rv-close-task:alpha' }))?.props.label).toBe(T[lang].close)
     expect((await ui.find({ type: 'Button', key: 'rv-keep-task:alpha' }))?.props.label).toBe(T[lang].keep)
     await ui.press({ key: 'rv-keep-task:alpha' })
     expect(taskCalls(w.calls, 'review').at(-1)).toEqual(['review', '--keep', 'alpha', '--json'])
     expect(await ui.find({ type: 'Button', key: 'rv-close-task:alpha' })).toBeUndefined()
-    expect(await ui.find({ type: 'Text', text: new RegExp(REASON) })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: `${T[lang].rec}${REASON}` })).toBeUndefined()
   })
 
   test(`Done asks once more, the second click closes with the recommendation's reason (${lang})`, async ($, on) => {
@@ -102,7 +104,7 @@ test('the confirmation runs out: a second click after a few seconds asks again',
   await ui.press({ key: 'px-tasks-0' })
   await ui.press({ key: 'done-task:alpha' })
   await w.clock.advance(6000)
-  expect((await ui.find({ type: 'Button', key: 'done-task:alpha' }))?.props.label).toBe('Done')
+  expect((await ui.find({ type: 'Button', key: 'done-task:alpha' }))?.props.label).toBe('Mark done')
   await ui.press({ key: 'done-task:alpha' })
   expect(taskCalls(w.calls, 'close')).toEqual([])
 })
@@ -122,7 +124,7 @@ test('check one task from its opened row', async ($, on) => {
   const w = setup(on, 'en')
   const ui = await tasksPage($, w)
   await ui.press({ key: 'px-tasks-0' })
-  expect((await ui.find({ type: 'Button', key: 'rv-one-task:alpha' }))?.props.label).toBe('check')
+  expect((await ui.find({ type: 'Button', key: 'rv-one-task:alpha' }))?.props.label).toBe('Check')
   await ui.press({ key: 'rv-one-task:alpha' })
   await w.clock.settle()
   expect(taskCalls(w.calls, 'review')).toEqual([['review', 'alpha', '--json']])
@@ -134,7 +136,7 @@ test('the card offers check all on its tasks block and tags a task row', async (
   const w = world(on, { tasks: TASKS, taskPy: () => ({ stdout: JSON.stringify(REVIEW) }) })
   const ui = await $.ui.mount({ plugin: 'briefing-ui', surface: 'terminal', component: 'CommandOutput',
     props: cardProps(await openCard($, w)), viewport: WIDE })
-  expect((await ui.find({ type: 'Button', key: 'review-all-work' }))?.props.label).toBe('check all')
+  expect((await ui.find({ type: 'Button', key: 'review-all-work' }))?.props.label).toBe('⟳ Check tasks')
   await ui.press({ key: 'review-all-work' })
   await w.clock.settle()
   expect(await ui.find({ type: 'Text', text: /close\?/ })).toBeDefined()

@@ -276,6 +276,8 @@ REVIEW_STATUSES = ("doing", "review")      # --backlog adds backlog
 # The whole review (evidence, both tiers) stays inside this budget; the dashboard waits 240 s.
 REVIEW_BUDGET_SEC = 190
 TIER_ONE_MAX_SEC = 150
+# What one call of the directed model costs when no run has measured it (a small Sonnet call, 2026-10).
+DIRECTED_CALL_USD = 0.021
 PROMPT_VERSION = 3          # raise when the prompt changes: cached verdicts of an older prompt are asked again
 _clock = time.monotonic
 LANGUAGE_NAMES = {"de": "German", "en": "English", "fr": "French", "es": "Spanish", "it": "Italian",
@@ -612,15 +614,48 @@ def _summary(t: dict) -> str:
     return " · ".join(parts)
 
 
+def _last_activity(ev: dict) -> dt.date | None:
+    found = []
+    for raw in [r[:10] for r in ev.get("log") or []] + [ev.get("last_commit"), ev.get("last_updated")]:
+        try:
+            found.append(dt.date.fromisoformat(str(raw)[:10]))
+        except (TypeError, ValueError):
+            continue
+    return max(found) if found else None
+
+
+def _chips(t: dict) -> list:
+    """The evidence as structured chips for a dashboard: references, blocker, open steps, inbox."""
+    ev, out = t["evidence"], []
+    for key, ref in ev.get("github", {}).items():
+        state = ("merged" if ref.get("merged") or ref.get("state") == "MERGED" else
+                 "closed" if ref.get("state") == "CLOSED" else "open" if ref.get("state") == "OPEN" else "unknown")
+        out.append({"kind": "ref", "ref": key, "state": state, "date": ref.get("closed_at")})
+    if t["signals"]["blocker_resolved"]:
+        out.append({"kind": "unblocked"})
+    elif ev.get("blocked_by"):
+        out.append({"kind": "blocked"})
+    if ev.get("steps"):
+        out.append({"kind": "steps", "count": len(ev["steps"])})
+    if ev.get("inbox"):
+        out.append({"kind": "inbox", "count": len(ev["inbox"])})
+    return out
+
+
 def review(root: Path, slugs=None, *, fresh: bool = False, run=None, now: dt.datetime | None = None,
-           save: bool = True, backlog: bool = False) -> dict:
-    """A recommendation per open task; never changes a task. Only tasks whose evidence changed reach a model."""
+           save: bool = True, backlog: bool = False, escalate: bool = False) -> dict:
+    """A recommendation per open task; never changes a task. Only tasks whose evidence changed reach a model.
+    `escalate` asks the directed model straight away, past the cache, for the named tasks only."""
+    if escalate and not slugs:
+        raise ValueError("--escalate needs the tasks named: review --escalate <slug> ...")
     run = run or default_run
     now = now or dt.datetime.now()
     started = _clock()
     cfg = _config(root)
     rcfg = _review_cfg(cfg)
     tiers = [tier_model(cfg, "mechanical"), tier_model(cfg, "directed")]
+    if escalate:
+        tiers, fresh = [tiers[1]], True
     tasks = gather(root, slugs, run, backlog=backlog)
     # a verdict holds for its evidence AND for what it was asked with: language, models, rule, prompt
     settings = json.dumps([_language(cfg), tiers, rcfg["stale_days"], PROMPT_VERSION])
@@ -640,7 +675,8 @@ def review(root: Path, slugs=None, *, fresh: bool = False, run=None, now: dt.dat
                 verdicts[t["slug"]] = {**old, "cached": True}
                 continue
         need.append(t)
-    cost, cost_known, used_all, mismatch, calls = 0.0, True, [], [], 0
+    previous = {s: (e or {}).get("verdict") for s, e in entries.items()}   # before this run writes anything
+    cost, cost_known, used_all, mismatch, calls, by_model = 0.0, True, [], [], 0, {}
     batch = need
     answered = {}
     for level, model in enumerate(tiers):
@@ -658,6 +694,7 @@ def review(root: Path, slugs=None, *, fresh: bool = False, run=None, now: dt.dat
             cost_known = False          # a failed or timed-out call has a cost nobody reported
         else:
             cost += float(res["cost"])
+            by_model[model] = by_model.get(model, 0.0) + float(res["cost"])
         used = res["used"] or ([model] if res["ok"] else [])
         used_all += [u for u in used if u not in used_all]
         if res["used"] and model not in res["used"]:
@@ -674,11 +711,11 @@ def review(root: Path, slugs=None, *, fresh: bool = False, run=None, now: dt.dat
                               "confidence": conf if conf in CONFIDENCES else "low",
                               "reason": _briefing()._clip(str(item.get("reason") or ""), 400), "model": actual}
         if save:   # what this tier answered is kept even when the next one runs out of time
-            _remember(cache, need, answered, now)
+            _remember(cache, need, answered, now, previous)
             _save_cache(root, cache)
         # only what the first model could not place goes on; a low confidence shows on the card instead
         batch = [t for t in batch if t["slug"] not in answered or answered[t["slug"]]["verdict"] == "unclear"]
-    _remember(cache, need, answered, now)
+    _remember(cache, need, answered, now, previous)
     for t in need:
         got = answered.get(t["slug"])
         verdicts[t["slug"]] = ({**entries[t["slug"]], "cached": False} if got else
@@ -692,14 +729,36 @@ def review(root: Path, slugs=None, *, fresh: bool = False, run=None, now: dt.dat
                     "kept": bool(v.get("kept")), "evidence_summary": _summary(t), "signals": t["signals"],
                     # deterministic: the task's own issues and PRs are done, so closing is recommended,
                     # whatever the model said; a resolved blocker alone is only a hint
-                    "resolved": t["signals"]["own_refs_closed"]})
-    return {"tasks": out, "cost_usd": round(cost, 6), "cost_known": cost_known, "models_used": used_all,
-            "model_mismatch": mismatch, "calls": calls, "reviewed": len(out),
-            "to_close": sum(1 for x in out if (x["verdict"] == "close" or x["resolved"]) and not x["kept"])}
+                    "resolved": t["signals"]["own_refs_closed"],
+                    "status": t["evidence"].get("status"), "priority": t["evidence"].get("priority"),
+                    "days_since_activity": (now.date() - last).days if (last := _last_activity(t["evidence"]))
+                    else None,
+                    "chips": _chips(t), "previous_verdict": v.get("previous"),
+                    "changed": bool(v.get("previous")) and v.get("previous") != v.get("verdict")})
+    result = {"tasks": out, "cost_usd": round(cost, 6), "cost_known": cost_known, "models_used": used_all,
+              "cost_by_model": {m: round(c, 6) for m, c in by_model.items()},
+              # what "check closer" will cost: one call of the directed model, measured when this run made one
+              "escalate_call_usd": round(by_model.get(tier_model(cfg, "directed"), DIRECTED_CALL_USD), 6),
+              "model_mismatch": mismatch, "calls": calls, "reviewed": len(out),
+              "to_close": sum(1 for x in out if (x["verdict"] == "close" or x["resolved"]) and not x["kept"]),
+              "reviewed_at": now.isoformat(timespec="seconds"), "duration_sec": round(_clock() - started, 1)}
+    if save:   # the dashboard's overview reads the last run from here, with no model call
+        last = cache.get("last") if isinstance(cache.get("last"), dict) else None
+        if slugs and last:
+            mine = {x["slug"]: x for x in out}
+            seen = {x.get("slug") for x in last.get("tasks", [])}
+            last = {**last, "tasks": [mine.get(x.get("slug"), x) for x in last.get("tasks", [])]
+                    + [x for x in out if x["slug"] not in seen]}
+        else:
+            last = result
+        cache["last"] = last
+        _save_cache(root, cache)
+    return result
 
 
-def _remember(cache: dict, need: list, answered: dict, now: dt.datetime) -> None:
-    """Put the answered verdicts into the cache; a kept dismissal survives as long as its hash does."""
+def _remember(cache: dict, need: list, answered: dict, now: dt.datetime, previous: dict | None = None) -> None:
+    """Put the answered verdicts into the cache; a kept dismissal survives as long as its hash does,
+    and the verdict before this run is kept beside the new one, for "changed"."""
     entries = cache["tasks"]
     for t in need:
         got = answered.get(t["slug"])
@@ -708,6 +767,7 @@ def _remember(cache: dict, need: list, answered: dict, now: dt.datetime) -> None
         old = entries.get(t["slug"]) or {}
         entries[t["slug"]] = {**got, "hash": t["hash"], "at": now.isoformat(timespec="seconds"),
                               "resolved": t["signals"]["own_refs_closed"],
+                              "previous": (previous or {}).get(t["slug"]),
                               "kept": bool(old.get("kept")) and old.get("hash") == t["hash"]}
 
 
@@ -762,6 +822,8 @@ def main(argv=None) -> int:
     rv.add_argument("--backlog", action="store_true", help="with --all: backlog tasks too")
     rv.add_argument("--fresh", action="store_true", help="ignore cached verdicts")
     rv.add_argument("--keep", nargs="+", metavar="SLUG", help="dismiss these recommendations until the evidence changes")
+    rv.add_argument("--escalate", action="store_true",
+                    help="ask the directed model at once for the named tasks, past the cache")
     rv.add_argument("--no-save", action="store_true", help="write no cache (a read-only run)")
     rv.add_argument("--json", action="store_true")
     args = p.parse_args(argv)
@@ -782,7 +844,7 @@ def main(argv=None) -> int:
             if args.all and args.slugs:
                 raise ValueError("name slugs or --all, not both")
             out = review(root, args.slugs or None, fresh=args.fresh, save=not args.no_save,
-                         backlog=args.backlog)
+                         backlog=args.backlog, escalate=args.escalate)
             print(json.dumps(out, ensure_ascii=False) if args.json else render_review(out))
             return 0
         path = find_status(root, args.slug)

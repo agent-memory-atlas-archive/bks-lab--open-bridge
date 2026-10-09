@@ -429,3 +429,86 @@ def test_tier_two_gets_only_the_remaining_time_and_tier_one_is_saved_first(repo,
     assert fake.timeouts[0] <= task.REVIEW_BUDGET_SEC
     assert fake.timeouts[1] <= task.REVIEW_BUDGET_SEC - 150
     assert task.REVIEW_BUDGET_SEC <= 200          # the dashboard waits 240 s for the whole run
+
+
+# ---------------------------------------------------------------- the overview's data
+
+def test_each_task_carries_activity_age_priority_and_structured_evidence(repo):
+    add(repo, "alpha", extra=FAITHFUL, body=FAITHFUL_BODY)
+    inbox = task._module("inbox", task.ROOT / "scripts" / "inbox.py").Inbox(repo / "work" / "inbox", actor="test")
+    inbox.add(source="test", kind="question", summary="does it ship?", task="alpha")
+    out = review(repo, Fake(answers={HAIKU: verdicts(["alpha"], "close")}, gh=CLOSED_49))
+    t = out["tasks"][0]
+    # the log row of 2026-09-30 is the latest activity; NOW is 2026-10-09
+    assert t["days_since_activity"] == 9 and t["priority"] == "P2" and t["status"] == "doing"
+    assert t["chips"] == [
+        {"kind": "ref", "ref": "example-org/config#49", "state": "closed", "date": "2026-10-03"},
+        {"kind": "unblocked"},
+        {"kind": "steps", "count": 3},
+        {"kind": "inbox", "count": 1},
+    ]
+
+
+def test_an_open_blocker_and_an_open_ref_are_chips_too(repo):
+    add(repo, "alpha", extra='blocked_by: "waiting on example-org/x#7"\n')
+    gh = {"r0": {"n7": {"__typename": "PullRequest", "state": "MERGED", "merged": True,
+                        "closedAt": "2026-10-02T00:00:00Z", "title": "t"}}}
+    out = review(repo, Fake(answers={HAIKU: verdicts(["alpha"])}, gh=gh))
+    assert out["tasks"][0]["chips"][0] == {"kind": "ref", "ref": "example-org/x#7", "state": "merged",
+                                           "date": "2026-10-02"}
+    add(repo, "beta", extra='blocked_by: "waiting on the vendor"\n')
+    out = review(repo, Fake(answers={HAIKU: verdicts(["alpha", "beta"])}), "beta")
+    assert out["tasks"][0]["chips"] == [{"kind": "blocked"}]
+
+
+def test_previous_verdict_and_changed(repo):
+    add(repo, "alpha")
+    out = review(repo, Fake(answers={HAIKU: verdicts(["alpha"], "continue")}))
+    assert out["tasks"][0]["previous_verdict"] is None and out["tasks"][0]["changed"] is False
+    out = task.review(repo, None, run=Fake(answers={HAIKU: verdicts(["alpha"], "stale")}), now=NOW, fresh=True)
+    assert out["tasks"][0]["previous_verdict"] == "continue" and out["tasks"][0]["changed"] is True
+    # from the cache the change is still known
+    out = review(repo, Fake())
+    assert out["tasks"][0]["cached"] is True and out["tasks"][0]["changed"] is True
+
+
+def test_the_run_is_kept_in_the_cache_for_the_overview(repo):
+    add(repo, "alpha")
+    add(repo, "beta")
+    out = review(repo, Fake(answers={HAIKU: verdicts(["alpha", "beta"])}))
+    assert out["reviewed_at"] == "2026-10-09T08:00:00" and isinstance(out["duration_sec"], (int, float))
+    assert out["cost_by_model"] == {HAIKU: pytest.approx(0.001)}
+    last = json.loads((repo / ".bridge" / "task-review.json").read_text(encoding="utf-8"))["last"]
+    assert [t["slug"] for t in last["tasks"]] == ["alpha", "beta"] and last["cost_usd"] == pytest.approx(0.001)
+    # a run for named slugs updates their rows in the last run and keeps the others
+    task.review(repo, ["beta"], run=Fake(answers={SONNET: verdicts(["beta"], "stale")}), now=NOW, escalate=True)
+    last = json.loads((repo / ".bridge" / "task-review.json").read_text(encoding="utf-8"))["last"]
+    assert {t["slug"]: t["verdict"] for t in last["tasks"]} == {"alpha": "continue", "beta": "stale"}
+
+
+def test_escalate_asks_the_directed_model_once_for_the_named_tasks_past_the_cache(repo):
+    for s in ("alpha", "beta", "gamma"):
+        add(repo, s)
+    review(repo, Fake(answers={HAIKU: verdicts(["alpha", "beta", "gamma"])}))
+    fake = Fake(answers={SONNET: verdicts(["alpha", "beta"], "stale", "high")})
+    out = task.review(repo, ["alpha", "beta"], run=fake, now=NOW, escalate=True)
+    calls = fake.model_calls()
+    assert len(calls) == 1 and calls[0][0][calls[0][0].index("--model") + 1] == SONNET
+    assert "## alpha\n" in calls[0][1] and "## beta\n" in calls[0][1] and "## gamma\n" not in calls[0][1]
+    assert {t["slug"]: (t["verdict"], t["model"]) for t in out["tasks"]} == {
+        "alpha": ("stale", SONNET), "beta": ("stale", SONNET)}
+
+
+def test_escalate_needs_named_slugs_on_the_command_line(repo, capsys):
+    add(repo, "alpha")
+    assert task.main(["--root", str(repo), "review", "--all", "--escalate", "--json"]) == 1
+    assert "escalate" in capsys.readouterr().err
+
+
+def test_the_price_of_one_closer_look_is_measured_or_the_known_default(repo):
+    add(repo, "alpha")
+    out = review(repo, Fake(answers={HAIKU: verdicts(["alpha"])}))
+    assert out["escalate_call_usd"] == pytest.approx(task.DIRECTED_CALL_USD)
+    out = task.review(repo, ["alpha"], run=Fake(answers={SONNET: verdicts(["alpha"])}, cost=0.03), now=NOW,
+                      escalate=True)
+    assert out["escalate_call_usd"] == pytest.approx(0.03)

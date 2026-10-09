@@ -76,6 +76,8 @@ export function tab(ref: string, state: string, extra: Raw = {}): Raw {
   }
 }
 
+export type TaskAnswer = { exitCode?: number; stdout?: string; stderr?: string }
+
 export type WorldOptions = {
   language?: 'de' | 'en'
   enabled?: boolean
@@ -97,7 +99,7 @@ export type WorldOptions = {
   /** files the mod may read, by the path the mod passes (a relative one matches its resolved form) */
   files?: Record<string, string>
   /** what `task.py` answers (review, close), by its argv; default: an empty success */
-  taskPy?: (argv: string[]) => { exitCode?: number; stdout?: string; stderr?: string }
+  taskPy?: (argv: string[]) => TaskAnswer
   /** what the config reader (`python3 -c`) answers instead of the config, e.g. a YAML error */
   configRun?: { exitCode: number; stdout: string; stderr: string }
 }
@@ -187,9 +189,9 @@ export function world(on: On, opts: WorldOptions = {}): World {
     }
     if (script === 'scripts/inbox.py') return ok('')
     if (script === 'scripts/task.py' && opts.taskPy) {
-      const r = opts.taskPy(argv)
-      return { value: { exitCode: r.exitCode ?? 0, stdout: r.stdout ?? '', stderr: r.stderr ?? '',
-        isStdoutTruncated: false, isStderrTruncated: false } }
+      const answer = (r: TaskAnswer) => ({ value: { exitCode: r.exitCode ?? 0, stdout: r.stdout ?? '',
+        stderr: r.stderr ?? '', isStdoutTruncated: false, isStderrTruncated: false } })
+      return answer(opts.taskPy(argv))
     }
     // cmux send-key / close-surface / select-workspace / focus-panel, the layout snapshot
     return ok('')

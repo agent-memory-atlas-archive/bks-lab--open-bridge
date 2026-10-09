@@ -98,21 +98,21 @@ their defaults:
 | `status_seconds` | `60` | how often, in seconds, the agent tabs are re-read (cmux only); a value below 15 counts as 15 |
 | `voice` | `false` | a waiting tab is also spoken (macOS) |
 | `snapshot_minutes` | `60` | back up the cmux layout while a session inside cmux is open; `0` = never |
-| `launch.target` | `area` | where "Do it" opens a tab: `area`, `tab`, `workspace` or `auto` |
+| `launch.target` | `area` | where "Agent takes it" opens a tab: `area`, `tab`, `workspace` or `auto` |
 
 The dashboard's default target is `area` (the workspace of the item's area),
 while `workplace.py launch` on its own defaults to `tab` (the calling tab's
 workspace).
 
-Shortcut letters, after the row number as it stands on the card: `a` Do it,
+Shortcut letters, after the row number as it stands on the card: `a` Agent takes it,
 `b` Later (tomorrow), `c` Drop (an inbox entry is dropped, any other row is
-hidden for a week), `v` Advise me, `w` Do it in its own workspace. Shortcuts
+hidden for a week), `v` Get advice, `w` Agent takes it in its own workspace. Shortcuts
 work only while today's card is open in this session and shows the Briefing
 tab; otherwise the text goes to Claude as an ordinary message.
 `/briefing-ui-off` hides the line above the prompt for this session;
 `/briefing-ui` still opens the dashboard.
 
-Do it on an inbox entry that waits for your yes to run an action approves it;
+"Agent takes it" on an inbox entry that waits for your yes to run an action approves it;
 nothing runs at once. The action runs at the next `python3 scripts/inbox.py run` on the
 machine named in `inbox.runner` ([`inbox.md`](inbox.md)). Any other row gets
 an agent tab (section 4).
@@ -233,7 +233,7 @@ briefing's words (headline, tab names, "today") are yours: set them in
 
 ## 4. Agent tabs (optional, cmux)
 
-With cmux, "Do it" and "Advise me" open an agent tab per task, the card shows
+With cmux, "Agent takes it" and "Get advice" open an agent tab per task, the card shows
 which tabs wait for you, and a tab that asks for permission gets Yes and No
 buttons. That needs three things:
 
@@ -248,7 +248,7 @@ workplace:
   control: {name: Control}
 ```
 
-Without the driver, Do it and Advise me open nothing: the note at the bottom
+Without the driver, "Agent takes it" and "Get advice" open nothing: the note at the bottom
 of the card lists the commands to start by hand, one terminal each.
 
 A row of a page that shows a `tasks` section opens with ▾, at any width, the
@@ -256,7 +256,7 @@ narrow side panel included. It shows the task's priority, area and status, its
 origin, next step, blocker, the first open steps (unchecked boxes, else the
 bullets under a "Next steps" heading in STATUS.md; a profile names headings in
 another language with the tasks section's `step_headings`) and its latest log rows, then
-every way to work on it: Do it, Advise me, and "Start:" as a tab here, in its
+every way to work on it: "Agent takes it", "Get advice", and "Start agent:" here, in its
 area's workspace or in its own workspace. A task with a running agent tab offers
 that tab and its answer buttons instead; the task's open inbox entries follow
 with their own buttons, then later, priority, team, context and adopt.
@@ -268,19 +268,30 @@ seen yet, so a click from a second session in those seconds can open a second
 one). The start note names the area, and the result names the workspace each
 tab went to. A tab in state `shell` (the
 command never started, or the agent ended) blocks nothing: its row offers
-Restart next to Go to tab. A task whose only rows are inbox entries keeps its
+Restart next to "Show tab". A task whose only rows are inbox entries keeps its
 own row under the tasks, with "N in the inbox".
 
 `workplace.control.name` names a workspace: the workspace whose session steers
 the others. The dashboard in that session polls the agent tabs and notifies;
 the dashboards in other sessions read its state quietly.
 
+### Buttons
+
+Everything you can click is a framed button in a colour: `[ Details ▾ ]`,
+`[ Show all › ]`, `[ ⟳ Check tasks ]`. The one main action of an area is
+highlighted, closing and dropping are red, and grey text is information only. A
+checkbox (`[x]`, `[ ]`) is the one unframed control. The labels say what
+happens: "Show tab" jumps to a running agent tab, "Start agent" opens a new one
+(with a target: "Start agent: here", "... area acme", "... own workspace"),
+"Agent takes it" hands the work off, "Get advice" has a tab report first, "Ask
+in chat" asks in this conversation, "Go on" tells a waiting tab to continue.
+
 ### Check all, and closing a finished task
 
 A task can be finished without anybody saying so: its linked issue was closed a
 week ago, the PR merged, every box checked. Two buttons catch that.
 
-**check all** sits in the header of the tasks page and of the card's "Your tasks"
+**⟳ Check tasks** sits in the header of the tasks page and of the card's "Your tasks"
 block. It runs `python3 scripts/task.py review --all --json` and changes no task.
 For every task under `work/tasks/` in `doing` or `review` (`--backlog` adds the
 backlog; a named slug is checked whatever its status) the script gathers evidence
@@ -344,15 +355,56 @@ A collapsed row with a recommendation carries a short tag (`close?`, `stale?`,
 `stale` verdict offers Close and Keep too; Close then closes with
 `outcome: declined`, since a stale task was dropped, not finished. A stream
 never shows Done or Close. Opened, it reads "Recommendation (Haiku 5.5): <reason>";
-a `close` offers **Close** and **Keep**. Keep (`task.py review --keep <slug>`)
-hides the recommendation until the task's evidence changes. **check** reviews
+a `close` offers **Close** and **Keep open**. Keep open (`task.py review --keep <slug>`)
+hides the recommendation until the task's evidence changes. **Check** reviews
 just this task.
 
-**Done** stands in every opened task row. The first click turns it into "really
+**Mark done** stands in every opened task row. The first click turns it into "Really
 close?", a second click within five seconds runs `task.py close <slug> --reason
 ...` with the recommendation's reason (else "closed from the dashboard"): the
 scripted 3-step close of [`work-system.md`](work-system.md). The row leaves the
 card at once.
+
+### The review overview
+
+After a check, the tasks page opens with an overview of the last review (on
+the card: "overview" in the header of "Your tasks"). It reads the run that
+`task.py review` keeps in `.bridge/task-review.json` (`last`), so opening it
+costs nothing; only its buttons call a model.
+
+```
+██████████████████████████████ 1 close? · 2 stale · 1 waiting · 1 continue · 1 unclear
+6 reviewed · 0.9 ct · Haiku 5.5, Sonnet 5.5 · 24 s · as of 5 min ago
+[All 6] [close? 1] [stale 2] [waiting 1] [continue 1] [unclear 1] [changed 1]
+Sort: by verdict  by priority  quietest first    select all
+close? (1)
+[ ] P1 acme  alpha work      close?   ●●○ 6 d   #49 closed 03.10. · unblocked   #49 closed as completed, two steps …  ▾
+stale (2)
+[ ] P1 acme  zeta work       stale    ●●○ 30 d  3 steps open                    no activity for 30 days …           ▾
+```
+
+- **Strip:** a bar of the verdict counts in the card's colours, with the counts
+  in words beside it, then total, cost, the models that actually answered,
+  duration and age of the review.
+- **Filter chips:** one per verdict, plus "changed": tasks whose verdict differs
+  from the review before (task.py keeps the previous verdict per task).
+- **Rows:** checkbox, priority, area, title, verdict, confidence as dots,
+  days since the last activity, the evidence as chips (references with state
+  and date, blocker resolved, open steps, inbox items) and the reason, all in
+  fixed columns. ▾ opens the row with the full reason and its buttons. Sort by
+  verdict (grouped, close candidates first), priority, or quietest first.
+- **Bulk actions** on the ticked rows ("select all" takes the current filter):
+  Close selected (one confirmation for the batch; stale ones close with
+  `outcome: declined`), Keep, Check closer (`task.py review --escalate <slugs>`:
+  one call of the directed model for exactly these tasks, past the cache; the
+  button shows the estimated cost of that call, measured by the last run or
+  about 2 ct), and Start agent for the continue and stale ones.
+- **Narrow** (side panel): bar, chips and compact rows, without evidence
+  columns; the opened row shows them.
+
+`task.py review --json` carries what the overview needs per task:
+`days_since_activity`, `chips`, `previous_verdict`, `changed`, `priority`, and per
+run `reviewed_at`, `duration_sec`, `cost_by_model` and `escalate_call_usd`.
 
 ## 5. When something is off
 
