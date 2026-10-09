@@ -397,17 +397,51 @@ def _sq(s: str) -> str:
     return "'" + s.replace("'", "'\"'\"'") + "'"
 
 
-def ascii_command(command: str) -> str:
-    """`cmux ... --command` re-encodes every non-ASCII byte (U+00DC arrives as two
-    Latin-1 characters), while `cmux send` does not. A command with non-ASCII text
-    is therefore written to a UTF-8 file and sourced, so only ASCII crosses the CLI."""
-    if command.isascii():
-        return command
+# A command cmux types into a new tab must stay short: the tab's shell may still be starting
+# (rc files, a banner), so the tty is in canonical mode and keeps at most MAX_CANON bytes of a
+# line (1024 on macOS). Everything after that, the Enter included, is lost and nothing runs.
+TYPED_MAX = 200
+# Launcher files are kept a while so a retry or a re-type works, then pruned.
+LAUNCHER_DAYS = 7
+
+
+def launcher_dir() -> Path:
     d = Path.home() / ".cmuxterm/commands"
     d.mkdir(parents=True, exist_ok=True)
-    f = d / (hashlib.sha1(command.encode("utf-8")).hexdigest()[:16] + ".sh")
-    f.write_text(command + "\n", encoding="utf-8")
-    return f". {_sq(str(f))}"
+    d.chmod(0o700)
+    return d
+
+
+def _prune_launchers(d: Path, now: float) -> None:
+    for f in d.iterdir():
+        try:
+            if f.is_file() and now - f.stat().st_mtime > LAUNCHER_DAYS * 86400:
+                f.unlink()
+        except OSError:
+            pass
+
+
+def typed_command(command: str, marker: Path | None = None, source: bool = False) -> str:
+    """What `cmux ... --command` may type: the command itself when it is short, ASCII and one line,
+    else `/bin/sh '<file>'` with the command in a private file.
+
+    Two reasons for the file. `cmux --command` re-encodes every non-ASCII byte (U+00DC arrives as two
+    Latin-1 characters), while `cmux send` does not. And a long line typed into a shell that is still
+    starting is cut at MAX_CANON (see TYPED_MAX). `/bin/sh` runs the file whatever the user's shell is.
+    With `marker`, the file's first line creates that file, so a caller can tell the command started.
+    With `source`, the file is sourced (`. '<file>'`) instead: for a command that must change the tab's
+    own shell, such as the bare `cd` of a terminal tab, which a child /bin/sh would discard."""
+    if marker is None and command.isascii() and "\n" not in command and len(command.encode()) <= TYPED_MAX:
+        return command
+    d = launcher_dir()
+    _prune_launchers(d, time.time())
+    body = (f": > {_sq(str(marker))}\n" if marker is not None else "") + command + "\n"
+    f = d / (hashlib.sha1(body.encode("utf-8")).hexdigest()[:16] + ".sh")
+    fd = os.open(f, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as out:
+        out.write(body)
+    f.chmod(0o600)
+    return f"{'.' if source else '/bin/sh'} {_sq(str(f))}"
 
 
 def tab_command(tab: dict) -> str:
@@ -415,6 +449,11 @@ def tab_command(tab: dict) -> str:
     if tab["kind"] == "claude":
         return f"{cd} && claude --resume {tab['session_id']}{KEEP_SHELL}"
     return cd
+
+
+def typed_tab(tab: dict) -> str:
+    """The typed line of a restored tab: a terminal tab's cd must reach the tab's shell, so it is sourced."""
+    return typed_command(tab_command(tab), source=tab["kind"] != "claude")
 
 
 def decoration_commands(ws_ref: str, step: dict) -> list[list[str]]:
@@ -505,7 +544,7 @@ def apply_plan(plan: list[dict], existing: dict[str, str], wait: float = 8.0) ->
                     "--cwd", (first or {}).get("cwd") or ws.get("cwd") or str(BRIDGE_ROOT),
                     "--focus", "false"]
             if first:
-                args += ["--command", ascii_command(tab_command(first))]
+                args += ["--command", typed_tab(first)]
             ws_ref = parse_ref(_cmux(*args), "workspace")
             if not ws_ref:
                 report.append(f"ERROR workspace {ws['title']} not created")
@@ -528,7 +567,7 @@ def apply_plan(plan: list[dict], existing: dict[str, str], wait: float = 8.0) ->
                 _cmux("open", tab["path"], "--workspace", ws_ref, "--no-focus")
             else:
                 sref = parse_ref(_cmux("new-surface", "--workspace", ws_ref,
-                                       "--command", ascii_command(tab_command(tab)), "--focus", "false"),
+                                       "--command", typed_tab(tab), "--focus", "false"),
                                  "surface")
                 if tab["kind"] == "claude":
                     started.append((tab["session_id"], sref))

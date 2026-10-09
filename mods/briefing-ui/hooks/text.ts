@@ -133,6 +133,17 @@ export type Strings = {
   skippedSection: string
   unreadable: (why: string) => string
   startingTab: string
+  btnRestart: string
+  startPrefix: string
+  inboxOpen: (n: number) => string
+  /** Label before a line of an opened task row, by its kind (origin, next, blocked, step, log) */
+  lineKind: Record<string, string>
+  /** A task's status (frontmatter enum) in words; an unknown value is shown as it is */
+  taskState: Record<string, string>
+  /** "in area <name>": a start into the workspace of a named area */
+  whereArea: (name: string) => string
+  alreadyOpen: (label: string) => string
+  startingAlready: (title: string) => string
   nothingHere: string
   waitCount: (n: number) => string
   longCount: (n: number) => string
@@ -388,6 +399,14 @@ const de: Strings = {
   skippedSection: 'kommt mit dem vollen Briefing (⟳)',
   unreadable: why => `nicht lesbar: ${why}`,
   startingTab: 'startet …',
+  btnRestart: 'Neu starten',
+  startPrefix: 'Starten: ',
+  inboxOpen: n => `${n} im Posteingang`,
+  lineKind: { origin: 'Herkunft: ', next: 'Als Nächstes: ', blocked: 'Blockiert: ', step: 'Schritt: ', log: 'Log: ' },
+  taskState: { backlog: 'Backlog', doing: 'in Arbeit', review: 'im Review', done: 'erledigt' },
+  whereArea: name => `im Bereich ${name}`,
+  alreadyOpen: label => `${label} läuft schon, zum Tab gewechselt`,
+  startingAlready: title => `${title} startet schon`,
   nothingHere: 'nichts hier',
   waitCount: n => `● ${n} warten`,
   longCount: n => `(${n} lange)`,
@@ -639,6 +658,14 @@ const en: Strings = {
   skippedSection: 'arrives with the full briefing (⟳)',
   unreadable: why => `could not read: ${why}`,
   startingTab: 'starting …',
+  btnRestart: 'Restart',
+  startPrefix: 'Start: ',
+  inboxOpen: n => `${n} in the inbox`,
+  lineKind: { origin: 'Origin: ', next: 'Next: ', blocked: 'Blocked: ', step: 'Step: ', log: 'Log: ' },
+  taskState: { backlog: 'backlog', doing: 'doing', review: 'in review', done: 'done' },
+  whereArea: name => `in area ${name}`,
+  alreadyOpen: label => `${label} is already running, switched to its tab`,
+  startingAlready: title => `${title} is already starting`,
   nothingHere: 'nothing here',
   waitCount: n => `● ${n} waiting`,
   longCount: n => `(${n} long)`,

@@ -1,5 +1,5 @@
 import type {
-  Bucket, Info, InfoPage, Mark, Row, SectionId, Tab, TabSeen, Team, TeamRun, UiConfig, View,
+  Bucket, Info, InfoPage, Mark, Row, SectionId, Tab, TabSeen, TaskInfo, Team, TeamRun, UiConfig, View,
 } from '../types'
 import { T } from './text'
 
@@ -37,8 +37,12 @@ export function parseMark(x: unknown): Mark | null {
 
 export function parseInfo(i: Record<string, unknown>): Info {
   const tone = i.tone === 'bad' || i.tone === 'warn' || i.tone === 'dim' ? i.tone : null
+  const lines = (Array.isArray(i.lines) ? i.lines as Record<string, unknown>[] : [])
+    .filter(l => l && typeof l.kind === 'string' && typeof l.text === 'string' && l.text)
+    .map(l => ({ kind: asText(l.kind), text: asText(l.text) }))
   return { title: asText(i.title), detail: asText(i.detail), when: asText(i.when), tone, url: asTextOrNull(i.url),
-    task: asTextOrNull(i.task), ask: i.ask === true, mark: parseMark(i.mark) }
+    task: asTextOrNull(i.task), ask: i.ask === true, mark: parseMark(i.mark), priority: asTextOrNull(i.priority),
+    state: asTextOrNull(i.state), lines }
 }
 
 /** A task as a row, so a status tab takes the same paths as the card (find tab, start tab) */
@@ -46,6 +50,15 @@ export function taskRow(slug: string, title: string): Row {
   return { key: `task:${slug}`, bucket: 'do', title, why: [], sources: [], inboxId: null, gate: null, task: slug,
     ref: null, url: null, priority: null, urgency: null, area: null, areaNames: [], taskType: null, hasAction: false,
     inboxState: null, inboxKey: null, mark: null }
+}
+
+/** A task as a full row from the task list (area, priority, type, why it rests), as the card has it */
+export function taskRowFor(slug: string, title: string, list: TaskInfo[]): Row {
+  const t = list.find(x => x.slug === slug)
+  if (!t) return taskRow(slug, title)
+  const why = t.blockedBy ? [T().blocked(t.blockedBy)] : t.stale ? [T().quietFor(t.age)] : []
+  return { ...taskRow(slug, title || t.label), why, sources: ['tasks'], priority: t.priority, area: t.area,
+    areaNames: t.areaNames, taskType: t.type }
 }
 
 /** Question to the conversation about a row of a status tab */
@@ -244,8 +257,7 @@ export function languageOf(value: unknown): 'de' | 'en' {
   return typeof value === 'string' && value.toLowerCase().startsWith('de') ? 'de' : 'en'
 }
 
-export type TaskInfo = { slug: string; label: string; area: string; areaNames: string[]; priority: string | null; blockedBy: string | null
-  stale: boolean; age: number; type: string | null }
+export type { TaskInfo }
 
 export function parseTasks(out: string): TaskInfo[] {
   return (JSON.parse(out) as Record<string, unknown>[]).map(t => ({
@@ -281,18 +293,22 @@ export function parseTeams(out: string): Team[] {
 export function withTasks(v: View, list: TaskInfo[]): View {
   const bySlug = new Map(list.map(t => [t.slug, t]))
   const seen = new Set<string>()
+  const inboxCount = new Map<string, number>()
   const buckets = v.buckets.filter(b => b.id !== 'tasks' && b.id !== 'resting').map(b => ({
     ...b,
     rows: b.rows.map(r => {
       const t = r.task ? bySlug.get(r.task) : undefined
       if (!t) return r
-      seen.add(t.slug)
+      // An inbox entry is a part of its task, never the task itself: the task keeps its own row.
+      if (r.inboxId) inboxCount.set(t.slug, (inboxCount.get(t.slug) ?? 0) + 1)
+      else seen.add(t.slug)
       // An inbox entry shows the area of its task, but not its priority.
       return { ...r, area: t.area, areaNames: t.areaNames, priority: r.inboxId ? r.priority : r.priority ?? t.priority, taskType: t.type }
     }),
   }))
   const toRow = (t: TaskInfo, bucket: string): Row => {
     const why = t.blockedBy ? [T().blocked(t.blockedBy)] : t.stale ? [T().quietFor(t.age)] : []
+    if (inboxCount.get(t.slug)) why.push(T().inboxOpen(inboxCount.get(t.slug) ?? 0))
     const base = { bucket, title: t.label, why, sources: ['tasks'], inboxId: null, gate: null, task: t.slug,
       ref: null, url: null, priority: t.priority, urgency: null, area: t.area, areaNames: t.areaNames, taskType: t.type, hasAction: false,
       inboxState: null, inboxKey: null, mark: null }
@@ -341,9 +357,15 @@ export function isWaiting(tab: Tab, v: View | null): boolean {
   return tab.state === 'waiting' && filedBy(tab, v) === undefined
 }
 
+/** Does an agent run in the tab? A tab in state shell holds none: its command never ran, or the agent ended. */
+export function isLive(tab: Tab): boolean {
+  return tab.state !== 'shell'
+}
+
+/** The tab of a row: one that waits for you first, then any live one, a dead shell tab only as the last resort. */
 export function tabFor(row: Row, list: Tab[]): Tab | undefined {
   const mine = list.filter(t => (row.task !== null && t.slug === row.task) || (row.inboxId !== null && t.item === row.inboxId))
-  return mine.find(t => ATTENTION.has(t.state)) ?? mine[mine.length - 1]
+  return mine.find(t => ATTENTION.has(t.state)) ?? [...mine].reverse().find(isLive) ?? mine[mine.length - 1]
 }
 
 export type TeamState = { team: Team; started: number; next: Team['roles'][number] | null; isReady: boolean

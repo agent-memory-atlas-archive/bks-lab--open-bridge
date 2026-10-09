@@ -70,6 +70,9 @@ PRIORITY_BONUS = {"P0": 3, "P1": 2, "P2": 1}
 ROW_CAP = 10            # a slug named in every log row must not drown the rest
 LABEL_MAX = 30
 DRIVER_TIMEOUT_SEC = 120
+# A router answers within seconds; a hanging one must not hold a dashboard click past its own
+# timeout (the click would report a failure while tabs still open, and a second click doubles them).
+ROUTER_TIMEOUT_SEC = 45
 DEFAULT_LIMITS = {"max_workspaces": 4, "max_tabs": 3, "stale_days": 10, "activity_days": 7}
 # Every agent tab carries its slug in this variable, so the session can tell it was opened for one item.
 TAB_ENV = "BRIDGE_TAB_SLUG"
@@ -511,7 +514,7 @@ def route(root: Path, cfg: dict, entries: list) -> list:
         items="\n".join(f"- {e['item']}: {_describe(root, e['item'])}" for e in todo))
     argv = shlex.split(command) if isinstance(command, str) else [str(c) for c in command]
     try:
-        run = subprocess.run(argv, input=prompt, capture_output=True, text=True, timeout=120)
+        run = subprocess.run(argv, input=prompt, capture_output=True, text=True, timeout=ROUTER_TIMEOUT_SEC)
         text = run.stdout if run.returncode == 0 else ""
         start, end = text.find("["), text.rfind("]")
         answer = json.loads(text[start:end + 1]) if 0 <= start < end else []
@@ -802,6 +805,21 @@ def driver_from(spec):
     raise ValueError(f"workplace.driver must be 'none' or {{command: [argv]}}, got {spec!r}")
 
 
+def open_agent_tab(entry: dict, rows: list) -> dict | None:
+    """The open agent tab that already works on this entry, or None. A tab in state shell holds no
+    agent (its command never ran, or the agent ended), so it does not count; a team role counts
+    only for that role."""
+    for r in rows:
+        if r.get("state") == "shell":
+            continue
+        if entry["kind"] == "inbox" and r.get("item") == entry["item"]:
+            return r
+        if entry["kind"] == "task" and r.get("slug") == entry["item"] \
+                and (r.get("team"), r.get("role")) == (entry.get("team"), entry.get("role")):
+            return r
+    return None
+
+
 def _destination(entry: dict, target: str) -> str:
     """Where a launched tab would go, in words, for the dry run."""
     if target == "tab":
@@ -861,6 +879,8 @@ def main(argv=None) -> int:
     ln.add_argument("--json", action="store_true")
     ln.add_argument("--team", help="a team id (workplace.py teams); with --role opens that role's tab")
     ln.add_argument("--role", help="the role of --team to open")
+    ln.add_argument("--again", action="store_true",
+                    help="open a tab even when an agent tab for the item is open already")
     sub.add_parser("teams", help="the team recipes: ordered role tabs on one task").add_argument(
         "--json", action="store_true")
     sub.add_parser("status").add_argument("--json", action="store_true")
@@ -942,6 +962,19 @@ def main(argv=None) -> int:
         if args.target == "auto":
             entries = route(args.root, cfg, entries)
             good = [e for e in entries if "command" in e]
+        if args.yes and good and not args.again:
+            # Never a second agent on the same item: a double click, or a click from a second session.
+            rows = status_rows(args.root, cfg, driver)
+            if rows is None:
+                print(f"note: open tabs unknown ({getattr(driver, 'error', '') or 'no tab list'}), "
+                      "not checked for tabs already open", file=sys.stderr)
+            for e in good:
+                hit = open_agent_tab(e, rows or [])
+                if hit:
+                    e.update({"skipped": "open", "ref": hit.get("ref"), "tab": hit.get("name"),
+                              "tab_workspace": hit.get("workspace")})
+                    report.append(f"already open: {e['label']} ({hit.get('ref')}) in {hit.get('workspace')}")
+            good = [e for e in good if "skipped" not in e]
         if args.yes and good:
             groups = ([("workspace", [e for e in good if e["own"]]), ("area", [e for e in good if not e["own"]])]
                       if args.target == "auto" else [(args.target, good)])

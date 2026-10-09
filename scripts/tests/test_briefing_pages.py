@@ -347,6 +347,30 @@ def test_inbox_and_task_rows_fill_their_columns_when_a_page_names_them():
     assert task["task"] == "alpha" and task["tone"] == "warn"
 
 
+def test_a_task_row_carries_its_detail_lines_priority_and_state_for_a_dashboard():
+    result = _result()
+    result["sections"].append(_sec("tasks", "tasks", [
+        {"id": "alpha", "title": "Alpha", "state": "doing", "priority": "P1", "project": "acme",
+         "blocked_by": "waits for the vendor", "blocked_since": "2026-10-06", "changed_at": "2026-10-07",
+         "origin": "Asked in chat", "next": {"what": "send the draft", "who": "me", "due": "2026-10-10"},
+         "steps": ["first box", "second box"], "log": ["2026-10-07 09:00 alpha drafted"]},
+        {"id": "beta", "title": "Beta", "state": "doing", "changed_at": "2026-10-07"}]))
+    view = {"pages": [{"id": "work", "sections": ["tasks"]}], "page_rest": "hide"}
+    alpha, beta = _section(bv.pages(result, _profile(view)), "tasks")["items"]
+    assert alpha["priority"] == "P1" and alpha["state"] == "doing"
+    assert alpha["lines"] == [
+        {"kind": "origin", "text": "Asked in chat"},
+        {"kind": "next", "text": "send the draft · me · 2026-10-10"},
+        {"kind": "blocked", "text": "waits for the vendor · 2026-10-06"},
+        {"kind": "step", "text": "first box"},
+        {"kind": "step", "text": "second box"},
+        {"kind": "log", "text": "2026-10-07 09:00 alpha drafted"},
+    ]
+    assert beta["lines"] == []
+    # other kinds carry no lines: the field belongs to task rows
+    assert "lines" not in _section(bv.pages(result, _profile()), "log")["items"][0]
+
+
 # ---------------------------------------------------------------- what a link may be
 
 def test_a_file_link_never_leaves_the_bridge(tmp_path):

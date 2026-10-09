@@ -179,7 +179,30 @@ it reaches the briefing and every other reader.
 
 The driver receives, per tab, `label` (the tab title), `slug` (the agent session
 name), `command` (the full shell command), `workspace` (the area's workspace name)
-and `aliases` (its other names). No target ever closes anything.
+and `aliases` (its other names). No target ever closes anything. Area names and
+aliases match a workspace title regardless of case.
+
+A `command` may be several KB, since it carries the whole prompt. A driver must never type it
+raw into a new tab: the tab's shell may still be starting, its terminal then keeps at
+most 1024 bytes of a line (MAX_CANON on macOS), and the rest, the Enter included, is
+lost, so nothing runs. The cmux driver writes the command to a private launcher file
+(`~/.cmuxterm/commands/`, mode 0600, pruned after 7 days) and types only
+`/bin/sh '<file>'`. The file first creates a start marker; a tab whose marker does not
+appear within `CMUX_LAUNCH_WAIT_SEC` (default 20) becomes an `ERROR` line, never reported
+as started. It keeps its label: after a slow shell start the line may still run, and the
+label is how a later click finds that agent. Each opened tab's report line names where it
+went: `tab <label> (<ref>) in <workspace>`. A restored terminal tab, which is only a `cd`,
+has its launcher file sourced (`. '<file>'`), so the directory change reaches the tab's
+own shell.
+
+`launch --yes` skips an item whose agent already runs: an item whose agent tab is
+open already (a task tab, the same team role, or an inbox item's tab, in any state but
+`shell`) is skipped with `already open: <label> (<ref>)`, and `--json` marks it
+`"skipped": "open"` with the tab's `ref`. A tab in state `shell` holds no agent (its
+command never ran, or the agent ended) and does not block; so a tab that is still starting
+(a shell until its agent comes up) does not block either, and a second click from another
+session in those seconds can open a second tab. `--again` opens a second tab
+on purpose. The router gets at most 45 s, then the rules of `area` stand.
 
 `--target auto` asks a router where each item belongs: one call for all items, with the
 configured `workspaces:` (name and description) and one line per item (the task's

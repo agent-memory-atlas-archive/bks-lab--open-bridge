@@ -48,6 +48,16 @@ FAKE_CMUX = textwrap.dedent("""\
     if any(joined.startswith(f) for f in fails):
         print("Error: not_found: simulated failure for " + joined, file=sys.stderr)
         sys.exit(1)
+    if "--command" in args and not os.environ.get("FAKE_CMUX_LOST"):
+        # like a shell that came up: run the start marker of a launcher file (never the agent)
+        import re
+        typed = args[args.index("--command") + 1]
+        m = re.fullmatch(r"/bin/sh '([^']+)'", typed)
+        if m and os.path.exists(m.group(1)):
+            for line in open(m.group(1), encoding="utf-8"):
+                hit = re.fullmatch(r": > '([^']+)'", line.strip())
+                if hit:
+                    open(hit.group(1), "w").close()
     if args[:1] == ["ping"]:
         print("PONG")
     elif args[:1] == ["tree"] and "--json" in args:
@@ -119,14 +129,15 @@ def fake(tmp_path, monkeypatch):
     files["CMUX_SESSION_FILE"].write_text(json.dumps(SESSION))
     files["CMUX_HOOKS_FILE"].write_text(json.dumps(HOOKS))
     env = {**os.environ, "PATH": str(bin_dir), "HOME": str(tmp_path), "CMUX_BIN": str(cmux),
-           "CMUX_SURFACE_ID": "",
+           "CMUX_SURFACE_ID": "", "CMUX_LAUNCH_WAIT_SEC": "1",
            **{k: str(v) for k, v in files.items()}}
 
     class World:
         fail = ""
+        lost = False
 
         def call(self, request: dict) -> subprocess.CompletedProcess:
-            run_env = {**env, "FAKE_CMUX_FAIL": self.fail}
+            run_env = {**env, "FAKE_CMUX_FAIL": self.fail, "FAKE_CMUX_LOST": "1" if self.lost else ""}
             return subprocess.run([sys.executable, str(DRIVER)], input=json.dumps(request),
                                   capture_output=True, text=True, env=run_env, timeout=60)
 
@@ -549,6 +560,15 @@ def test_workspace_created_for_moved_tabs_reports_its_leftover_shell(fake):
 
 # ---------------------------------------------------------------- launch verb
 
+def _launched(typed: str) -> str:
+    """The command a typed launcher line runs: the launcher file without its start marker."""
+    import re
+    m = re.fullmatch(r"/bin/sh '([^']+)'", typed)
+    assert m, typed
+    lines = Path(m.group(1)).read_text(encoding="utf-8").splitlines()
+    return "\n".join(line for line in lines if not line.startswith(": > "))
+
+
 LAUNCH_TABS = [{"label": "Alpha", "slug": "alpha", "command": "cd -- /repo && agent -n alpha 'go'"},
                {"label": "Beta", "slug": "beta", "command": "cd -- /repo && agent -n beta 'go'"}]
 
@@ -561,7 +581,7 @@ def test_launch_tabs_open_in_the_callers_workspace_and_keep_a_shell(fake):
     for a in new:
         assert a[a.index("--workspace") + 1] == "workspace:3"       # tree caller, not the selected one
         assert a[a.index("--focus") + 1] == "false"
-        assert a[a.index("--command") + 1].endswith(drv.KEEP_SHELL)
+        assert _launched(a[a.index("--command") + 1]).endswith(drv.KEEP_SHELL)
     renames = [a for a in argv if a[:3] == ["tab-action", "--action", "rename"]]
     assert [a[a.index("--title") + 1] for a in renames] == ["Alpha", "Beta"]
     assert len(report) == 2 and report[0].startswith("tab Alpha (surface:60")
@@ -589,7 +609,7 @@ def test_launch_workspace_target_creates_one_workspace_per_tab(fake):
     assert len(creates) == 2
     assert creates[0][creates[0].index("--name") + 1] == "Alpha"
     assert creates[0][creates[0].index("--focus") + 1] == "false"
-    assert creates[0][creates[0].index("--command") + 1].endswith(drv.KEEP_SHELL)
+    assert _launched(creates[0][creates[0].index("--command") + 1]).endswith(drv.KEEP_SHELL)
     assert report[0].startswith("workspace Alpha (workspace:50)")
     assert not [a for a in fake.argv() if a[0] == "new-surface"]
 
@@ -610,9 +630,10 @@ def test_launch_area_target_creates_a_missing_area_once_and_names_the_tab(fake):
     (create,) = [a for a in argv if a[:2] == ["workspace", "create"]]
     assert create[create.index("--name") + 1] == "Research"
     assert create[create.index("--focus") + 1] == "false"
-    assert "--command" not in create                       # the agent goes into a named tab, not the shell
+    # the first tab IS the new workspace's starting tab: no stray shell is left behind
+    assert len(create[create.index("--command") + 1].encode()) < 256
     new = [a for a in argv if a[0] == "new-surface"]
-    assert [a[a.index("--workspace") + 1] for a in new] == ["workspace:50", "workspace:50"]
+    assert [a[a.index("--workspace") + 1] for a in new] == ["workspace:50"]
     renames = [a for a in argv if a[:3] == ["tab-action", "--action", "rename"]]
     assert [a[a.index("--title") + 1] for a in renames] == ["Alpha", "Beta"]
     assert any("new workspace Research" in line for line in report)
@@ -643,3 +664,75 @@ def test_tabs_mark_the_tab_this_process_runs_in(monkeypatch):
     assert [t["is_self"] for t in drv.tabs()] == [True, False]
     monkeypatch.delenv("CMUX_SURFACE_ID")
     assert [t["is_self"] for t in drv.tabs()] == [False, False]
+
+
+# ---------------------------------------------------------------- typing a command into a starting shell
+
+# A real prompt: quotes, an umlaut, a newline, shell metacharacters, and far over the 1024 bytes
+# a starting shell's line buffer (MAX_CANON) keeps; the rest and the Enter would be lost.
+LONG_TEXT = ("You're the tab for 'alpha'. \u00dcber \"quotes\" $HOME `ticks` & ; |\nsecond line " + "x" * 1400)
+
+
+def _typed(argv: list) -> list:
+    return [a[a.index("--command") + 1] for a in argv if "--command" in a]
+
+
+@pytest.mark.parametrize("target, extra", [("tab", {}), ("workspace", {}), ("area", {"workspace": "Customer A"}),
+                                           ("area", {"workspace": "Research"})])
+@pytest.mark.parametrize("text", [LONG_TEXT, LONG_TEXT.replace("\u00dc", "U")], ids=["umlaut", "ascii"])
+def test_launch_types_only_a_short_line_and_the_command_arrives_intact(fake, tmp_path, target, extra, text):
+    import shlex
+    out = tmp_path / "arrived.txt"
+    command = f"cd -- {shlex.quote(str(tmp_path))} && printf '%s' {shlex.quote(text)} > {shlex.quote(str(out))}"
+    report = fake.answer({"verb": "launch", "tabs": [{"label": "Alpha", "slug": "alpha", "command": command, **extra}],
+                          "target": target, "here": None})["report"]
+    assert not any(line.startswith("ERROR") for line in report), report
+    (typed,) = _typed(fake.argv())
+    assert len(typed.encode()) < 256 and typed.isascii() and "\n" not in typed
+    # run the typed line the way the new shell would; SHELL=true ends the KEEP_SHELL tail at once
+    subprocess.run(typed, shell=True, env={**fake.env, "SHELL": "/usr/bin/true"}, check=True, timeout=30)
+    assert out.read_text(encoding="utf-8") == text
+
+
+def test_open_types_only_short_lines_too(fake):
+    plan = {"control": {"name": "Control", "command": "cd -- /repo && agent " + "c" * 1200}, "workspaces": [
+        {"name": "Research", "cwd": "/repo", "tabs": [
+            {"slug": "a", "label": "A", "action": "new", "command": "cd -- /repo && agent " + "a" * 1200},
+            {"slug": "b", "label": "B", "action": "new", "command": "cd -- /repo && agent " + "b" * 1200}]}]}
+    fake.answer({"verb": "open", "plan": plan, "only": None, "resume": False, "here": None})
+    typed = _typed(fake.argv())
+    assert len(typed) >= 3 and all(len(t.encode()) < 256 for t in typed)
+
+
+def test_a_launch_whose_command_never_starts_is_an_error_and_the_tab_keeps_its_label(fake):
+    fake.lost = True       # the shell swallowed the typed line (busy rc file, lost Enter)
+    report = fake.answer({"verb": "launch", "tabs": LAUNCH_TABS[:1], "target": "tab", "here": None})["report"]
+    assert any(line.startswith("ERROR") and "did not start" in line and "Alpha" in line for line in report), report
+    # The typed line may still run after a slow shell start: the tab keeps its label, so the slug
+    # index still finds it and a later click goes to that agent instead of opening a second one.
+    renames = [a[a.index("--title") + 1] for a in fake.argv() if a[:3] == ["tab-action", "--action", "rename"]]
+    assert renames == ["Alpha"]
+
+
+def test_a_launch_that_started_reports_success(fake):
+    report = fake.answer({"verb": "launch", "tabs": LAUNCH_TABS, "target": "tab", "here": None})["report"]
+    assert [line.split(" (")[0] for line in report] == ["tab Alpha", "tab Beta"]
+
+
+def test_launch_area_target_matches_names_and_aliases_ignoring_case(fake):
+    tabs = [{**LAUNCH_TABS[0], "workspace": "customer a"},
+            {**LAUNCH_TABS[1], "workspace": "Elsewhere", "aliases": ["CUSTOMER B"]}]
+    fake.answer({"verb": "launch", "tabs": tabs, "target": "area", "here": None})
+    new = [a for a in fake.argv() if a[0] == "new-surface"]
+    assert [a[a.index("--workspace") + 1] for a in new] == ["workspace:4", "workspace:5"]
+    assert not [a for a in fake.argv() if a[:2] == ["workspace", "create"]]
+
+
+@pytest.mark.parametrize("target, extra, where", [("tab", {}, "Platform"),
+                                                  ("area", {"workspace": "Customer A"}, "Customer A"),
+                                                  ("area", {"workspace": "Research"}, "Research")])
+def test_launch_report_names_the_workspace_the_tab_went_to(fake, target, extra, where):
+    report = fake.answer({"verb": "launch", "tabs": [{**LAUNCH_TABS[0], **extra}], "target": target,
+                          "here": None})["report"]
+    (line,) = [x for x in report if x.startswith("tab Alpha")]
+    assert line.endswith(f" in {where}"), report

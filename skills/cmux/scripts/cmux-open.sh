@@ -74,7 +74,13 @@ fi
 case "$ACTION" in
   tab)
     ARGS=(new-surface --workspace "$TARGET" --focus "$FOCUS")
-    [ ${#REST[@]} -gt 0 ] && ARGS+=(--command "${REST[*]}")
+    if [ ${#REST[@]} -gt 0 ]; then
+      # never typed raw: a long, multi-line or non-ASCII command goes into a launcher file
+      # (a shell still starting keeps only 1024 bytes of a line; see cmux_layout.typed_command)
+      TYPED=$(python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import cmux_layout as cl; print(cl.typed_command(sys.argv[2]))' \
+        "$(cd "$(dirname "$0")" && pwd)" "${REST[*]}") || die "could not prepare the command"
+      ARGS+=(--command "$TYPED")
+    fi
     OUT=$(cmux "${ARGS[@]}" 2>&1) ;;
   browser)
     ARGS=(new-surface --type browser --workspace "$TARGET" --focus "$FOCUS")

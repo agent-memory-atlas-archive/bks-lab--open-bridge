@@ -251,6 +251,26 @@ workplace:
 Without the driver, Do it and Advise me open nothing: the note at the bottom
 of the card lists the commands to start by hand, one terminal each.
 
+A row of a page that shows a `tasks` section opens with ▾, at any width, the
+narrow side panel included. It shows the task's priority, area and status, its
+origin, next step, blocker, the first open steps (unchecked boxes, else the
+bullets under a "Next steps" heading in STATUS.md; a profile names headings in
+another language with the tasks section's `step_headings`) and its latest log rows, then
+every way to work on it: Do it, Advise me, and "Start:" as a tab here, in its
+area's workspace or in its own workspace. A task with a running agent tab offers
+that tab and its answer buttons instead; the task's open inbox entries follow
+with their own buttons, then later, priority, team, context and adopt.
+
+A start is held for a few seconds per item, so a double click in one card
+never opens two tabs; workplace.py itself skips an item whose agent already
+runs and the card switches to that tab (a tab that is still starting is not
+seen yet, so a click from a second session in those seconds can open a second
+one). The start note names the area, and the result names the workspace each
+tab went to. A tab in state `shell` (the
+command never started, or the agent ended) blocks nothing: its row offers
+Restart next to Go to tab. A task whose only rows are inbox entries keeps its
+own row under the tasks, with "N in the inbox".
+
 `workplace.control.name` names a workspace: the workspace whose session steers
 the others. The dashboard in that session polls the agent tabs and notifies;
 the dashboards in other sessions read its state quietly.

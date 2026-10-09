@@ -696,3 +696,79 @@ def test_launch_auto_opens_own_workspaces_and_area_tabs_in_two_calls(lrepo, monk
     assert wp.main(["--root", str(lrepo), "launch", "--items", f"{INBOX_ID},payments-incident", "--yes",
                     "--target", "auto"]) == 0
     assert sorted(calls) == [("area", [INBOX_ID]), ("workspace", ["payments-incident"])]
+
+
+# ---------------------------------------------------------------- launch never opens an agent twice
+
+def _tab_driver(tabs: list, calls: list):
+    class Fake(wp.NoneDriver):
+        def tabs(self):
+            return tabs
+
+        def launch(self, batch, target, here=None):
+            calls.append([t["item"] for t in batch])
+            return [f"tab {t['label']} (surface:70)" for t in batch]
+    return Fake()
+
+
+@pytest.mark.parametrize("state, opened", [("waiting", False), ("working", False), ("needs-you", False),
+                                           ("shell", True)])
+def test_launch_skips_an_item_whose_agent_tab_is_open(lrepo, monkeypatch, capsys, state, opened):
+    label = wp.build_launch(lrepo, {}, ["payments-incident"], "go")[0]["label"]
+    calls: list = []
+    open_tabs = [{"name": label, "workspace": "Bigcorp", "ref": "surface:9", "state": state}]
+    monkeypatch.setattr(wp, "driver_from", lambda spec: _tab_driver(open_tabs, calls))
+    assert wp.main(["--root", str(lrepo), "launch", "--items", "payments-incident", "--yes", "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    (item,) = data["items"]
+    if opened:      # a tab in state shell holds no agent: the command never ran, or the agent ended
+        assert calls == [["payments-incident"]] and "skipped" not in item
+    else:
+        assert calls == [] and item["skipped"] == "open" and item["ref"] == "surface:9"
+        assert any("already open" in line and "surface:9" in line for line in data["report"])
+
+
+def test_launch_again_opens_a_second_tab_on_purpose(lrepo, monkeypatch, capsys):
+    label = wp.build_launch(lrepo, {}, ["payments-incident"], "go")[0]["label"]
+    calls: list = []
+    open_tabs = [{"name": label, "workspace": "Bigcorp", "ref": "surface:9", "state": "waiting"}]
+    monkeypatch.setattr(wp, "driver_from", lambda spec: _tab_driver(open_tabs, calls))
+    assert wp.main(["--root", str(lrepo), "launch", "--items", "payments-incident", "--yes", "--again"]) == 0
+    assert calls == [["payments-incident"]]
+
+
+def test_launch_skips_an_open_inbox_tab_but_opens_the_rest(lrepo, monkeypatch, capsys):
+    calls: list = []
+    open_tabs = [{"name": f"Inbox {wp.inbox_slug(INBOX_ID)}", "workspace": "W", "ref": "surface:4", "state": "working"}]
+    monkeypatch.setattr(wp, "driver_from", lambda spec: _tab_driver(open_tabs, calls))
+    assert wp.main(["--root", str(lrepo), "launch", "--items", f"{INBOX_ID},payments-incident", "--yes",
+                    "--json"]) == 0
+    assert calls == [["payments-incident"]]
+    items = {i["item"]: i for i in json.loads(capsys.readouterr().out)["items"]}
+    assert items[INBOX_ID]["skipped"] == "open" and "skipped" not in items["payments-incident"]
+
+
+def test_a_team_role_tab_counts_only_for_its_own_role(lrepo, monkeypatch, capsys):
+    (impl,) = wp.build_launch(lrepo, {}, ["payments-incident"], "go", team="build", role="implement")
+    calls: list = []
+    open_tabs = [{"name": impl["label"], "workspace": "Bigcorp", "ref": "surface:5", "state": "waiting"}]
+    monkeypatch.setattr(wp, "driver_from", lambda spec: _tab_driver(open_tabs, calls))
+    assert wp.main(["--root", str(lrepo), "launch", "--items", "payments-incident", "--yes",
+                    "--team", "build", "--role", "review"]) == 0
+    assert calls == [["payments-incident"]]
+    assert wp.main(["--root", str(lrepo), "launch", "--items", "payments-incident", "--yes",
+                    "--team", "build", "--role", "implement"]) == 0
+    assert calls == [["payments-incident"]]
+
+
+def test_the_router_gets_a_short_budget_so_a_click_never_outlasts_the_dashboard(lrepo, monkeypatch):
+    seen = {}
+
+    def fake_run(argv, input=None, **kw):
+        seen["timeout"] = kw.get("timeout")
+        raise wp.subprocess.TimeoutExpired(argv, kw.get("timeout"))
+
+    entries = wp.build_launch(lrepo, ROUTE_CFG, [INBOX_ID], "go")
+    monkeypatch.setattr(wp.subprocess, "run", fake_run)
+    routed = wp.route(lrepo, _router("[]"), entries)
+    assert seen["timeout"] <= 45 and routed[0]["workspace"] == entries[0]["workspace"]

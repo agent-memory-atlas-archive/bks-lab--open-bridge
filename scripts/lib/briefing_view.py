@@ -1395,8 +1395,33 @@ def _page_row(kind: str, item: dict, entry: dict, now: dt.datetime, labels: dict
         tone = "dim"
     else:
         tone = None
-    return {"title": title, "when": when, "detail": detail, "tone": tone, "url": url, "task": task or None,
-            "ask": tone in ("bad", "warn") or kind in ("tracker", "inbox"), "mark": mark_for(list(marks), title, item)}
+    row = {"title": title, "when": when, "detail": detail, "tone": tone, "url": url, "task": task or None,
+           "ask": tone in ("bad", "warn") or kind in ("tracker", "inbox"), "mark": mark_for(list(marks), title, item)}
+    if kind == "tasks":
+        row.update(priority=_text(item.get("priority")) or None, state=_text(item.get("state")) or None,
+                   lines=_task_lines(item))
+    return row
+
+
+def _task_lines(item: dict) -> list:
+    """What a dashboard shows when a task row is opened, each line with its kind (the dashboard
+    labels it in its own language): origin, next, blocked, open steps, latest log rows."""
+    lines = []
+    if _text(item.get("origin")):
+        lines.append({"kind": "origin", "text": _text(item["origin"])})
+    nxt = item.get("next")
+    if isinstance(nxt, dict):
+        text = " · ".join(_text(nxt.get(k)) for k in ("what", "who", "due") if _text(nxt.get(k)))
+    else:
+        text = _text(nxt)
+    if text:
+        lines.append({"kind": "next", "text": text})
+    if _text(item.get("blocked_by")):
+        since = _text(item.get("blocked_since"))
+        lines.append({"kind": "blocked", "text": _text(item["blocked_by"]) + (f" · {since}" if since else "")})
+    lines += [{"kind": "step", "text": _text(x)} for x in item.get("steps") or [] if _text(x)]
+    lines += [{"kind": "log", "text": _text(x)} for x in item.get("log") or [] if _text(x)]
+    return lines
 
 
 def _page_section(section: dict, entry: dict, now: dt.datetime, labels: dict, root: Path | None = None,

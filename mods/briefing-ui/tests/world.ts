@@ -88,6 +88,8 @@ export type WorldOptions = {
   status?: Raw[]
   tasks?: Raw[]
   teams?: Raw[]
+  /** what `workplace.py launch` answers (its --json output), by its argv */
+  launch?: (argv: string[]) => Raw
   /** workplace.control.name */
   control?: string
   /** further claude_code_ui keys */
@@ -100,6 +102,8 @@ export type WorldOptions = {
 
 export type World = {
   calls: string[][]
+  /** the timeout of each call in `calls`, at the same index */
+  timeouts: number[]
   writes: { path: string; text: string }[]
   prompts: string[]
   toasts: string[]
@@ -127,7 +131,7 @@ export function world(on: On, opts: WorldOptions = {}): World {
     _language: null,
   }
   const w: World = {
-    calls: [], writes: [], prompts: [], toasts: [], registered: [], clock,
+    calls: [], timeouts: [], writes: [], prompts: [], toasts: [], registered: [], clock,
     status: opts.status ?? [],
     collect: opts.collect ?? collect(),
     find: (...words) => w.calls.filter(argv => words.every(x => argv.includes(x))),
@@ -165,6 +169,7 @@ export function world(on: On, opts: WorldOptions = {}): World {
   on('process.run', (_$, e) => {
     const argv = [...e.argv]
     w.calls.push(argv)
+    w.timeouts.push(e.init?.timeoutMs ?? 0)
     if (argv[0] === 'python3' && argv[1] === '-c') {
       if (opts.configRun) return { value: { ...opts.configRun, isStdoutTruncated: false, isStderrTruncated: false } }
       return ok(JSON.stringify(config))
@@ -175,6 +180,7 @@ export function world(on: On, opts: WorldOptions = {}): World {
       if (argv[2] === 'status') return ok(JSON.stringify(w.status))
       if (argv[2] === 'tasks') return ok(JSON.stringify(opts.tasks ?? []))
       if (argv[2] === 'teams') return ok(JSON.stringify(opts.teams ?? []))
+      if (argv[2] === 'launch' && opts.launch) return ok(JSON.stringify(opts.launch(argv)))
       return ok('{"report": [], "items": []}')
     }
     if (script === 'scripts/inbox.py') return ok('')
