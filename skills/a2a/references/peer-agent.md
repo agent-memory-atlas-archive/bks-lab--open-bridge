@@ -50,6 +50,68 @@ approver is yours to write: a messenger note with a quoted reply, a push button,
 page. Callers should ask with `a2a.sh ask <peer> "..." --wait <seconds>`, which sends
 without blocking and polls.
 
+## 4b. Requests: a peer asks for something to be DONE (optional)
+
+A question is answered from `share/`. Some asks are not questions: "give Alice
+DNS rights on that zone". With a `requests:` block (it needs `approval:` and
+`auth:`) a peer can send those as requests, and you stay the one who decides:
+
+```yaml
+requests:
+  enabled: true
+  # rules: "policy/rules.yaml"       # default, inside agents/<name>/
+  # ledger: "policy/ledger.jsonl"    # default
+  # execute:                         # optional, see below
+  #   command: ["python3", "${tools_dir}/execute.py"]
+  #   timeout_sec: 900
+```
+
+What happens to a request:
+
+1. **The model never sees it.** The runtime records it in the ledger and looks for
+   one of your rules for that peer and subject (deny wins over allow).
+2. **No rule: you are asked**, through the same approver command as answers, with
+   `"kind": "request"`, the peer, the subject and the text. An approver that only
+   knows answers still works: `answer` then holds a readable summary.
+3. **You decide, and may decide for the future.** `approve` or `reject`, optionally
+   with `text` (a note for the peer) and a `rule`:
+   `{"decision": "approve", "rule": {"effect": "allow", "note": "...", "expires": "2027-01-01"}}`.
+   `allow` means this peer gets the same subject without asking, `deny` means never.
+   The rule's subject defaults to the request's; a trailing `*` covers a prefix,
+   and only you can write one: a peer's subject is letters, digits and `. _ : @ / -`,
+   no spaces, no wildcard, so it can neither widen your rule nor fake lines in what
+   you read. A rule must agree with the decision (allow with a yes, deny with a no),
+   otherwise nothing is done. An `edit` from an approver that only knows answers
+   counts as a no, with your text as the reply.
+4. **After a yes**, your `execute.command` runs with the request as JSON on stdin and
+   answers `{"status": "done"|"failed", "text": "..."}`. It runs with your rights,
+   so it decides what a yes may really do: the subject is a label the peer chose,
+   not a guarantee. Without an execute command the peer is told you carry it out
+   yourself.
+5. **Everything is recorded** in `policy/ledger.jsonl`: requested, refused,
+   decided (by you or by which rule), executed, cancelled, rule added, failed or
+   revoked, each with time and peer. A peer may have three requests waiting on you
+   at once; more are refused.
+
+You keep the power over the rules: edit `policy/rules.yaml` by hand (read fresh on
+every request; if it does not parse, no rule applies, every request comes to you,
+and nothing is written over it until you fix it), or use the CLI from `agents/`:
+
+```bash
+python3 -m _runtime.policy <name> list
+python3 -m _runtime.policy <name> history --peer <id>
+python3 -m _runtime.policy <name> add --peer <id> --subject <s> --effect allow --note "..."
+python3 -m _runtime.policy <name> revoke <rule-id>
+```
+
+A revoked rule stays in the file with `revoked_at`, so what was allowed when stays
+readable. A peer reads the rules and history that concern it with
+`a2a.sh rules <peer>`; it never sees another peer's. The card names the two extra
+skills, `owner_request` and `owner_policy`, so a caller knows before it asks.
+
+Callers: `a2a.sh request <peer> "<what>" --subject <area/target/action>`, then
+`a2a.sh get <peer> <task_id>` to see the decision.
+
 ## 5. Publish on a private network only
 
 ```bash

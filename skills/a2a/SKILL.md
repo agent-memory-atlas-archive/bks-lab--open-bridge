@@ -29,6 +29,9 @@ Read the referenced file ONLY when the branch below sends you there.
 | `peers` | list `infra/a2a-peers/*.yaml` |
 | `card <peer\|url>` | fetch the card, report endpoint, version, dialect, https, skills, schemes |
 | `ask <peer> "<question>" [--context ID] [--wait S] [--json]` | send one question in the peer's dialect; `--wait` polls a held task (a peer waiting for its owner's approval) |
+| `get <peer> <task_id> [--json]` | read a held task again (approved meanwhile?) without sending anything new |
+| `request <peer> "<what>" [--subject S] [--wait S] [--json]` | ask the peer's OWNER to do something; the owner (or a rule the owner set) decides, the model never sees it. Needs `owner_request` on the card |
+| `rules <peer> [--json]` | the owner's rules for you and your request history at that peer (`owner_policy`) |
 | `probe <peer> [--prompts FILE]` | no token and wrong token must be refused, then each boundary prompt is checked against its expected refusal or answer |
 | `new-agent <name> --trust public\|peer [--port N] [--peer ID:ENV:LOGIN]` | scaffold `agents/<name>/`; `peer` writes agent.yaml with auth, a prompt skeleton with a topic boundary, `share/` and `launch.sh` |
 
@@ -47,6 +50,9 @@ else. Never ask the user for a token in chat, never put one in a command line.
 What does the user want?
 ├── Ask another Bridge something          → `a2a.sh ask <peer> "..."`; unknown peer →
 │                                           `a2a.sh peers`, then references/peers.md
+├── Ask another Bridge's owner to DO sth  → `a2a.sh request <peer> "..." --subject a/b/c`,
+│                                           then `get`; their rules: `a2a.sh rules <peer>`
+├── Let peers request actions from you    → references/peer-agent.md § 4b
 ├── "Is that agent set up right?"         → `a2a.sh card <peer|url>`, then `probe`
 ├── Add a peer to call                    → references/peers.md
 ├── Offer an agent to the public          → `new-agent <name> --trust public`, then

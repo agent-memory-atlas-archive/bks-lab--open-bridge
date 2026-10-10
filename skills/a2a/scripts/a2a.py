@@ -192,7 +192,8 @@ def fetch_card(card_url: str, timeout: float = 20) -> dict:
 
 # ---------------------------------------------------------------------------- ask
 
-def build_payload(question: str, context_id: str | None, protocol: str, *, nonblocking: bool = False) -> dict:
+def build_payload(question: str, context_id: str | None, protocol: str, *, nonblocking: bool = False,
+                  metadata: dict | None = None) -> dict:
     msg_id = str(uuid.uuid4())
     if protocol.startswith("1."):
         message = {"role": "ROLE_USER", "messageId": msg_id, "parts": [{"text": question}]}
@@ -203,6 +204,8 @@ def build_payload(question: str, context_id: str | None, protocol: str, *, nonbl
         name = "message/send"
     if context_id:
         message["contextId"] = context_id
+    if metadata:
+        message["metadata"] = metadata
     params: dict = {"message": message}
     if nonblocking:
         # Return at once and let the caller poll: a peer holding the task for its
@@ -242,12 +245,15 @@ def _headers(protocol: str, token: str | None) -> dict:
 
 
 def ask(card: dict, question: str, *, token: str | None, context_id: str | None = None,
-        wait: float = 0, poll_every: float = 5, timeout: float = 200) -> dict:
+        wait: float = 0, poll_every: float = 5, timeout: float = 200,
+        metadata: dict | None = None, nonblocking: bool = False) -> dict:
     """Send one question; poll while the peer holds the task (e.g. awaiting approval)."""
     protocol, url = card_endpoint(card)
     if not protocol.startswith(SUPPORTED_MAJORS):
         raise A2AError(f"unsupported protocol version {protocol or 'missing'}")
-    status, body = http_json(url, body=build_payload(question, context_id, protocol, nonblocking=wait > 0),
+    payload = build_payload(question, context_id, protocol, nonblocking=nonblocking or wait > 0,
+                            metadata=metadata)
+    status, body = http_json(url, body=payload,
                              headers=_headers(protocol, token), timeout=timeout)
     if status in (401, 403):
         raise A2AError(f"peer refused the call ({status}): token missing, wrong, or bound to another identity")
@@ -259,13 +265,47 @@ def ask(card: dict, question: str, *, token: str | None, context_id: str | None 
     deadline = time.monotonic() + wait
     while _state(task) not in TERMINAL and task.get("id") and time.monotonic() < deadline:
         time.sleep(poll_every)
-        method = "GetTask" if protocol.startswith("1.") else "tasks/get"
-        _, got = http_json(url, body={"jsonrpc": "2.0", "id": "poll", "method": method,
-                                      "params": {"id": task["id"]}},
-                           headers=_headers(protocol, token), timeout=timeout)
-        if isinstance(got, dict) and isinstance(got.get("result"), dict):
-            task = _task_of(got["result"])
+        task = get_task(card, task["id"], token=token, timeout=timeout) or task
     return task
+
+
+def get_task(card: dict, task_id: str, *, token: str | None, timeout: float = 60) -> dict | None:
+    """Read a task again (a held one may have been approved meanwhile), without sending anything new."""
+    protocol, url = card_endpoint(card)
+    method = "GetTask" if protocol.startswith("1.") else "tasks/get"
+    status, got = http_json(url, body={"jsonrpc": "2.0", "id": "poll", "method": method, "params": {"id": task_id}},
+                            headers=_headers(protocol, token), timeout=timeout)
+    if status in (401, 403):
+        raise A2AError(f"peer refused the call ({status}): token missing, wrong, or bound to another identity")
+    if isinstance(got, dict) and isinstance(got.get("result"), dict):
+        return _task_of(got["result"])
+    return None
+
+
+# ----------------------------------------------------------------- owner requests
+
+# Skills a peer runtime puts on its card when it takes requests (agents/_runtime/policy.py).
+REQUEST_SKILL, POLICY_SKILL = "owner_request", "owner_policy"
+
+
+def require_skill(card: dict, skill: str) -> None:
+    ids = {s.get("id") for s in card.get("skills") or [] if isinstance(s, dict)}
+    if skill not in ids:
+        raise A2AError(f"this peer's card has no {skill} skill: it takes questions only, "
+                         "its owner has not switched on requests")
+
+
+def print_task(task: dict, as_json: bool) -> int:
+    if as_json:
+        print(json.dumps({"state": _state(task), "task_id": task.get("id"),
+                          "context_id": task.get("contextId"), "text": task_text(task)},
+                         ensure_ascii=False))
+    else:
+        state = _state(task) or "unknown"
+        held = f" task {task['id']} (read again: a2a.sh get <peer> {task['id']})" \
+            if state not in TERMINAL and task.get("id") else ""
+        print(f"[{state}]{held} {task_text(task)}".rstrip())
+    return 0 if _state(task) == "completed" else 1
 
 
 # -------------------------------------------------------------------------- token
@@ -385,6 +425,12 @@ def main(argv: list[str] | None = None) -> int:
     a = sub.add_parser("ask"); a.add_argument("peer"); a.add_argument("question")
     a.add_argument("--context"); a.add_argument("--wait", type=float, default=0)
     a.add_argument("--json", action="store_true")
+    g = sub.add_parser("get"); g.add_argument("peer"); g.add_argument("task_id")
+    g.add_argument("--json", action="store_true")
+    rq = sub.add_parser("request"); rq.add_argument("peer"); rq.add_argument("text")
+    rq.add_argument("--subject", default=""); rq.add_argument("--wait", type=float, default=0)
+    rq.add_argument("--json", action="store_true")
+    ru = sub.add_parser("rules"); ru.add_argument("peer"); ru.add_argument("--json", action="store_true")
     pr = sub.add_parser("probe"); pr.add_argument("peer")
     pr.add_argument("--prompts", type=Path, default=ASSETS / "probe-prompts.yaml")
     n = sub.add_parser("new-agent"); n.add_argument("name")
@@ -405,13 +451,27 @@ def main(argv: list[str] | None = None) -> int:
             url, peer = resolve_target(args.peer, root)
             token = with_token(peer, argv)
             task = ask(fetch_card(url), args.question, token=token, context_id=args.context, wait=args.wait)
-            if args.json:
-                print(json.dumps({"state": _state(task), "task_id": task.get("id"),
-                                  "context_id": task.get("contextId"), "text": task_text(task)},
-                                 ensure_ascii=False))
+            return print_task(task, args.json)
+        if args.cmd in ("request", "rules"):
+            url, peer = resolve_target(args.peer, root)
+            card = fetch_card(url)
+            require_skill(card, REQUEST_SKILL if args.cmd == "request" else POLICY_SKILL)
+            token = with_token(peer, argv)
+            if args.cmd == "request":
+                meta = {"kind": "request", **({"subject": args.subject} if args.subject else {})}
+                task = ask(card, args.text, token=token, wait=args.wait, nonblocking=True,
+                           metadata={"bridge_request": meta})
             else:
-                print(f"[{_state(task) or 'unknown'}] {task_text(task)}")
-            return 0 if _state(task) == "completed" else 1
+                task = ask(card, "rules and history", token=token,
+                           metadata={"bridge_request": {"kind": "policy"}})
+            return print_task(task, args.json)
+        if args.cmd == "get":
+            url, peer = resolve_target(args.peer, root)
+            token = with_token(peer, argv)
+            task = get_task(fetch_card(url), args.task_id, token=token)
+            if task is None:
+                raise A2AError(f"the peer does not know task {args.task_id}")
+            return print_task(task, args.json)
         if args.cmd == "probe":
             url, peer = resolve_target(args.peer, root)
             token = with_token(peer, argv)

@@ -34,6 +34,7 @@ from a2a.server.tasks import TaskUpdater
 from a2a.types import TaskState, UnsupportedOperationError
 
 from .otlp_logging import transcript_logger
+from .owner_requests import OwnerRequests, request_of
 from .runner import SubprocessClaudeRunner
 
 logger = logging.getLogger(__name__)
@@ -127,8 +128,15 @@ class ClaudeAgentExecutor(AgentExecutor):
         max_contexts: int = 500,
         messages: dict | None = None,
         approver=None,
+        requests=None,
     ) -> None:
         self._runner = runner
+        # Peer requests (see _runtime/owner_requests.py): only with an approver, since
+        # the owner must be askable. They never reach the model.
+        self._requests = (
+            OwnerRequests(requests, approver, messages)
+            if requests is not None and requests.enabled and approver is not None else None
+        )
         # Owner approval (see _runtime/approval.py). When set, a finished answer is
         # held until the approver decides, and nothing of it streams out before.
         self._approver = approver
@@ -152,9 +160,13 @@ class ClaudeAgentExecutor(AgentExecutor):
         """Handle a message/send or message/stream request."""
         user_text = ""
         runtime_context = ""
+        request_kind, request_subject = "", ""
         if context.message is not None:
             user_text = (get_message_text(context.message) or "").strip()
             runtime_context = self._runtime_context_from(context.message)
+            if self._requests is not None:
+                request_kind, request_subject = request_of(
+                    getattr(context.message, "metadata", None))
 
         # a2a-sdk 1.x: enqueue the Task BEFORE any status update.
         task = context.current_task
@@ -186,12 +198,40 @@ class ClaudeAgentExecutor(AgentExecutor):
             )
             return
 
+        if len(user_text) > self._max_input_chars and request_kind == "request":
+            # A request nobody decided must not look completed to a waiting caller.
+            await updater.reject(
+                message=updater.new_agent_message([new_text_part(
+                    self._msg["too_long"].format(n=len(user_text), max=self._max_input_chars)
+                )])
+            )
+            return
+
         if len(user_text) > self._max_input_chars:
             await updater.complete(
                 message=updater.new_agent_message([new_text_part(
                     self._msg["too_long"].format(n=len(user_text), max=self._max_input_chars)
                 )])
             )
+            return
+
+        if request_kind:
+            # Not a question: the owner (or the owner's rule) decides, the model is
+            # never involved, so no claude -p slot is taken.
+            req_task = asyncio.ensure_future(self._requests.handle(
+                updater, kind=request_kind, subject=request_subject, text=user_text,
+                peer=peer, task_id=task.id, context_id=task.context_id,
+            ))
+            # Registered like a model turn, so ``cancel`` reaches a waiting request.
+            self._running[task.id] = req_task
+            try:
+                await req_task
+            except asyncio.CancelledError:
+                if not req_task.cancelled():
+                    req_task.cancel()
+                    raise
+            finally:
+                self._running.pop(task.id, None)
             return
 
         # Shed load when every claude -p slot is busy instead of spawning unbounded
