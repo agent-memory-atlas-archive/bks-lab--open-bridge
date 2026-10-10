@@ -32,9 +32,22 @@ def test_build_app_returns_starlette_with_core_routes():
 
 def test_runs_against_newest_a2a_sdk():
     # The runtime targets A2A spec v1.0.1 via a2a-sdk 1.x. Pin the floor to the
-    # current newest (1.1.5, 2026-09-21) so a downgrade below it fails CI.
+    # current newest (1.2.2, 2026-10-05) so a downgrade below it fails CI.
     parts = tuple(int(x) for x in version("a2a-sdk").split(".")[:3])
-    assert parts >= (1, 1, 5), f"a2a-sdk must be >=1.1.5 (A2A v1.0), got {parts}"
+    assert parts >= (1, 2, 2), f"a2a-sdk must be >=1.2.2 (A2A v1.0), got {parts}"
+
+
+def test_agent_card_carries_an_etag():
+    # Since a2a-sdk 1.2.0 the card endpoint sends caching headers, so a website
+    # widget that loads the card on every page view can revalidate instead of
+    # refetching. The card is public and changes only on deploy.
+    client = TestClient(build_app(_cfg()))
+    first = client.get("/.well-known/agent-card.json")
+    assert first.status_code == 200
+    etag = first.headers.get("etag")
+    assert etag, "agent card has no ETag (a2a-sdk < 1.2.0?)"
+    again = client.get("/.well-known/agent-card.json", headers={"If-None-Match": etag})
+    assert again.status_code == 304
 
 
 def test_cors_preflight_allows_the_a2a_version_header():
