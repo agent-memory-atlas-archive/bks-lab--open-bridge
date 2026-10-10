@@ -23,6 +23,19 @@ from a2a.utils.constants import PROTOCOL_VERSION_CURRENT
 from .config import AgentConfig
 
 
+# Added to the card when ``requests:`` is on (see _runtime/policy.py). Send with
+# message metadata ``bridge_request: {"kind": "request", "subject": "..."}`` or
+# ``{"kind": "policy"}``.
+REQUEST_SKILLS = (
+    ("owner_request", "Ask the owner to do something",
+     "A request goes to the owner, not to the model. The owner decides, or a rule the owner "
+     "set does. Metadata bridge_request {kind: request, subject: <short key>}."),
+    ("owner_policy", "Read the rules and history that concern you",
+     "Returns the owner's rules for your peer id and your recorded requests. "
+     "Metadata bridge_request {kind: policy}."),
+)
+
+
 def build_agent_card(cfg: AgentConfig) -> AgentCard:
     skills = [
         AgentSkill(
@@ -36,6 +49,12 @@ def build_agent_card(cfg: AgentConfig) -> AgentCard:
         )
         for s in cfg.skills
     ]
+    if cfg.requests.enabled:
+        declared = {s.id for s in skills}
+        for sid, name, desc in REQUEST_SKILLS:
+            if sid not in declared:
+                skills.append(AgentSkill(id=sid, name=name, description=desc, tags=["peer"],
+                                         input_modes=["text"], output_modes=["text"]))
 
     provider = None
     if cfg.provider:

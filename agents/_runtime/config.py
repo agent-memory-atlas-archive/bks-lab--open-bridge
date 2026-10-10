@@ -20,6 +20,7 @@ import yaml
 
 from .approval import ApprovalConfig, parse_approval
 from .auth import AuthConfig, parse_auth
+from .policy import RequestsConfig, parse_requests
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +120,7 @@ class AgentConfig:
     trust: str = "public"
     auth: AuthConfig = field(default_factory=AuthConfig)
     approval: ApprovalConfig = field(default_factory=ApprovalConfig)
+    requests: RequestsConfig = field(default_factory=RequestsConfig)
     project_root: str = field(default=str(PROJECT_ROOT))
 
 
@@ -236,6 +238,13 @@ def load_agent_config(instance: str, *, environment: str | None = None) -> Agent
     # here so a broken block stops the start instead of every later answer.
     approval = parse_approval(instance, spec.get("approval"), tools_dir=tools_dir)
 
+    # Peer requests: something to be DONE, decided by the owner or a rule the owner
+    # set (see _runtime/policy.py). Needs both an owner to ask and a known peer.
+    requests = parse_requests(
+        instance, spec.get("requests"), inst_dir=inst_dir.resolve(), tools_dir=tools_dir,
+        has_approval=approval.enabled, has_auth=auth.enabled,
+    )
+
     # Inline grounding: embed declared grounding files straight into the system
     # prompt so the agent answers from context — no Read/Grep round-trip per
     # question (the dominant source of public-widget latency). File tools stay
@@ -279,5 +288,6 @@ def load_agent_config(instance: str, *, environment: str | None = None) -> Agent
         trust=trust,
         auth=auth,
         approval=approval,
+        requests=requests,
         project_root=str(PROJECT_ROOT),
     )

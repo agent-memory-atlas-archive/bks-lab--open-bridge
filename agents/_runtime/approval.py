@@ -18,6 +18,16 @@ and reads one JSON object from its stdout::
     {"decision": "reject"}                        send nothing
     {"decision": "timeout"}                       the owner did not answer in time
 
+For a peer REQUEST (``"kind": "request"`` in the payload, see _runtime/policy.py) the
+same command is asked. ``approve`` and ``reject`` may then carry ``text`` (a note for
+the peer) and a ``rule`` that turns this decision into a standing one::
+
+    {"decision": "approve", "rule": {"effect": "allow", "note": "...", "expires": "..."}}
+    {"decision": "reject",  "rule": {"effect": "deny"}}
+
+``rule.subject`` defaults to the request's subject. A rule that is not a mapping
+with ``effect`` allow or deny makes the whole decision unusable (fails closed).
+
 How the owner is asked (a messenger, a push notification, a web page) is the
 command's business and lives with the instance. Anything the runtime cannot read
 as one of those four, a crash, or silence past the deadline, fails closed: the
@@ -33,6 +43,7 @@ from dataclasses import dataclass
 logger = logging.getLogger(__name__)
 
 VERDICTS = frozenset({"approve", "edit", "reject", "timeout"})
+_RULE_KEYS = frozenset({"effect", "subject", "note", "expires"})
 # Grace on top of the owner's time, for the command to start and report its own timeout.
 _GRACE_SEC = 30.0
 
@@ -51,6 +62,7 @@ class ApprovalConfig:
 class Decision:
     verdict: str            # approve | edit | reject | timeout | error
     text: str = ""
+    rule: dict | None = None  # a standing rule the owner set with this decision
 
 
 def parse_approval(instance: str, spec: dict | None, *, tools_dir: str) -> ApprovalConfig:
@@ -119,4 +131,10 @@ class CommandApprover:
         if verdict not in VERDICTS or (verdict == "edit" and not text):
             logger.warning("approval: unusable decision %r", data)
             return Decision("error")
-        return Decision(verdict, text)
+        rule = data.get("rule")
+        if rule is not None:
+            if not isinstance(rule, dict) or rule.get("effect") not in ("allow", "deny"):
+                logger.warning("approval: unusable rule %r", rule)
+                return Decision("error")
+            rule = {k: str(v) for k, v in rule.items() if k in _RULE_KEYS and v is not None}
+        return Decision(verdict, text, rule)

@@ -219,3 +219,18 @@ def test_no_block_means_no_approval():
 def test_a_bad_block_refuses_to_start(spec):
     with pytest.raises(ValueError):
         parse_approval("x", spec, tools_dir="/t")
+
+
+# --- a decision may carry a standing rule (peer requests, see _runtime/policy.py) ----
+
+def test_a_rule_travels_with_the_decision():
+    body = ("import json; print(json.dumps({'decision':'approve','text':'ok',"
+            "'rule':{'effect':'allow','note':'darf','junk':'x'}}))")
+    got = _run(CommandApprover(_program(body)))
+    assert got == Decision("approve", "ok", {"effect": "allow", "note": "darf"})
+
+
+@pytest.mark.parametrize("rule", ["'allow'", "{'effect':'maybe'}", "{'note':'no effect'}"])
+def test_an_unusable_rule_fails_the_whole_decision_closed(rule):
+    body = f"import json; print(json.dumps({{'decision':'approve','rule':{rule}}}))"
+    assert _run(CommandApprover(_program(body))).verdict == "error"

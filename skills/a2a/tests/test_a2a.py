@@ -313,3 +313,73 @@ def test_json_output_of_ask_is_machine_readable(monkeypatch, bridge, capsys):
     assert a2a.main(["ask", "open", "Frage?", "--json"]) == 0
     out = json.loads(capsys.readouterr().out)
     assert out["state"] == "completed" and out["text"] == "Antwort."
+
+
+def test_get_reads_a_held_task_again_without_sending_the_question(monkeypatch, bridge, capsys):
+    monkeypatch.setattr(a2a, "repo_root", lambda start=None: bridge)
+    monkeypatch.setattr(a2a, "fetch_card", lambda url: v1_card())
+    rec = Recorder([(200, {"result": v1_task(text="Freigegeben.")["result"]["task"]})])
+    monkeypatch.setattr(a2a, "http_json", rec)
+    assert a2a.main(["get", "open", "t-1", "--json"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["state"] == "completed" and out["text"] == "Freigegeben." and out["task_id"] == "t-1"
+    assert rec.calls[0]["body"]["method"] == "GetTask" and rec.calls[0]["body"]["params"] == {"id": "t-1"}
+
+
+def test_a_question_after_a_double_dash_may_start_with_a_dash(monkeypatch, bridge, capsys):
+    monkeypatch.setattr(a2a, "repo_root", lambda start=None: bridge)
+    monkeypatch.setattr(a2a, "fetch_card", lambda url: v1_card())
+    rec = Recorder([(200, v1_task())])
+    monkeypatch.setattr(a2a, "http_json", rec)
+    assert a2a.main(["ask", "--json", "open", "--", "-x ist das eine Option?"]) == 0
+    assert "-x ist das eine Option?" in json.dumps(rec.calls[0]["body"], ensure_ascii=False)
+
+
+# --- owner requests (a peer runtime with requests: on, see agents/_runtime/policy.py) --
+
+def request_card():
+    card = v1_card()
+    card["skills"] = [{"id": "peer_qa"}, {"id": "owner_request"}, {"id": "owner_policy"}]
+    return card
+
+
+def test_request_sends_the_subject_as_metadata_and_returns_at_once(monkeypatch, bridge, capsys):
+    monkeypatch.setattr(a2a, "repo_root", lambda start=None: bridge)
+    monkeypatch.setattr(a2a, "fetch_card", lambda url: request_card())
+    rec = Recorder([(200, v1_task(state="TASK_STATE_WORKING", text="", task_id="t-9"))])
+    monkeypatch.setattr(a2a, "http_json", rec)
+    assert a2a.main(["request", "open", "Bitte lade mich ein.", "--subject", "cloudflare/x/member"]) == 1
+    msg = rec.calls[0]["body"]["params"]["message"]
+    assert msg["metadata"] == {"bridge_request": {"kind": "request", "subject": "cloudflare/x/member"}}
+    assert rec.calls[0]["body"]["params"]["configuration"] == {"returnImmediately": True}
+    # The task id is printed, so the caller can come back with `get`.
+    assert "t-9" in capsys.readouterr().out
+
+
+def test_request_refuses_a_peer_that_takes_no_requests(monkeypatch, bridge, capsys):
+    monkeypatch.setattr(a2a, "repo_root", lambda start=None: bridge)
+    monkeypatch.setattr(a2a, "fetch_card", lambda url: v1_card())
+    rec = Recorder([])
+    monkeypatch.setattr(a2a, "http_json", rec)
+    assert a2a.main(["request", "open", "Bitte."]) == 2
+    assert rec.calls == []
+    assert "owner_request" in capsys.readouterr().err
+
+
+def test_rules_reads_the_policy_view(monkeypatch, bridge, capsys):
+    monkeypatch.setattr(a2a, "repo_root", lambda start=None: bridge)
+    monkeypatch.setattr(a2a, "fetch_card", lambda url: request_card())
+    rec = Recorder([(200, v1_task(text="Rules for you:\n- r-1: allow x"))])
+    monkeypatch.setattr(a2a, "http_json", rec)
+    assert a2a.main(["rules", "open"]) == 0
+    assert rec.calls[0]["body"]["params"]["message"]["metadata"] == {"bridge_request": {"kind": "policy"}}
+    assert "r-1: allow x" in capsys.readouterr().out
+
+
+def test_a_held_answer_prints_its_task_id(monkeypatch, bridge, capsys):
+    monkeypatch.setattr(a2a, "repo_root", lambda start=None: bridge)
+    monkeypatch.setattr(a2a, "fetch_card", lambda url: v1_card())
+    rec = Recorder([(200, v1_task(state="TASK_STATE_WORKING", text="", task_id="t-held"))])
+    monkeypatch.setattr(a2a, "http_json", rec)
+    a2a.main(["ask", "open", "Stand?"])
+    assert "t-held" in capsys.readouterr().out
