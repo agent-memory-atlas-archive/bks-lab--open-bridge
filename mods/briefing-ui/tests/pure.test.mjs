@@ -267,3 +267,128 @@ test('a task row of a page brings its detail lines, priority and state', () => {
   assert.deepEqual(it.lines, [{ kind: 'step', text: 'first' }, { kind: 'log', text: '2026-10-07 x' }])
   assert.deepEqual(m.parseInfo({ title: 'B' }).lines, [])
 })
+
+test('task review: the json of task.py review, the cache file, the model short name', () => {
+  const out = m.parseReview(JSON.stringify({ tasks: [
+    { slug: 'alpha', title: 'A', verdict: 'close', reason: 'example-org/x#49 closed', confidence: 'high',
+      model: 'claude-haiku-5-5', cached: false, kept: false, evidence_summary: 'doing' },
+    { slug: 'beta', title: 'B', verdict: 'nonsense', reason: 'r', confidence: 'low', model: null, cached: true, kept: true }],
+  cost_usd: 0.009, models_used: ['claude-haiku-5-5'], model_mismatch: [{ requested: 'x', used: ['y'] }] }))
+  assert.equal(out.reviews.alpha.verdict, 'close')
+  assert.equal(out.reviews.alpha.model, 'claude-haiku-5-5')
+  assert.equal(out.reviews.beta.verdict, 'unclear')
+  assert.equal(out.reviews.beta.kept, true)
+  assert.equal(out.count, 2)
+  assert.equal(out.toClose, 1)
+  assert.equal(out.costUsd, 0.009)
+  assert.deepEqual(out.mismatch, ['x → y'])
+  const cached = m.parseReviewCache(JSON.stringify({ version: 1, tasks: {
+    alpha: { verdict: 'stale', reason: 'quiet', confidence: 'medium', model: 'claude-sonnet-5-5', kept: false, hash: 'h' } } }))
+  assert.equal(cached.alpha.verdict, 'stale')
+  assert.equal(cached.alpha.cached, true)
+  assert.deepEqual(m.parseReviewCache('not json'), {})
+  assert.equal(m.modelShort('claude-haiku-5-5'), 'Haiku 5.5')
+  assert.equal(m.modelShort('claude-haiku-4-5-20251001'), 'Haiku 4.5')
+  assert.equal(m.modelShort('claude-opus-5-5'), 'Opus 5.5')
+  assert.equal(m.modelShort('some-model'), 'some-model')
+  assert.equal(m.modelShort(null), '?')
+})
+
+test('task review: the summary names count, to close and cost in cents, per language', () => {
+  const { de, en } = text.TABLES
+  assert.equal(de.reviewDone(14, 3, 0.009, true), '14 geprüft, 3 zum Schließen, 0,9 ct')
+  assert.equal(en.reviewDone(14, 3, 0.009, true), '14 reviewed, 3 to close, 0.9 ct')
+  assert.equal(en.reviewDone(2, 0, 0, true), '2 reviewed, 0 to close, 0 ct')
+  assert.equal(de.verdictTag.close, 'schließen?')
+  assert.equal(de.verdictTag.stale, 'steht?')
+  assert.equal(en.verdictTag.close, 'close?')
+})
+
+test('task review: the signal travels with the review and the cache', () => {
+  const out = m.parseReview(JSON.stringify({ tasks: [{ slug: 'a', verdict: 'continue', reason: 'r', confidence: 'medium',
+    resolved: true, signals: { own_refs_closed: true, blocker_resolved: false, closed_refs: ['o/r#1 2026-10-03'] } }] }))
+  assert.equal(out.reviews.a.resolved, true)
+  assert.deepEqual(out.reviews.a.closedRefs, ['o/r#1 2026-10-03'])
+  assert.equal(out.toClose, 1)
+  assert.equal(m.parseReviewCache(JSON.stringify({ tasks: { a: { verdict: 'continue', resolved: true } } })).a.resolved, true)
+  assert.equal(text.TABLES.de.signalClosed('o/r#1 2026-10-03'), 'erledigt laut GitHub: o/r#1 2026-10-03')
+})
+
+test('task review: unknown cost is said, a resolved blocker is a hint, a stream is known', () => {
+  const { de, en } = text.TABLES
+  assert.equal(de.reviewDone(3, 1, 0, false), '3 geprüft, 1 zum Schließen, Kosten unbekannt')
+  assert.equal(en.reviewDone(3, 1, 0.009, false), '3 reviewed, 1 to close, cost unknown')
+  assert.equal(en.reviewDone(3, 1, 0.009, true), '3 reviewed, 1 to close, 0.9 ct')
+  const out = m.parseReview(JSON.stringify({ cost_known: false, tasks: [{ slug: 'a', verdict: 'continue', resolved: false,
+    signals: { own_refs_closed: false, blocker_resolved: true, closed_refs: ['o/r#1 2026-10-03'] } }] }))
+  assert.equal(out.costKnown, false)
+  assert.equal(out.reviews.a.unblocked, true)
+  assert.equal(out.toClose, 0)
+  assert.equal(de.signalUnblocked('o/r#1'), 'Blocker erledigt: o/r#1')
+  assert.equal(m.parseTasks(JSON.stringify([{ slug: 's', kind: 'streams' }]))[0].isStream, true)
+  assert.equal(m.parseTasks(JSON.stringify([{ slug: 't', kind: 'tasks' }]))[0].isStream, false)
+})
+
+// ---------------------------------------------------------------- review overview
+
+const rv = (slug, verdict, extra = {}) => ({ slug, verdict, reason: 'r', confidence: 'medium', model: null, cached: true,
+  kept: false, resolved: false, closedRefs: [], unblocked: false, title: slug, priority: null, days: null, chips: [],
+  previous: null, changed: false, ...extra })
+
+test('overview: effective verdicts, counts, filters and sorts', () => {
+  const list = [rv('a', 'continue', { resolved: true, priority: 'P2', days: 3 }), rv('b', 'stale', { changed: true,
+    priority: 'P0', days: 40 }), rv('c', 'waiting', { days: 5 }), rv('d', 'close', { kept: true, priority: 'P1', days: 1 }),
+  rv('e', 'unclear', { days: null })]
+  assert.equal(m.effectiveVerdict(list[0]), 'close')
+  assert.equal(m.effectiveVerdict(list[3]), 'continue')
+  assert.deepEqual(m.ovCounts(list), { all: 5, close: 1, stale: 1, waiting: 1, continue: 1, unclear: 1, changed: 1 })
+  assert.deepEqual(m.ovFilter(list, 'changed').map(r => r.slug), ['b'])
+  assert.deepEqual(m.ovFilter(list, 'close').map(r => r.slug), ['a'])
+  assert.deepEqual(m.ovSort(list, 'verdict').map(r => r.slug), ['a', 'b', 'c', 'e', 'd'])
+  assert.deepEqual(m.ovSort(list, 'priority').map(r => r.slug), ['b', 'd', 'a', 'c', 'e'])
+  assert.deepEqual(m.ovSort(list, 'activity').map(r => r.slug), ['b', 'c', 'a', 'd', 'e'])
+  assert.equal(m.confDots('high'), '●●●')
+  assert.equal(m.confDots('medium'), '●●○')
+  assert.equal(m.confDots('low'), '●○○')
+  const bar = m.barParts({ close: 1, stale: 2, waiting: 0, continue: 7, unclear: 0 }, 20)
+  assert.deepEqual(bar.map(p => p.verdict), ['close', 'stale', 'continue'])
+  assert.equal(bar.reduce((n, p) => n + p.cells, 0), 20)
+  assert.ok(bar.every(p => p.cells >= 1))
+  assert.equal(m.minutesSince('2026-10-09T07:55:00', new Date(2026, 9, 9, 8, 0, 0).getTime()), 5)
+})
+
+test('overview: the run of task.py review and its cache carry the overview data', () => {
+  const run = { tasks: [{ slug: 'a', title: 'A', verdict: 'stale', priority: 'P1', days_since_activity: 30,
+    chips: [{ kind: 'ref', ref: 'o/r#49', state: 'closed', date: '2026-10-03' }, { kind: 'steps', count: 3 }],
+    previous_verdict: 'continue', changed: true }], cost_usd: 0.009, cost_known: true, models_used: ['claude-haiku-5-5'],
+    reviewed_at: '2026-10-09T07:55:00', duration_sec: 24.4, escalate_call_usd: 0.021 }
+  const got = m.parseReview(JSON.stringify(run))
+  assert.equal(got.reviews.a.days, 30)
+  assert.equal(got.reviews.a.changed, true)
+  assert.equal(got.reviews.a.previous, 'continue')
+  assert.equal(got.reviews.a.priority, 'P1')
+  assert.equal(got.reviews.a.chips.length, 2)
+  assert.deepEqual(got.meta, { at: '2026-10-09T07:55:00', durationSec: 24.4, costUsd: 0.009, costKnown: true,
+    models: ['claude-haiku-5-5'], count: 1, escalateUsd: 0.021 })
+  const last = m.parseReviewLast(JSON.stringify({ version: 1, tasks: {}, last: run }))
+  assert.equal(last.reviews.a.verdict, 'stale')
+  assert.equal(m.parseReviewLast(JSON.stringify({ tasks: {} })), null)
+  const { de, en } = text.TABLES
+  assert.equal(de.chip({ kind: 'ref', ref: 'o/r#49', state: 'closed', date: '2026-10-03' }), '#49 zu 03.10.')
+  assert.equal(en.chip({ kind: 'ref', ref: 'o/r#49', state: 'closed', date: '2026-10-03' }), '#49 closed 03.10.')
+  assert.equal(de.chip({ kind: 'ref', ref: 'o/r#5', state: 'merged', date: '2026-10-02' }), '#5 gemergt 02.10.')
+  assert.equal(de.chip({ kind: 'ref', ref: 'o/r#7', state: 'open', date: null }), '#7 offen')
+  assert.equal(de.chip({ kind: 'unblocked' }), 'Blocker erledigt')
+  assert.equal(de.chip({ kind: 'steps', count: 3 }), '3 Schritte offen')
+  assert.equal(de.chip({ kind: 'inbox', count: 2 }), '2 im Posteingang')
+  assert.equal(en.chip({ kind: 'inbox', count: 2 }), '2 in the inbox')
+  assert.equal(de.ovStrip(14, '0,9 ct', 'Haiku 5.5', 24, 5), '14 geprüft · 0,9 ct · Haiku 5.5 · 24 s · Stand: vor 5 Min')
+})
+
+test('button labels start with a capital, checkboxes and digits stay', () => {
+  assert.equal(m.capFirst('alle zeigen ›'), 'Alle zeigen ›')
+  assert.equal(m.capFirst('⟳ neu'), '⟳ Neu')
+  assert.equal(m.capFirst('1 week'), '1 week')
+  assert.equal(m.capFirst('über'), 'Über')
+  assert.equal(m.capFirst('[x]'), '[x]')
+})

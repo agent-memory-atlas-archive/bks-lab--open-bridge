@@ -11,7 +11,7 @@ set -u
 cd "$(dirname "$0")/../.."
 
 exec python3 -m pytest -q scripts/tests/test_inbox.py scripts/tests/test_inbox_approve.py \
-    scripts/tests/test_workplace.py scripts/tests/test_task.py \
+    scripts/tests/test_workplace.py scripts/tests/test_task.py scripts/tests/test_task_review.py \
     skills/briefing/tests/test_advise.py \
     scripts/tests/test_briefing.py scripts/tests/test_briefing_providers.py \
     scripts/tests/test_briefing_view.py scripts/tests/test_briefing_activity.py \

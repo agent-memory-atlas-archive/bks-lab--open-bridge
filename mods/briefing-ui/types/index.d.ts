@@ -143,7 +143,31 @@ export type SideTab = 'all' | SectionId | 'tabs'
 
 /** One active task from `workplace.py tasks --json` */
 export type TaskInfo = { slug: string; label: string; area: string; areaNames: string[]; priority: string | null
-  blockedBy: string | null; stale: boolean; age: number; type: string | null }
+  blockedBy: string | null; stale: boolean; age: number; type: string | null
+  /** a long-runner under work/streams/: it never closes */
+  isStream: boolean }
+
+/** One recommendation of `task.py review`: what to do with a task, why, and which model said so */
+export type Review = { slug: string; verdict: 'close' | 'continue' | 'waiting' | 'stale' | 'unclear'; reason: string
+  confidence: string; model: string | null; cached: boolean; kept: boolean
+  /** GitHub says done (own refs closed, or the blocker resolved): a close is recommended whatever the model said */
+  resolved: boolean; closedRefs: string[]
+  /** what blocked_by names is closed or merged: a hint, never a close by itself */
+  unblocked: boolean
+  /** for the overview: the task's title and priority, days since its last activity, the evidence as chips */
+  title: string; priority: string | null; days: number | null; chips: Chip[]
+  /** the verdict before the last review, and whether the last review changed it */
+  previous: string | null; changed: boolean }
+
+/** One piece of evidence of a review, as task.py lists it */
+export type Chip = { kind: string; ref?: string; state?: string; date?: string | null; count?: number }
+
+/** The last review run as a whole: when, how long, what it cost, which models answered */
+export type ReviewMeta = { at: string; durationSec: number | null; costUsd: number; costKnown: boolean; models: string[]
+  count: number; escalateUsd: number }
+
+export type OvFilter = 'all' | 'close' | 'stale' | 'waiting' | 'continue' | 'unclear' | 'changed'
+export type OvSort = 'verdict' | 'priority' | 'activity'
 
 declare module 'claude-code' {
   interface PluginState {
@@ -192,6 +216,24 @@ declare module 'claude-code' {
       starting: string[]
       /** The active tasks as workplace.py tasks lists them; an opened task row of a page takes area and priority from it */
       taskInfo: TaskInfo[]
+      /** the last recommendation per task slug (task.py review, or its cache file on open) */
+      reviews: Record<string, Review>
+      /** a review is running: 'all' or the slugs it checks */
+      reviewing: string | null
+      /** the first click on Done/Close: the second within a few seconds closes */
+      confirmClose: { slug: string; at: number } | null
+      /** tasks closed from the card in this session: their rows stay away */
+      closedTasks: string[]
+      /** the last review run (strip of the overview); null before any */
+      reviewMeta: ReviewMeta | null
+      /** the overview's filter chip, sort, picked task slugs, open row and the pending bulk close (first click) */
+      ovFilter: OvFilter
+      ovSort: OvSort
+      ovPicked: string[]
+      ovOpen: string | null
+      ovConfirm: { at: number; n: number } | null
+      /** the overview shown on the card's briefing page */
+      showOverview: boolean
       /** "release all N" pressed: the confirmation prompt is showing */
       confirmAll: boolean
       /** why bridge-config.yaml could not be read; null when it was read */

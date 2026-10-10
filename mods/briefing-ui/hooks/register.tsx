@@ -1,13 +1,14 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, ResolveInput } from 'claude-code'
+import type { ButtonProps, EngineInterface, Register, RenderNode, ResolveInput, TextProps } from 'claude-code'
 
 import type {
-  Info, Mark, Mode, PageId, Row, SectionId, SideTab, Tab, TabSeen, Target, Team, TeamRun, UiConfig, View,
+  Info, Mark, Mode, OvFilter, OvSort, PageId, Review, ReviewMeta, Row, SectionId, SideTab, Tab, TabSeen, Target, Team, TeamRun, UiConfig, View,
 } from '../types'
 import {
   askAbout, askInfo, asText, ATTENTION, BRIEFING_PAGE, clockTime, DAY, evening, filedBy, followUp, isoDate,
-  isLive, isWaiting, launchItem, layout, longText, mergeView, nextMonday, overview, pageBadge, planDay, parseConfig, parseDate,
-  parseTasks, parseTeams, parseView, refNumber, rowUrl, short, SHORTCUT, stateWord, tabColor, tabFor, taskRow,
+  isLive, isWaiting, launchItem, layout, longText, mergeView, modelShort, nextMonday, overview, pageBadge, planDay,
+  parseConfig, parseDate, parseReview, parseReviewCache, parseReviewLast, parseTasks, parseTeams, parseView,
+  barParts, capFirst, confDots, effectiveVerdict, minutesSince, ovCounts, ovFilter, ovSort, STRIP_ORDER, VERDICT_ORDER, refNumber, rowUrl, short, SHORTCUT, stateWord, tabColor, tabFor, taskRow,
   taskRowFor, teamState, toTab, withTasks,
 } from './logic'
 import type { Layout, Section, TaskInfo } from './logic'
@@ -70,6 +71,27 @@ const isControl = atom({ plugin: 'briefing-ui', key: 'isControl' } as const, nul
 const starting = atom({ plugin: 'briefing-ui', key: 'starting' } as const, [] as string[])
 /** The active tasks as workplace.py tasks lists them: area, priority, type; a page row opens with them */
 const taskInfo = atom({ plugin: 'briefing-ui', key: 'taskInfo' } as const, [] as TaskInfo[])
+/** The last recommendation per task (task.py review); on open read from its cache file, no model asked */
+const reviews = atom({ plugin: 'briefing-ui', key: 'reviews' } as const, {} as Record<string, Review>)
+const reviewing = atom({ plugin: 'briefing-ui', key: 'reviewing' } as const, null as string | null)
+const confirmClose = atom({ plugin: 'briefing-ui', key: 'confirmClose' } as const, null as { slug: string; at: number } | null)
+const closedTasks = atom({ plugin: 'briefing-ui', key: 'closedTasks' } as const, [] as string[])
+/** The review overview: last run, filter, sort, picks, open row, a pending bulk close, shown on the card */
+const reviewMeta = atom({ plugin: 'briefing-ui', key: 'reviewMeta' } as const, null as ReviewMeta | null)
+const ovFilterAtom = atom({ plugin: 'briefing-ui', key: 'ovFilter' } as const, 'all' as OvFilter)
+const ovSortAtom = atom({ plugin: 'briefing-ui', key: 'ovSort' } as const, 'verdict' as OvSort)
+const ovPicked = atom({ plugin: 'briefing-ui', key: 'ovPicked' } as const, [] as string[])
+const ovOpen = atom({ plugin: 'briefing-ui', key: 'ovOpen' } as const, null as string | null)
+const ovConfirm = atom({ plugin: 'briefing-ui', key: 'ovConfirm' } as const, null as { at: number; n: number } | null)
+const showOverview = atom({ plugin: 'briefing-ui', key: 'showOverview' } as const, false)
+/** The verdicts' colours: the card's own (green works, yellow wants you, cyan waits, magenta marks) */
+const VERDICT_COLOR: Record<string, string> = { close: 'green', stale: 'yellow', waiting: 'cyan', continue: 'blue',
+  unclear: 'magenta' }
+/** task.py keeps the whole review (evidence and both tiers) inside 190 s; this leaves a margin */
+const REVIEW_TIMEOUT_MS = 240000
+/** How long the first click on Done waits for the second */
+const CONFIRM_MS = 5000
+const REVIEW_CACHE = '.bridge/task-review.json'
 /** How long an item counts as starting after its start returned: until the tab list knows the new tab */
 const START_HOLD_MS = 15000
 /** A start may wait for the router (45 s) and for the driver to see the command run (20 s) */
@@ -105,6 +127,38 @@ const RULE = '─'.repeat(300)
 const LANG_NAME = { de: 'Deutsch', en: 'English' } as const
 /** The identifier sits in the text of the output line, the only place that tells one card from another. */
 const CARD_ID = /\(briefing-ui (\d+)\)/
+
+// ---------------------------------------------------------------- Buttons
+
+/**
+ * The affordance rule of the whole mod: everything clickable is a framed button in a colour, the one main
+ * action of an area `variant="primary"` (or `selected`), closing and dropping in red; grey is information
+ * only. A checkbox ("[x]", "[ ]") is the one plain button, and it is coloured too. Every Button of the mod
+ * goes through this, so a `plain` or `dimColor` at a call site cannot slip through; labels start with a capital.
+ */
+type FramedProps = Omit<ButtonProps, 'label' | 'plain' | 'dimColor'> & {
+  label: string
+  /** colour of the label; cyan by default, red for close and drop */
+  tone?: string
+  /** the current choice of a group (filter, sort, language, priority): drawn as primary */
+  selected?: boolean
+  plain?: boolean
+  dimColor?: boolean
+}
+
+function framed(Raw: (p: ButtonProps) => RenderNode, Txt: (p: TextProps) => RenderNode) {
+  return (p: FramedProps): RenderNode | null | undefined => {
+    const { tone, selected, plain: _plain, dimColor: _dim, label, variant, ...rest } = p
+    const text = capFirst(label.trim())
+    const isCheckbox = /^\[[ x]\]$/.test(text)
+    const isPrimary = variant === 'primary' || selected === true
+    const props = { ...rest, label: text, ...(isPrimary ? { variant: 'primary' as const } : {}),
+      ...(isCheckbox ? { plain: true as const } : {}) }
+    return isPrimary ? h(Raw, props) : h(Raw, props, h(Txt, { color: tone ?? 'cyan' }, text))
+  }
+}
+
+const RED = 'red'
 
 // ---------------------------------------------------------------- Bridge calls
 
@@ -196,6 +250,18 @@ async function loadView($: EngineInterface, how: LoadHow): Promise<void> {
   const now0 = await $.clock.now()
   const freshFor = ((await read($, config))?.fullMinutes ?? 10) * 60000
   const wantsFull = how === 'full' || (how === 'auto' && !(last?.isFull && now0 - (last.fullMs || 0) < freshFor))
+  if (Object.keys(await read($, reviews)).length === 0) {
+    try {
+      const text = await $.fs.read(REVIEW_CACHE)
+      // the last whole run carries the overview; an older cache only the verdicts
+      const last = parseReviewLast(text)
+      const cached = last ? last.reviews : parseReviewCache(text)
+      if (Object.keys(cached).length) await update($, reviews, () => cached)
+      if (last) await update($, reviewMeta, () => last.meta)
+    } catch {
+      // no review yet: no verdicts on the rows
+    }
+  }
   const taskRun = await bridge($, ['scripts/workplace.py', 'tasks', '--json'], 20000)
   let taskList: TaskInfo[] = []
   try {
@@ -643,6 +709,124 @@ async function addNote($: EngineInterface, row: Row, text: string): Promise<void
   await note($, run.ok ? T().noteAdded(short(row.title, 40), short(line, 60)) : T().noteFailed(short(run.err, 100)))
 }
 
+/** Check all open tasks, or the named ones: one recommendation each, with what it cost. Changes no task. */
+async function reviewTasks($: EngineInterface, slugs: string[] | null, escalate = false): Promise<void> {
+  if ((await read($, reviewing)) !== null) {
+    await note($, T().reviewBusy)
+    return
+  }
+  await update($, reviewing, () => (slugs ? slugs.join(',') : 'all'))
+  try {
+    const args = ['scripts/task.py', 'review', ...(escalate ? ['--escalate'] : []), ...(slugs ?? ['--all']), '--json']
+    const run = await bridge($, args, REVIEW_TIMEOUT_MS)
+    if (!run.ok) throw new Error(run.err || 'task.py review failed')
+    const got = parseReview(run.out)
+    await update($, reviews, cur => ({ ...cur, ...got.reviews }))
+    // a whole run is the overview's new strip; a check of a few tasks only changes their rows
+    if (!slugs) await update($, reviewMeta, () => got.meta)
+    const odd = got.mismatch.length ? ` · ${T().modelMismatch(got.mismatch.join('; '))}` : ''
+    await note($, `${T().reviewDone(got.count, got.toClose, got.costUsd, got.costKnown)}${odd}`)
+  } catch (error) {
+    await note($, T().reviewFailed(short(String(error).replace(/^Error: /, ''), 120)))
+  } finally {
+    await update($, reviewing, () => null)
+  }
+}
+
+/** Keep: the recommendation stays away until the task's evidence changes (stored by task.py). */
+async function keepTask($: EngineInterface, slug: string): Promise<void> {
+  const run = await bridge($, ['scripts/task.py', 'review', '--keep', slug, '--json'])
+  if (!run.ok) {
+    await note($, T().keepFailed(short(run.err, 100)))
+    return
+  }
+  await update($, reviews, cur => (cur[slug] ? { ...cur, [slug]: { ...cur[slug]!, kept: true } } : cur))
+  await note($, T().kept(slug))
+}
+
+/**
+ * Close a finished task: the first click asks (the button turns into "really close?"), a second
+ * one within a few seconds runs the 3-step close of task.py and takes the row off the card.
+ */
+async function closeTask($: EngineInterface, slug: string, declined = false): Promise<void> {
+  const now = await $.clock.now()
+  const pending = await read($, confirmClose)
+  if (!pending || pending.slug !== slug || now - pending.at > CONFIRM_MS) {
+    await update($, confirmClose, () => ({ slug, at: now }))
+    $.clock.after(CONFIRM_MS, () => {
+      void update($, confirmClose, cur => (cur && cur.slug === slug && cur.at === now ? null : cur))
+    })
+    return
+  }
+  await update($, confirmClose, () => null)
+  if (await closeNow($, slug, declined)) {
+    await note($, T().taskClosed(slug))
+    startLoad($, 'quick')
+  }
+}
+
+/** The recommendation's reason says why it is finished; a close without one says where it came from. */
+function closeReason(rv: Review | undefined): string {
+  const v = rv ? effectiveVerdict(rv) : null
+  return rv && (v === 'close' || v === 'stale') && rv.reason ? rv.reason : T().closedFromDashboard
+}
+
+/** One task.py close, no questions asked (the caller asked); the row leaves the card. */
+async function closeNow($: EngineInterface, slug: string, declined: boolean): Promise<boolean> {
+  const reason = closeReason((await read($, reviews))[slug])
+  // Close on a stale verdict means dropped, not finished: outcome declined
+  const run = await bridge($, ['scripts/task.py', 'close', slug, '--reason', reason, ...(declined ? ['--declined'] : []),
+    '--json'])
+  if (!run.ok) {
+    await note($, T().closeTaskFailed(short(run.err, 100)))
+    return false
+  }
+  await update($, closedTasks, list => (list.includes(slug) ? list : [...list, slug]))
+  await update($, reviews, cur => {
+    const next = { ...cur }
+    delete next[slug]
+    return next
+  })
+  await update($, taskInfo, list => list.filter(t => t.slug !== slug))
+  await update($, expanded, () => null)
+  await update($, ovPicked, list => list.filter(x => x !== slug))
+  return true
+}
+
+/** The overview's bulk close: the first click asks for all of them at once, the second closes each in turn. */
+async function bulkClose($: EngineInterface, list: Review[]): Promise<void> {
+  const now = await $.clock.now()
+  const pending = await read($, ovConfirm)
+  if (!pending || pending.n !== list.length || now - pending.at > CONFIRM_MS) {
+    await update($, ovConfirm, () => ({ at: now, n: list.length }))
+    $.clock.after(CONFIRM_MS, () => {
+      void update($, ovConfirm, cur => (cur && cur.at === now ? null : cur))
+    })
+    return
+  }
+  await update($, ovConfirm, () => null)
+  let done = 0
+  for (const rv of list) if (await closeNow($, rv.slug, effectiveVerdict(rv) === 'stale')) done += 1
+  await note($, T().ovClosedSome(done, list.length - done))
+  startLoad($, 'quick')
+}
+
+/** Keep for several at once: one task.py call. */
+async function bulkKeep($: EngineInterface, slugs: string[]): Promise<void> {
+  const run = await bridge($, ['scripts/task.py', 'review', '--keep', ...slugs, '--json'])
+  if (!run.ok) {
+    await note($, T().keepFailed(short(run.err, 100)))
+    return
+  }
+  await update($, reviews, cur => {
+    const next = { ...cur }
+    for (const s of slugs) if (next[s]) next[s] = { ...next[s]!, kept: true }
+    return next
+  })
+  await update($, ovPicked, () => [])
+  await note($, T().kept(slugs.join(', ')))
+}
+
 /** Do it yourself: have it run with a yes where the inbox can, otherwise have a tab work it off. */
 async function doIt($: EngineInterface, rows: Row[], where?: Target): Promise<string> {
   const cfg = await read($, config)
@@ -733,7 +917,7 @@ async function ask($: EngineInterface, text: string): Promise<void> {
 
 
 /** The buttons of a row, brief; the rest hides behind ▾. */
-type Action = { id: string; label: string; primary?: boolean; dim?: boolean; run: () => unknown }
+type Action = { id: string; label: string; primary?: boolean; tone?: string; run: () => unknown }
 
 function rowActions($: EngineInterface, row: Row, tab: Tab | undefined): Action[] {
   const out: Action[] = []
@@ -748,9 +932,9 @@ function rowActions($: EngineInterface, row: Row, tab: Tab | undefined): Action[
     return out
   }
   if (row.inboxId && row.inboxState === 'approved') {
-    out.push({ id: 'ready', label: T().btnApproved, dim: true,
+    out.push({ id: 'ready', label: T().btnApproved, tone: 'green',
       run: () => note($, T().approvedPending(short(row.title, 60))) })
-    out.push({ id: 'drop', label: T().btnDrop, dim: true, run: () => drop($, row) })
+    out.push({ id: 'drop', label: T().btnDrop, tone: RED, run: () => drop($, row) })
     return out
   }
   if (row.bucket === 'waiting') {
@@ -764,7 +948,7 @@ function rowActions($: EngineInterface, row: Row, tab: Tab | undefined): Action[
   }
   if (launchItem(row) !== null) {
     out.push({ id: 'do', label: T().btnDo, primary: true, run: () => doIt($, [row]) })
-    if (row.inboxId) out.push({ id: 'drop', label: T().btnDrop, dim: true, run: () => drop($, row) })
+    if (row.inboxId) out.push({ id: 'drop', label: T().btnDrop, tone: RED, run: () => drop($, row) })
     else out.push({ id: 'advise', label: T().btnAdvise, run: () => advise($, [row]) })
     return out
   }
@@ -775,7 +959,8 @@ function rowActions($: EngineInterface, row: Row, tab: Tab | undefined): Action[
 /** The dashboard: in the chat as a card (inChat) or as a panel, the same tree. */
 async function dashboard($: EngineInterface, e: ResolveInput, columns: number, inChat: boolean, height = 40) {
   const table = $.ui.resolve(e)
-  const { Box, Button, Text, Link } = table
+  const { Box, Text, Link } = table
+  const Button = framed(table.Button, Text)
   // "release all": only entries whose yes executes an action, no tab, none with a yes already given.
   const approvable = (rows: Row[]) => rows.filter(r => r.inboxId && r.gate === 'your-yes' && r.hasAction
     && r.inboxState !== 'approved' && !tabFor(r, tabList))
@@ -785,8 +970,202 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
       ? <Text color={mark.color ?? 'magenta'}>{`${mark.label} `}</Text> : null
   // An input field does not exist on every surface (not on mobile).
   const Input = 'Input' in table ? table.Input : null
-  const v = await read($, view)
+  // The verdict of the last review as a short tag behind a task's title; continue and kept ones say nothing.
+  const tagOf = (slug: string | null) => {
+    const rv = slug ? rvs[slug] : undefined
+    // a resolved signal says close whatever the model answered; a low confidence adds a question mark
+    const verdict = rv?.resolved ? 'close' : rv?.verdict
+    const tag = rv && !rv.kept && verdict ? T().verdictTag[verdict] : undefined
+    const unsure = rv?.confidence === 'low' && !rv.resolved ? '?' : ''
+    return tag ? <Text color={verdict === 'close' ? 'green' : 'yellow'}>{`  ${tag}${unsure}`}</Text> : null
+  }
+  const reviewButton = (key: string) => (reviewNow !== null
+    ? <Text dimColor>{`${T().reviewing} `}</Text>
+    : <Button key={key} label={T().btnReviewAll} onPress={() => reviewTasks($, null)} />)
+  // The review overview: a strip with the verdicts as a bar, filter chips, comparable rows, and bulk actions.
+  const overviewBox = (isWide: boolean) => {
+    const counts = ovCounts(ovList)
+    const rows = ovSort(ovFilter(ovList, ovF), ovS)
+    const picked = ovSort(ovList.filter(r => picks.includes(r.slug)), ovS)
+    const infoOf = (slug: string) => taskList.find(t => t.slug === slug)
+    const barWidth = isWide ? 30 : 12
+    const label = (v: string) => T().ovVerdict[v] ?? v
+    const strip = meta ? T().ovStrip(meta.count, T().ovCost(meta.costUsd, meta.costKnown),
+      meta.models.map(modelShort).join(', ') || '?', Math.round(meta.durationSec ?? 0), minutesSince(meta.at, now)) : ''
+    const chipIds: OvFilter[] = ['all', ...STRIP_ORDER, 'changed']
+    const chipName = (id: OvFilter) => (id === 'all' ? T().ovAll : id === 'changed' ? T().ovChanged : label(id))
+    const tabbable = picked.filter(r => ['continue', 'stale'].includes(effectiveVerdict(r)))
+    const row = (r: Review) => {
+      const v = effectiveVerdict(r)
+      const info = infoOf(r.slug)
+      const prio = r.priority ?? info?.priority ?? null
+      const isPicked = picks.includes(r.slug)
+      const isOpen = ovOpened === r.slug
+      const chips = r.chips.map(c => T().chip(c)).join(' · ')
+      return (
+        <Box key={`ov-row-${r.slug}`} flexDirection="column">
+          <Box>
+            <Box width={4} flexShrink={0}>
+              <Button key={`ov-pick-${r.slug}`} label={isPicked ? '[x]' : '[ ]'}
+ onPress={() => update($, ovPicked, l => (l.includes(r.slug) ? l.filter(x => x !== r.slug) : [...l, r.slug]))} />
+            </Box>
+            <Box width={3} flexShrink={0}>
+              {prio && <Text color={PRIO_COLOR[prio] ?? 'cyan'}>{prio}</Text>}
+            </Box>
+            {isWide && (
+              <Box width={10} flexShrink={0}><Text dimColor wrap="truncate-end">{info?.area ?? ''}</Text></Box>
+            )}
+            <Box width={isWide ? 28 : undefined} flexGrow={isWide ? 0 : 1} flexShrink={isWide ? 0 : 1}>
+              <Text wrap="truncate-end">{r.title || info?.label || r.slug}</Text>
+            </Box>
+            <Box key={`ov-tag-${r.slug}`} width={12} flexShrink={0} marginLeft={1}>
+              <Text color={VERDICT_COLOR[v]}>{label(v)}</Text>
+              {r.changed && <Text dimColor>*</Text>}
+            </Box>
+            {isWide && <Box key={`ov-conf-${r.slug}`} width={4} flexShrink={0}><Text dimColor>{confDots(r.confidence)}</Text></Box>}
+            {isWide && (
+              <Box key={`ov-days-${r.slug}`} width={6} flexShrink={0}>
+                <Text dimColor>{r.days === null ? '?' : T().ovDays(r.days)}</Text>
+              </Box>
+            )}
+            {isWide && (
+              <Box key={`ov-chips-${r.slug}`} width={34} flexShrink={0}><Text dimColor wrap="truncate-end">{chips}</Text></Box>
+            )}
+            {isWide && <Box flexGrow={1} width={0}><Text wrap="truncate-end">{r.reason}</Text></Box>}
+            <Box flexShrink={0} marginLeft={1}>
+              <Button key={`ov-x-${r.slug}`} label={T().btnDetails(isOpen)}
+ onPress={() => update($, ovOpen, cur => (cur === r.slug ? null : r.slug))} />
+            </Box>
+          </Box>
+          {isOpen && (
+            <Box flexDirection="column" marginLeft={4} paddingX={1} borderStyle="round" borderDimColor>
+              {!isWide && chips && <Text dimColor wrap="wrap">{chips}</Text>}
+              {reviewBox(taskRowFor(r.slug, r.title, taskList))}
+            </Box>
+          )}
+        </Box>
+      )
+    }
+    const groups = ovS === 'verdict'
+      ? VERDICT_ORDER.map(v => ({ v, list: rows.filter(r => effectiveVerdict(r) === v) })).filter(g => g.list.length)
+      : [{ v: null, list: rows }]
+    return (
+      <Box key="overview" flexDirection="column" marginTop={1} borderStyle="round" borderDimColor paddingX={1}>
+        <Box flexWrap="wrap">
+          {barParts(counts, barWidth, STRIP_ORDER).map(p => (
+            <Text key={`ov-bar-${p.verdict}`} color={VERDICT_COLOR[p.verdict]}>{'█'.repeat(p.cells)}</Text>
+          ))}
+          <Text>{' '}</Text>
+          <Text>{STRIP_ORDER.filter(v => counts[v] > 0).map(v => `${counts[v]} ${label(v)}`).join(' · ')}</Text>
+        </Box>
+        {strip && <Text dimColor wrap="wrap">{strip}</Text>}
+        <Box flexWrap="wrap">
+          {chipIds.map(id => (
+            <Button key={`ov-f-${id}`} variant={ovF === id ? 'primary' : undefined} tone={counts[id] ? VERDICT_COLOR[id] ?? 'cyan' : 'cyan'}
+ label={`${chipName(id)} ${counts[id]}`} onPress={() => update($, ovFilterAtom, () => id)} />
+          ))}
+        </Box>
+        <Box flexWrap="wrap">
+          <Text dimColor>{T().ovSortPrefix}</Text>
+          {(['verdict', 'priority', 'activity'] as const).map(id => (
+            <Button key={`ov-s-${id}`} selected={ovS === id} label={T().ovSortLabel[id]}
+ onPress={() => update($, ovSortAtom, () => id)} />
+          ))}
+          <Text>{'  '}</Text>
+          <Button key="ov-all" label={T().ovSelectAll}
+ onPress={() => update($, ovPicked, l => [...new Set([...l, ...rows.map(r => r.slug)])])} />
+        </Box>
+        {picked.length > 0 && (
+          <Box flexWrap="wrap">
+            <Button key="ov-close" variant="primary"
+ label={ovSure && ovSure.n === picked.length ? T().ovBulkSure(picked.length) : T().ovBulkClose(picked.length)}
+ onPress={() => bulkClose($, picked)}  tone={RED} />
+            <Button key="ov-keep" label={T().ovBulkKeep(picked.length)}
+ onPress={() => bulkKeep($, picked.map(r => r.slug))} />
+            {reviewNow === null && (
+              <Button key="ov-esc" label={T().ovBulkEscalate(picked.length, T().ovCost(meta?.escalateUsd ?? 0.021, true))}
+ onPress={() => reviewTasks($, picked.map(r => r.slug), true)} />
+            )}
+            {tabbable.length > 0 && (
+              <Button key="ov-tab" label={T().ovBulkTab(tabbable.length)} onPress={act($, async () =>
+ launch($, tabbable.map(r => taskRowFor(r.slug, r.title, taskList)), 'go',
+ (await read($, config))?.target ?? 'area'))} />
+            )}
+          </Box>
+        )}
+        {rows.length === 0 && <Text dimColor>{T().ovEmpty}</Text>}
+        {groups.map(g => (
+          <Box key={`ov-g-${g.v ?? 'all'}`} flexDirection="column">
+            {g.v && <Text bold color={VERDICT_COLOR[g.v]}>{T().ovGroup(label(g.v), g.list.length)}</Text>}
+            {g.list.map(row)}
+          </Box>
+        ))}
+      </Box>
+    )
+  }
+  // An opened task: the recommendation with Close/Keep, Done (asks once more) and a check of this one task.
+  const reviewBox = (row: Row) => {
+    const slug = row.task!
+    const rv = rvs[slug]
+    const shown = rv && !rv.kept ? rv : undefined
+    const isClose = shown?.verdict === 'close' || shown?.resolved === true
+    const isStale = !isClose && shown?.verdict === 'stale'
+    // a long-runner never closes: no Done, no Close
+    if (taskList.find(t => t.slug === slug)?.isStream) return null
+    const sure = confirm?.slug === slug
+    return (
+      <Box key={`rv-${row.key}`} flexDirection="column">
+        {shown && (
+          <Text wrap="wrap" color={isClose ? 'green' : undefined}>{T().recommendation(modelShort(shown.model), shown.reason)}</Text>
+        )}
+        {shown?.resolved && shown.closedRefs.length > 0 && (
+          <Text wrap="wrap" color="green">{T().signalClosed(shown.closedRefs.join(', '))}</Text>
+        )}
+        {shown && !shown.resolved && shown.unblocked && shown.closedRefs.length > 0 && (
+          <Text wrap="wrap" dimColor>{T().signalUnblocked(shown.closedRefs.join(', '))}</Text>
+        )}
+        <Box flexWrap="wrap">
+          {(isClose || isStale) && (
+            <Button key={`rv-close-${row.key}`} variant="primary" label={sure ? T().btnReallyClose : T().btnCloseTask}
+ onPress={() => closeTask($, slug, isStale)}  tone={RED} />
+          )}
+          {(isClose || isStale) && (
+            <Button key={`rv-keep-${row.key}`} label={T().btnKeep} onPress={() => keepTask($, slug)} />
+          )}
+          <Button key={`done-${row.key}`} label={sure ? T().btnReallyClose : T().btnFinished} tone={RED}
+ onPress={() => closeTask($, slug)} />
+          {reviewNow !== null ? <Text dimColor>{` ${T().reviewing}`}</Text> : (
+            <Button key={`rv-one-${row.key}`} label={T().btnCheckOne} onPress={() => reviewTasks($, [slug])} />
+          )}
+        </Box>
+      </Box>
+    )
+  }
+  // A task closed here leaves the card at once, before the next collect knows it.
+  const closed = await read($, closedTasks)
+  const isGone = (task: string | null, inboxId: string | null = null) => !!task && !inboxId && closed.includes(task)
+  const rawView = await read($, view)
+  const v = rawView && closed.length ? {
+    ...rawView,
+    buckets: rawView.buckets.map(b => ({ ...b, rows: b.rows.filter(r => !isGone(r.task, r.inboxId)) })),
+    pages: rawView.pages.map(pg => ({ ...pg, sections: pg.sections.map(x => {
+      const items = x.items.filter(it => !isGone(it.task))
+      return { ...x, items, count: x.count - (x.items.length - items.length) }
+    }) })),
+  } : rawView
   const done = await read($, settled)
+  const rvs = await read($, reviews)
+  const reviewNow = await read($, reviewing)
+  const confirm = await read($, confirmClose)
+  const meta = await read($, reviewMeta)
+  const showOv = await read($, showOverview)
+  const ovF = await read($, ovFilterAtom)
+  const ovS = await read($, ovSortAtom)
+  const picks = await read($, ovPicked)
+  const ovOpened = await read($, ovOpen)
+  const ovSure = await read($, ovConfirm)
+  // The overview compares the reviewed tasks that are still there: a closed one leaves it too.
+  const ovList = Object.values(rvs).filter(r => !closed.includes(r.slug))
   const taskList = await read($, taskInfo)
   const picked = await read($, selected)
   const isConfirming = await read($, confirmAll)
@@ -841,11 +1220,11 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
     if (tab.state === 'needs-you') {
       return [
         <Button key={`yes-${tab.ref}`} label={T().btnYes} onPress={() => pressKey($, tab, '1', T().saidYes)} />,
-        <Button key={`no-${tab.ref}`} label={T().btnNo} dimColor onPress={() => pressKey($, tab, 'escape', T().saidNo)} />,
+        <Button key={`no-${tab.ref}`} label={T().btnNo} onPress={() => pressKey($, tab, 'escape', T().saidNo)}  tone={RED} />,
       ]
     }
     if (tab.state === 'waiting' && result) {
-      return [<Button key={`close-${tab.ref}`} label={T().btnCloseTab} dimColor onPress={() => closeTab($, tab)} />]
+      return [<Button key={`close-${tab.ref}`} label={T().btnCloseTab} onPress={() => closeTab($, tab)}  tone={RED} />]
     }
     if (tab.state === 'waiting') {
       return [<Button key={`go-${tab.ref}`} label={T().btnGoOn} onPress={() => send($, tab, T().goOnMessage)} />]
@@ -874,8 +1253,8 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
           <Button key={`jump-${tab.ref}`} label={T().btnToTab} variant="primary" onPress={() => jump($, tab)} />
           {tabButtons(tab)}
           {Input && !isTight && (
-            <Button key={`msg-${tab.ref}`} label="✉" dimColor
-              onPress={() => update($, messageTo, cur => (cur === tab.ref ? null : tab.ref))} />
+            <Button key={`msg-${tab.ref}`} label="✉" 
+ onPress={() => update($, messageTo, cur => (cur === tab.ref ? null : tab.ref))} />
           )}
         </Box>
       </Box>
@@ -915,13 +1294,13 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
           <Box flexWrap="wrap">
             {row.inboxId && <Text>{T().urgencyPrefix}</Text>}
             {row.inboxId && ['now', 'today', 'later'].map(u => (
-              <Button key={`u-${u}-${row.key}`} label={T().urgency[u] ?? u} dimColor={row.urgency === u}
-                onPress={() => setUrgency($, row, u)} />
+              <Button key={`u-${u}-${row.key}`} label={T().urgency[u] ?? u} selected={row.urgency === u}
+ onPress={() => setUrgency($, row, u)} />
             ))}
             {row.task && <Text>{row.inboxId ? '  ' : ''}{T().prioPrefix}</Text>}
             {row.task && ['P0', 'P1', 'P2', 'P3'].map(p => (
-              <Button key={`p-${p}-${row.key}`} label={p} dimColor={row.priority === p}
-                onPress={() => setPriority($, row, p)} />
+              <Button key={`p-${p}-${row.key}`} label={p} selected={row.priority === p}
+ onPress={() => setPriority($, row, p)} />
             ))}
           </Box>
         )}
@@ -933,15 +1312,15 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
               <Text>{st ? T().teamProgress(st.team.label, st.started, st.team.roles.length) : T().teamPrefix}</Text>
               {st && st.next && (st.isReady ? (
                 <Button key={`team-next-${row.key}`} variant="primary" label={`▶ ${st.next.name}`}
-                  onPress={act($, () => startRole($, row, st.team))} />
+ onPress={act($, () => startRole($, row, st.team))} />
               ) : (
                 <Text dimColor>{T().teamStillWorking(st.waitingFor ?? '')}</Text>
               ))}
               {[...recipes].sort((a, b) => fits(a) - fits(b)).filter(t => !st || t.id !== st.team.id).map(t => (
                 <Button key={`team-${t.id}-${row.key}`} variant={fits(t) === 0 && !st ? 'primary' : undefined}
-                  dimColor={st !== null}
-                  label={inSidebar ? `${st ? T().teamNew : ''}${t.label}` : `${st ? T().teamNew : ''}${t.label} (${t.roles.map(r => r.name).join(' → ')})`}
-                  onPress={act($, () => startRole($, row, t))} />
+ 
+ label={inSidebar ? `${st ? T().teamNew : ''}${t.label}` : `${st ? T().teamNew : ''}${t.label} (${t.roles.map(r => r.name).join(' → ')})`}
+ onPress={act($, () => startRole($, row, t))} />
               ))}
             </Box>
           )
@@ -950,7 +1329,7 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
           <Box flexWrap="wrap">
             <Text>{T().contextPrefix}</Text>
             <Button key={`ctx-${row.key}`} label={T().btnCollect}
-              onPress={act($, async () => launch($, [row], 'context', (await read($, config))?.target ?? 'area'))} />
+ onPress={act($, async () => launch($, [row], 'context', (await read($, config))?.target ?? 'area'))} />
             {Input && (
               <Input key={`note-${row.key}`} placeholder={T().notePlaceholder} submitLabel={T().btnNote}
                 onSubmit={(text: string) => addNote($, row, text)} />
@@ -964,21 +1343,22 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
             <Box flexWrap="wrap">
               <Text>{T().adoptPrefix}</Text>
               {free.slice(0, 4).map(t => (
-                <Button key={`adopt-${t.ref}-${row.key}`} label={short(t.name, inSidebar ? 18 : 28)} dimColor
-                  onPress={() => adopt($, row, t)} />
+                <Button key={`adopt-${t.ref}-${row.key}`} label={short(t.name, inSidebar ? 18 : 28)} 
+ onPress={() => adopt($, row, t)} />
               ))}
             </Box>
           )
         })()}
+        {row.task && !row.inboxId && reviewBox(row)}
         <Box flexWrap="wrap">
           {launchItem(row) !== null && !agent && !hasStartRow && (
             <Button key={`ws-${row.key}`} label={inSidebar ? T().btnOwnWs : T().btnDoOwnWs}
-              onPress={act($, () => doIt($, [row], 'workspace'))} />
+ onPress={act($, () => doIt($, [row], 'workspace'))} />
           )}
           {row.inboxId && row.gate === 'only-you' && (
-            <Button key={`drop-${row.key}`} label={T().btnDrop} dimColor onPress={act($, () => drop($, row))} />
+            <Button key={`drop-${row.key}`} label={T().btnDrop} onPress={act($, () => drop($, row))}  tone={RED} />
           )}
-          <Button key={`ask-${row.key}`} label={T().btnAskChat} dimColor onPress={() => ask($, askAbout(row))} />
+          <Button key={`ask-${row.key}`} label={T().btnAskChat} onPress={() => ask($, askAbout(row))} />
           {url && <Link key={`url-${row.key}`} href={url} label={T().btnOpen} />}
         </Box>
       </Box>
@@ -1006,17 +1386,15 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
         <Box flexWrap="wrap">
           {rowActions($, row, tab).map(a => (
             <Button key={`ta-${a.id}-${row.key}`} label={a.label} variant={a.primary ? 'primary' : undefined}
-              dimColor={a.dim} onPress={act($, a.run)} />
+ tone={a.tone} onPress={act($, a.run)} />
           ))}
           {agent && tabButtons(agent)}
         </Box>
         {!agent && (
           <Box flexWrap="wrap">
-            <Text>{T().startPrefix}</Text>
             {(['tab', 'area', 'workspace'] as const).map(t => (
-              <Button key={`ts-${t}-${row.key}`}
-                label={t === 'area' && row.area ? T().whereArea(row.area) : T().where[t]}
-                onPress={act($, () => launch($, [row], 'go', t))} />
+              <Button key={`ts-${t}-${row.key}`} label={T().startAt(t, row.area)}
+ onPress={act($, () => launch($, [row], 'go', t))} />
             ))}
           </Box>
         )}
@@ -1026,7 +1404,7 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
             <Text>{`· ${short(r.title, inSidebar ? 30 : 60)} `}</Text>
             {rowActions($, r, tabFor(r, tabList)).map(a => (
               <Button key={`te-${a.id}-${r.key}`} label={a.label} variant={a.primary ? 'primary' : undefined}
-                dimColor={a.dim} onPress={act($, a.run)} />
+ tone={a.tone} onPress={act($, a.run)} />
             ))}
           </Box>
         ))}
@@ -1047,8 +1425,8 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
         <Box>
           <Box width={LEAD} flexShrink={0}>
             {canPick ? (
-              <Button key={`pick-${row.key}`} plain label={picked.includes(row.key) ? '[x]' : '[ ]'}
-                onPress={() => toggle(row)} />
+              <Button key={`pick-${row.key}`} label={picked.includes(row.key) ? '[x]' : '[ ]'}
+ onPress={() => toggle(row)} />
             ) : <Text>   </Text>}
             <Text dimColor>{n === null ? '' : String(n).padStart(3)}</Text>
           </Box>
@@ -1061,6 +1439,7 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
             <Text wrap="truncate-end">
               {markText(row.mark, row.area)}
               {isOpen ? <Text bold>{row.title}</Text> : row.title}
+              {!row.inboxId && tagOf(row.task)}
               {tab && <Text color={tabColor(tab)}>{`  ● ${stateWord(tab.state)}`}</Text>}
               {team && <Text color="magenta">{`  ${team.team.label} ${team.started}/${team.team.roles.length}`}</Text>}
             </Text>
@@ -1068,13 +1447,13 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
           <Box flexShrink={0} marginLeft={1}>
             {team && team.next && team.started > 0 && team.isReady && (
               <Button key={`next-${row.key}`} label={`▶ ${team.next.name}`} variant="primary"
-                onPress={act($, () => startRole($, row, team.team))} />
+ onPress={act($, () => startRole($, row, team.team))} />
             )}
             {acts.map(a => (
               <Button key={`${a.id}-${row.key}`} label={label(a)} variant={a.primary ? 'primary' : undefined}
-                dimColor={a.dim} onPress={act($, a.run)} />
+ tone={a.tone} onPress={act($, a.run)} />
             ))}
-            <Button key={`more-${row.key}`} label={isOpen ? '▴' : '▾'} dimColor onPress={toggleRow} />
+            <Button key={`more-${row.key}`} label={T().btnDetails(isOpen)} onPress={toggleRow} />
           </Box>
         </Box>
         {isOpen && detail(row, tab)}
@@ -1098,15 +1477,22 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
           <Box flexShrink={0}>
             <Text bold color={SECTION_COLOR[id]}>{T().section[id]}</Text>
             <Text dimColor>{` ${s.all.length + tabCount} `}</Text>
+            {id === 'work' && reviewButton('review-all-work')}
+            {id === 'work' && <Text> </Text>}
+            {id === 'work' && meta && (
+              <Button key="review-overview" selected={showOv} label={T().btnOverview}
+ onPress={() => update($, showOverview, x => !x)} />
+            )}
+            {id === 'work' && meta && <Text> </Text>}
             {id === 'give' && s.all.length > 1 && (
-              <Button key="pick-give" plain label={`${T().btnPickAll} `} dimColor
-                onPress={() => update($, selected, list => [...new Set([...list,
-                  ...s.all.filter(r => !tabFor(r, tabList) && launchItem(r) !== null && r.inboxState !== 'approved')
-                    .map(r => r.key)])])} />
+              <Button key="pick-give" label={`${T().btnPickAll} `} 
+ onPress={() => update($, selected, list => [...new Set([...list,
+ ...s.all.filter(r => !tabFor(r, tabList) && launchItem(r) !== null && r.inboxState !== 'approved')
+ .map(r => r.key)])])} />
             )}
             {id === 'give' && approvable(s.shown).length > 1 && !isConfirming && (
-              <Button key="approve-all" plain label={`${T().approveAll(approvable(s.shown).length)} `} dimColor
-                onPress={() => update($, confirmAll, () => true)} />
+              <Button key="approve-all" label={`${T().approveAll(approvable(s.shown).length)} `} 
+ onPress={() => update($, confirmAll, () => true)} />
             )}
           </Box>
           <Box flexGrow={1} width={0} height={1} overflow="hidden"><Text dimColor>{RULE}</Text></Box>
@@ -1115,26 +1501,26 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
           <Box flexWrap="wrap">
             <Text color="yellow">{`${T().approveAsk(approvable(s.shown).length)} `}</Text>
             <Button key="approve-yes" label={T().approveYes} variant="primary" onPress={async () => {
-              // Only the rows on screen: a yes never reaches an item nobody saw. Each approval notes itself.
-              const rows = approvable(s.shown)
-              await update($, confirmAll, () => false)
-              await doIt($, rows)
-            }} />
-            <Button key="approve-no" label={T().approveNo} dimColor onPress={() => update($, confirmAll, () => false)} />
+ // Only the rows on screen: a yes never reaches an item nobody saw. Each approval notes itself.
+ const rows = approvable(s.shown)
+ await update($, confirmAll, () => false)
+ await doIt($, rows)
+ }} />
+            <Button key="approve-no" label={T().approveNo} onPress={() => update($, confirmAll, () => false)}  tone={RED} />
           </Box>
         )}
         {id === 'now' && shownTabs.map(tabLine)}
         {s.shown.map(row => rowLine(row, numberOf(row)))}
         {(more > 0 || moreTabs > 0) && !isOpen && (
           <Box paddingLeft={LEAD}>
-            <Button key={`more-${id}`} plain dimColor
-              label={`${T().moreRows(more + moreTabs)}${id === 'work' ? T().moreWork : ''}`}
-              onPress={() => setSection(id)} />
+            <Button key={`more-${id}`} 
+ label={`${T().moreRows(more + moreTabs)}${id === 'work' ? T().moreWork : ''}`}
+ onPress={() => setSection(id)} />
           </Box>
         )}
         {section === id && !all && (
           <Box paddingLeft={LEAD}>
-            <Button key={`less-${id}`} plain dimColor label={T().btnLess} onPress={() => setSection(null)} />
+            <Button key={`less-${id}`} label={T().btnLess} onPress={() => setSection(null)} />
           </Box>
         )}
       </Box>
@@ -1168,8 +1554,8 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
           {(shownPage?.id ?? BRIEFING_PAGE) === id ? (
             <Text bold underline>{pageTitle(id)}</Text>
           ) : (
-            <Button key={`pgb-${id}`} plain dimColor label={pageTitle(id)}
-              onPress={() => goPage(id)} />
+            <Button key={`pgb-${id}`} label={pageTitle(id)}
+ onPress={() => goPage(id)} />
           )}
           <Text color={badge(id).color} dimColor={!badge(id).color}>{` ${badge(id).text}`}</Text>
         </Box>
@@ -1182,8 +1568,8 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
     <Box flexDirection="column" borderStyle="round" borderDimColor paddingX={1} marginTop={1}>
       <Box>
         <Text bold>{`${TABLES[lang].helpTitle} `}</Text>
-        <Button key="lang-de" label={LANG_NAME.de} dimColor={lang !== 'de'} onPress={() => update($, helpLang, () => 'de')} />
-        <Button key="lang-en" label={LANG_NAME.en} dimColor={lang !== 'en'} onPress={() => update($, helpLang, () => 'en')} />
+        <Button key="lang-de" label={LANG_NAME.de} selected={lang === 'de'} onPress={() => update($, helpLang, () => 'de')} />
+        <Button key="lang-en" label={LANG_NAME.en} selected={lang === 'en'} onPress={() => update($, helpLang, () => 'en')} />
       </Box>
       {TABLES[lang].help.map(([what, does]) => (
         width >= 70 ? (
@@ -1215,18 +1601,19 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
           <Text dimColor>{v ? `${v.collectedAt}${v.isFull ? '' : ` ${T().noTracker}`}` : T().loading}{busy ? ` · ${T().loadingWhat(busy)}` : ''}</Text>
           <Box flexGrow={1} />
           <Box flexShrink={0}>
-            <Button key="pg-reload" plain label="⟳" dimColor onPress={() => startLoad($, 'full')} />
+            <Button key="pg-reload" label="⟳" onPress={() => startLoad($, 'full')} />
             <Text>  </Text>
-            <Button key="pg-all" plain label={all ? T().btnCompact : T().btnAll} dimColor={!all} onPress={() => update($, showAll, x => !x)} />
+            <Button key="pg-all" label={all ? T().btnCompact : T().btnAll} selected={all} onPress={() => update($, showAll, x => !x)} />
             <Text>  </Text>
-            <Button key="pg-help" plain label="?" dimColor={!help} onPress={() => update($, showHelp, x => !x)} />
+            <Button key="pg-help" label="?" selected={help} onPress={() => update($, showHelp, x => !x)} />
             <Text>  </Text>
-            <Button key="pg-close" plain role="dismiss" label="✕" dimColor
-              onPress={() => (inChat ? update($, isClosed, () => true) : $.ui.close({ id: PANE }))} />
+            <Button key="pg-close" role="dismiss" label="✕" 
+ onPress={() => (inChat ? update($, isClosed, () => true) : $.ui.close({ id: PANE }))} />
           </Box>
         </Box>
         {pageBar}
         {helpBox}
+        {sections.some(x => x.kind === 'tasks') && ovList.length > 0 && overviewBox(isWide)}
         {sections.map(sec => (
           <Box key={`ps-${sec.id}`} flexDirection="column" marginTop={1}>
             <Box>
@@ -1234,6 +1621,8 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
                 <Text bold color={sec.alarm && sec.count > 0 ? 'red' : undefined}>{sec.title.replace(/\s*\(.*?\)/g, '')}</Text>
                 <Text dimColor>{` ${sec.status === 'skipped' ? '' : sec.count} `}</Text>
                 {sec.asOf && <Text dimColor>{`${T().sourceAsOf(sec.asOf)} `}</Text>}
+                {sec.kind === 'tasks' && reviewButton(`review-all-${sec.id}`)}
+                {sec.kind === 'tasks' && <Text> </Text>}
               </Box>
               <Box flexGrow={1} width={0} height={1} overflow="hidden"><Text dimColor>{RULE}</Text></Box>
             </Box>
@@ -1258,7 +1647,7 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
                 <Box flexGrow={1} width={0}>
                   <Text wrap="truncate-end" dimColor={it.tone === 'dim'}
                     color={it.tone === 'bad' ? 'red' : it.tone === 'warn' ? 'yellow' : undefined}>
-                    {markText(it.mark, null)}{isOpen ? <Text bold>{it.title}</Text> : it.title}</Text>
+                    {markText(it.mark, null)}{isOpen ? <Text bold>{it.title}</Text> : it.title}{tagOf(it.task)}</Text>
                 </Box>
                 {it.detail && isWide && (
                   <Box flexShrink={0} marginLeft={1}><Text dimColor>{short(it.detail, 36)}</Text></Box>
@@ -1268,21 +1657,21 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
                   return (
                     <Box flexShrink={0} marginLeft={1}>
                       {open && isLive(open) ? (
-                        <Button key={`pt-${sec.id}-${i}`} plain label={T().btnToTab} onPress={() => jump($, open)} />
+                        <Button key={`pt-${sec.id}-${i}`} label={T().btnToTab} onPress={() => jump($, open)} />
                       ) : startingNow.includes(it.task) ? (
                         <Text dimColor>{T().startingTab}</Text>
                       ) : (
-                        <Button key={`pt-${sec.id}-${i}`} plain dimColor label={T().btnOpenTab}
-                          onPress={act($, async () =>
-                            launch($, [trow ?? taskRow(it.task!, it.title)], 'report', (await read($, config))?.target ?? 'area'))} />
+                        <Button key={`pt-${sec.id}-${i}`} label={T().btnOpenTab}
+ onPress={act($, async () =>
+ launch($, [trow ?? taskRow(it.task!, it.title)], 'report', (await read($, config))?.target ?? 'area'))} />
                       )}
                     </Box>
                   )
                 })()}
                 {isWide && it.ask && (
                   <Box flexShrink={0} marginLeft={1}>
-                    <Button key={`pa-${sec.id}-${i}`} plain dimColor label={T().btnAsk}
-                      onPress={() => ask($, askInfo(sec.title.replace(/\s*\(.*?\)/g, ''), it))} />
+                    <Button key={`pa-${sec.id}-${i}`} label={T().btnAsk}
+ onPress={() => ask($, askInfo(sec.title.replace(/\s*\(.*?\)/g, ''), it))} />
                   </Box>
                 )}
                 {it.url && isWide && (
@@ -1290,8 +1679,8 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
                 )}
                 {trow && (
                   <Box flexShrink={0} marginLeft={1}>
-                    <Button key={`px-${sec.id}-${i}`} plain dimColor label={isOpen ? '▴' : '▾'}
-                      onPress={() => update($, expanded, cur => (cur === trow.key ? null : trow.key))} />
+                    <Button key={`px-${sec.id}-${i}`} label={T().btnDetails(isOpen)}
+ onPress={() => update($, expanded, cur => (cur === trow.key ? null : trow.key))} />
                   </Box>
                 )}
               </Box>
@@ -1301,8 +1690,8 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
             })}
             {sec.items.length > perSection && (
               <Box paddingLeft={whenWidth + 1}>
-                <Button key={`pm-${sec.id}`} plain dimColor label={T().moreRows(sec.items.length - perSection)}
-                  onPress={() => update($, showAll, () => true)} />
+                <Button key={`pm-${sec.id}`} label={T().moreRows(sec.items.length - perSection)}
+ onPress={() => update($, showAll, () => true)} />
               </Box>
             )}
           </Box>
@@ -1393,7 +1782,7 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
           <Box>
             <Box width={4} flexShrink={0}>
               {canPick ? (
-                <Button key={`spick-${row.key}`} plain label={picked.includes(row.key) ? '[x]' : '[ ]'} onPress={() => toggle(row)} />
+                <Button key={`spick-${row.key}`} label={picked.includes(row.key) ? '[x]' : '[ ]'} onPress={() => toggle(row)} />
               ) : <Text>   </Text>}
             </Box>
             <Box width={3} flexShrink={0}><Text dimColor>{n ? String(n).padStart(2) : ''}</Text></Box>
@@ -1407,8 +1796,8 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
             )}
             <Box flexGrow={1} flexShrink={1}>
               {markText(row.mark, row.area)}
-              <Button key={`stitle-${row.key}`} plain label={short(row.title, titleWidth - (row.mark ? row.mark.label.length + 1 : 0))}
-                onPress={() => toggleOpen(row.key)} />
+              <Button key={`stitle-${row.key}`} label={short(row.title, titleWidth - (row.mark ? row.mark.label.length + 1 : 0))}
+ onPress={() => toggleOpen(row.key)} />
             </Box>
           </Box>
           {isOpen && (
@@ -1425,15 +1814,16 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
               <Box flexWrap="wrap">
                 {rowActions($, row, tab).map(a => (
                   <Button key={`sa-${a.id}-${row.key}`} label={a.label} variant={a.primary ? 'primary' : undefined}
-                    dimColor={a.dim} onPress={act($, a.run)} />
+ tone={a.tone} onPress={act($, a.run)} />
                 ))}
                 {team && team.next && team.started > 0 && team.isReady && (
                   <Button key={`snext-${row.key}`} label={`▶ ${team.next.name}`} variant="primary"
-                    onPress={act($, () => startRole($, row, team.team))} />
+ onPress={act($, () => startRole($, row, team.team))} />
                 )}
-                <Button key={`smore-${row.key}`} label={more ? T().btnLess : T().btnMore} dimColor
-                  onPress={() => update($, sideMore, x => !x)} />
+                <Button key={`smore-${row.key}`} label={T().btnDetails(more)}
+ onPress={() => update($, sideMore, x => !x)} />
               </Box>
+              {!more && row.task && !row.inboxId && reviewBox(row)}
               {more && detail(row, tab, true)}
             </Box>
           )}
@@ -1457,7 +1847,7 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
             <Box width={2} flexShrink={0}><Text color={tabColor(tab)}>●</Text></Box>
             {wsWidth > 0 && <Box width={wsWidth} flexShrink={0}><Text dimColor wrap="truncate-end">{tab.workspace}</Text></Box>}
             <Box flexGrow={1} flexShrink={1}>
-              <Button key={`stt-${tab.ref}`} plain label={short(tab.name, nameWidth)} onPress={() => toggleOpen(key)} />
+              <Button key={`stt-${tab.ref}`} label={short(tab.name, nameWidth)} onPress={() => toggleOpen(key)} />
             </Box>
             {stateWidth > 0 && (
               <Box width={stateWidth + 1} flexShrink={0} justifyContent="flex-end">
@@ -1496,12 +1886,12 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
           <Text dimColor>{v ? v.collectedAt : '…'}{busy ? ' ⟳' : ''}</Text>
           <Box flexGrow={1} />
           <Box flexShrink={0}>
-            <Button key="s-reload" plain label="⟳" dimColor onPress={() => startLoad($, 'full')} />
+            <Button key="s-reload" label="⟳" onPress={() => startLoad($, 'full')} />
             <Text>  </Text>
-            <Button key="s-help" plain label="?" dimColor={!help} onPress={() => update($, showHelp, x => !x)} />
+            <Button key="s-help" label="?" selected={help} onPress={() => update($, showHelp, x => !x)} />
             <Text>  </Text>
-            <Button key="s-close" plain role="dismiss" label="✕" dimColor
-              onPress={() => (inChat ? update($, isClosed, () => true) : $.ui.close({ id: PANE }))} />
+            <Button key="s-close" role="dismiss" label="✕" 
+ onPress={() => (inChat ? update($, isClosed, () => true) : $.ui.close({ id: PANE }))} />
           </Box>
         </Box>
         {pageBar}
@@ -1513,11 +1903,11 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
                   {id === 'all' ? NAMES[id] : `${NAMES[id]} ${counts[id]}`}
                 </Text>
               ) : (
-                <Button key={`st-${id}`} plain label={id === 'all' ? NAMES[id] : `${NAMES[id]} ${counts[id]}`} dimColor
-                  onPress={async () => {
-                    await update($, sideTab, () => id)
-                    await update($, sidePage, () => 0)
-                  }} />
+                <Button key={`st-${id}`} label={id === 'all' ? NAMES[id] : `${NAMES[id]} ${counts[id]}`} 
+ onPress={async () => {
+ await update($, sideTab, () => id)
+ await update($, sidePage, () => 0)
+ }} />
               )}
             </Box>
           ))}
@@ -1533,8 +1923,8 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
         {help ? (
           <Box flexDirection="column">
             <Box>
-              <Button key="s-de" label={LANG_NAME.de} dimColor={lang !== 'de'} onPress={() => update($, helpLang, () => 'de')} />
-              <Button key="s-en" label={LANG_NAME.en} dimColor={lang !== 'en'} onPress={() => update($, helpLang, () => 'en')} />
+              <Button key="s-de" label={LANG_NAME.de} selected={lang === 'de'} onPress={() => update($, helpLang, () => 'de')} />
+              <Button key="s-en" label={LANG_NAME.en} selected={lang === 'en'} onPress={() => update($, helpLang, () => 'en')} />
             </Box>
             {TABLES[lang].help.map(([what, does]) => (
               <Box key={`sh-${what}`} flexDirection="column">
@@ -1544,14 +1934,14 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
             ))}
             {inCmux && <Text dimColor>{backupText}</Text>}
             <Box flexWrap="wrap">
-              {inCmux && <Button key="s-snap" label={T().btnSave} dimColor onPress={() => snapshot($, true)} />}
-              {v && <Button key="s-overview" label={T().btnSort} dimColor
-                onPress={() => ask($, overview(v, lay.sections.flatMap(x => x.all)))} />}
-              {v && <Button key="s-plan" label={T().btnPlan} dimColor
-                onPress={async () => ask($, planDay(v, lay.sections.flatMap(x => x.all),
-                  (await read($, tabs)).filter(t => isWaiting(t, v))))} />}
-              <Button key="s-evening" label={T().btnEvening} dimColor
-                onPress={async () => ask($, evening(await read($, tabs), await read($, tabSeen), await $.clock.now()))} />
+              {inCmux && <Button key="s-snap" label={T().btnSave} onPress={() => snapshot($, true)} />}
+              {v && <Button key="s-overview" label={T().btnSort} 
+ onPress={() => ask($, overview(v, lay.sections.flatMap(x => x.all)))} />}
+              {v && <Button key="s-plan" label={T().btnPlan} 
+ onPress={async () => ask($, planDay(v, lay.sections.flatMap(x => x.all),
+ (await read($, tabs)).filter(t => isWaiting(t, v))))} />}
+              <Button key="s-evening" label={T().btnEvening} 
+ onPress={async () => ask($, evening(await read($, tabs), await read($, tabSeen), await $.clock.now()))} />
             </Box>
           </Box>
         ) : (
@@ -1561,7 +1951,7 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
                 <Text bold>{`${T().picked(pickedRows.length)} `}</Text>
                 <Button key="sp-do" label={T().btnDo} variant="primary" onPress={act($, () => doIt($, pickedRows))} />
                 <Button key="sp-adv" label={T().btnAdvise} onPress={act($, () => advise($, pickedRows))} />
-                <Button key="sp-clear" label="✕" dimColor onPress={() => update($, selected, () => [])} />
+                <Button key="sp-clear" label="✕" onPress={() => update($, selected, () => [])} />
               </Box>
             )}
             {items.length === 0 && <Text dimColor>{`   ${T().nothingHere}`}</Text>}
@@ -1578,18 +1968,18 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
                     </Box>
                     <Box flexGrow={1} width={0} height={1} overflow="hidden"><Text dimColor>{RULE}</Text></Box>
                     <Box flexShrink={0}>
-                      <Button key={`sgo-${it.id}`} plain dimColor label=" ›" onPress={async () => {
-                        await update($, sideTab, () => it.id)
-                        await update($, sidePage, () => 0)
-                      }} />
+                      <Button key={`sgo-${it.id}`} label={T().showAll} onPress={async () => {
+ await update($, sideTab, () => it.id)
+ await update($, sidePage, () => 0)
+ }} />
                     </Box>
                   </Box>
                 ) : it.kind === 'more' ? (
                   <Box paddingLeft={7}>
-                    <Button key={`smr-${it.id}`} plain dimColor label={T().moreArrow(it.count)} onPress={async () => {
-                      await update($, sideTab, () => it.id)
-                      await update($, sidePage, () => 0)
-                    }} />
+                    <Button key={`smr-${it.id}`} label={T().moreArrow(it.count)} onPress={async () => {
+ await update($, sideTab, () => it.id)
+ await update($, sidePage, () => 0)
+ }} />
                   </Box>
                 ) : it.kind === 'tab' ? sideTabItem(it.tab)
                   : it.kind === 'row' ? sideRow(it.row)
@@ -1599,24 +1989,24 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
                           <Text dimColor wrap="truncate-end">{`    ${it.row.title}`}</Text>
                         </Box>
                         <Text dimColor>{` ${T().hiddenUntil(hide[it.row.key] ?? '')} `}</Text>
-                        <Button key={`su-${it.row.key}`} plain label={T().btnShow} onPress={() => unhide($, it.row)} />
+                        <Button key={`su-${it.row.key}`} label={T().btnShow} onPress={() => unhide($, it.row)} />
                       </Box>
                     )}
               </Box>
             ))}
             {pages > 1 && (
               <Box>
-                <Button key="s-prev" plain label="◂" dimColor={pageNow === 0}
-                  onPress={async () => {
-                    await update($, expanded, () => null)
-                    await update($, sidePage, () => Math.max(0, pageNow - 1))
-                  }} />
+                <Button key="s-prev" label="◂" 
+ onPress={async () => {
+ await update($, expanded, () => null)
+ await update($, sidePage, () => Math.max(0, pageNow - 1))
+ }} />
                 <Text dimColor>{` ${pageNow + 1}/${pages} `}</Text>
-                <Button key="s-next" plain label="▸" dimColor={pageNow >= pages - 1}
-                  onPress={async () => {
-                    await update($, expanded, () => null)
-                    await update($, sidePage, () => Math.min(pages - 1, pageNow + 1))
-                  }} />
+                <Button key="s-next" label="▸" 
+ onPress={async () => {
+ await update($, expanded, () => null)
+ await update($, sidePage, () => Math.min(pages - 1, pageNow + 1))
+ }} />
               </Box>
             )}
           </Box>
@@ -1636,30 +2026,30 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
         </Text>
         <Box flexGrow={1} />
         <Box flexShrink={0}>
-          <Button key="reload" plain label={T().btnReload} dimColor onPress={() => startLoad($, 'full')} />
+          <Button key="reload" label={T().btnReload} onPress={() => startLoad($, 'full')} />
           <Text>   </Text>
-          <Button key="all" plain label={all ? T().btnCompact : T().btnAll} dimColor={!all} onPress={() => update($, showAll, x => !x)} />
+          <Button key="all" label={all ? T().btnCompact : T().btnAll} selected={all} onPress={() => update($, showAll, x => !x)} />
           <Text>   </Text>
           {v && (
-            <Button key="overview" plain label={T().btnSort} dimColor
-              onPress={() => ask($, overview(v, lay.sections.flatMap(s => s.all)))} />
+            <Button key="overview" label={T().btnSort} 
+ onPress={() => ask($, overview(v, lay.sections.flatMap(s => s.all)))} />
           )}
           {v && <Text>   </Text>}
           {v && (
-            <Button key="plan" plain label={T().btnPlan} dimColor
-              onPress={async () => ask($, planDay(v, lay.sections.flatMap(s => s.all),
-                (await read($, tabs)).filter(t => isWaiting(t, v))))} />
+            <Button key="plan" label={T().btnPlan} 
+ onPress={async () => ask($, planDay(v, lay.sections.flatMap(s => s.all),
+ (await read($, tabs)).filter(t => isWaiting(t, v))))} />
           )}
           {v && <Text>   </Text>}
-          <Button key="evening" plain label={T().btnEvening} dimColor
-            onPress={async () => ask($, evening(await read($, tabs), await read($, tabSeen), await $.clock.now()))} />
+          <Button key="evening" label={T().btnEvening} 
+ onPress={async () => ask($, evening(await read($, tabs), await read($, tabSeen), await $.clock.now()))} />
           <Text>   </Text>
-          {inChat && <Button key="pane" plain label={T().btnSidebar} dimColor onPress={() => openPane($)} />}
+          {inChat && <Button key="pane" label={T().btnSidebar} onPress={() => openPane($)} />}
           {inChat && <Text>   </Text>}
-          <Button key="help" plain label="?" dimColor={!help} onPress={() => update($, showHelp, x => !x)} />
+          <Button key="help" label="?" selected={help} onPress={() => update($, showHelp, x => !x)} />
           <Text>   </Text>
-          <Button key="close" plain role="dismiss" label="✕" dimColor
-            onPress={() => (inChat ? update($, isClosed, () => true) : $.ui.close({ id: PANE }))} />
+          <Button key="close" role="dismiss" label="✕" 
+ onPress={() => (inChat ? update($, isClosed, () => true) : $.ui.close({ id: PANE }))} />
         </Box>
       </Box>
       {pageBar}
@@ -1681,18 +2071,19 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
       {alarmPage && (
         <Box>
           <Text color="red">{`${T().alarmUnder(alarmCount, alarmPage.title)} `}</Text>
-          <Button key="to-alarm" plain dimColor label={T().btnView} onPress={() => goPage(alarmPage.id)} />
+          <Button key="to-alarm" label={T().btnView} onPress={() => goPage(alarmPage.id)} />
         </Box>
       )}
       {helpBox}
+      {showOv && ovList.length > 0 && overviewBox(true)}
 
       {pickedRows.length > 0 && (
         <Box marginTop={1}>
           <Text bold>{`${T().picked(pickedRows.length)}: `}</Text>
           <Button key="pick-do" label={T().btnDo} variant="primary" onPress={() => doIt($, pickedRows)} />
           <Button key="pick-advise" label={T().btnAdvise} onPress={() => advise($, pickedRows)} />
-          <Button key="pick-ws" label={T().btnEachOwnWs} dimColor onPress={() => doIt($, pickedRows, 'workspace')} />
-          <Button key="pick-clear" label={T().btnClear} dimColor onPress={() => update($, selected, () => [])} />
+          <Button key="pick-ws" label={T().btnEachOwnWs} onPress={() => doIt($, pickedRows, 'workspace')} />
+          <Button key="pick-clear" label={T().btnClear} onPress={() => update($, selected, () => [])} />
         </Box>
       )}
 
@@ -1706,7 +2097,7 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
             <Box flexShrink={0}>
               <Text bold color={SECTION_COLOR.later}>{T().section.later}</Text>
               <Text dimColor>{` ${laterSection.all.length}${lay.hiddenRows.length ? T().hiddenCount(lay.hiddenRows.length) : ''} `}</Text>
-              <Button key="later-toggle" plain label={`${laterOpen ? T().btnClose : T().btnShow} `} onPress={() => setSection('later')} />
+              <Button key="later-toggle" label={`${laterOpen ? T().btnClose : T().btnShow} `} onPress={() => setSection('later')} />
             </Box>
             <Box flexGrow={1} width={0} height={1} overflow="hidden"><Text dimColor>{RULE}</Text></Box>
           </Box>
@@ -1714,20 +2105,20 @@ async function dashboard($: EngineInterface, e: ResolveInput, columns: number, i
           {laterOpen && lay.hiddenRows.map(row => (
             <Box key={`hidden-${row.key}`}>
               <Text dimColor>{`      ${short(row.title, width - 40)} · ${T().hiddenUntil(hide[row.key] ?? '')} `}</Text>
-              <Button key={`unhide-${row.key}`} label={T().btnShowAgain} dimColor onPress={() => unhide($, row)} />
+              <Button key={`unhide-${row.key}`} label={T().btnShowAgain} onPress={() => unhide($, row)} />
             </Box>
           ))}
         </Box>
       )}
 
       {hasTabs && <Box marginTop={1} flexWrap="wrap">
-        <Button key="tabs-toggle" plain label={tabsOpen ? T().tabsClose : T().tabsAll(tabList.length)} dimColor
-          onPress={() => update($, showTabs, x => !x)} />
+        <Button key="tabs-toggle" label={tabsOpen ? T().tabsClose : T().tabsAll(tabList.length)} 
+ onPress={() => update($, showTabs, x => !x)} />
         {inCmux && <Text dimColor>{`   ${backupText}: `}</Text>}
-        {inCmux && <Button key="snap-now" plain label={T().btnSave} dimColor onPress={() => snapshot($, true)} />}
+        {inCmux && <Button key="snap-now" label={T().btnSave} onPress={() => snapshot($, true)} />}
         {inCmux && <Text dimColor> · </Text>}
-        {inCmux && <Button key="snap-list" plain label={snapList ? T().btnClose : T().btnList} dimColor
-          onPress={async () => ((await read($, snapshots)) ? update($, snapshots, () => null) : listSnapshots($))} />}
+        {inCmux && <Button key="snap-list" label={snapList ? T().btnClose : T().btnList} 
+ onPress={async () => ((await read($, snapshots)) ? update($, snapshots, () => null) : listSnapshots($))} />}
       </Box>}
       {tabsOpen && tabList.filter(t => !waiting.includes(t)).map(tabLine)}
       {snapList && (
@@ -1886,7 +2277,9 @@ export const register: Register = on => {
   // The whole dashboard as a card in the conversation: the output line of /briefing-ui.
   on('ui.render', { component: 'CommandOutput' }, async ($, e, next) => {
     if (!e.props.command.endsWith('briefing-ui') || e.props.isErrored || !(await read($, config))) return next(e)
-    const { Box, Button, Text } = $.ui.resolve(e)
+    const resolved = $.ui.resolve(e)
+    const { Box, Text } = resolved
+    const Button = framed(resolved.Button, Text)
     const id = CARD_ID.exec(e.props.text)?.[1] ?? null
     // Only the newest card is the dashboard; older lines in the history become one line.
     if (id !== (await read($, cardId))) {
@@ -1921,7 +2314,9 @@ export const register: Register = on => {
     const nowCount = lay.sections[0]?.all.length ?? 0
     const giveCount = lay.sections[1]?.all.length ?? 0
     if (waiting + longCount + nowCount + giveCount === 0) return next(e)
-    const { Box, Button, Text } = $.ui.resolve(e)
+    const resolved = $.ui.resolve(e)
+    const { Box, Text } = resolved
+    const Button = framed(resolved.Button, Text)
     // Half width: the same numbers in short form, so the band stays one line.
     const isShort = (e.viewport?.columns ?? 120) < 90
     return (
@@ -1930,11 +2325,11 @@ export const register: Register = on => {
         {longCount > 0 && <Text color="red">{T().bandLongCount(longCount)}</Text>}
         <Text dimColor>{isShort ? T().bandCountsShort(nowCount, giveCount) : T().bandCountsLong(nowCount, giveCount)}</Text>
         <Button key="open" label={T().btnDashboard}
-          onPress={async () => {
-            await $.command.run({ command: 'briefing-ui' })
-          }} />
+ onPress={async () => {
+ await $.command.run({ command: 'briefing-ui' })
+ }} />
         <Text> </Text>
-        <Button key="hide" label="x" dimColor onPress={() => update($, isBandHidden, () => true)} />
+        <Button key="hide" label="✕" onPress={() => update($, isBandHidden, () => true)} />
       </Box>
     )
   })

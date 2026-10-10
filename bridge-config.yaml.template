@@ -123,6 +123,11 @@ work:
     - { symbol: "🧪", name: "Testing" }
     - { symbol: "📁", name: "Documents" }
     - { symbol: "🐛", name: "Bug / Incident" }
+  # review:                  # `task.py review` / the dashboard's "check all" (docs/briefing-dashboard.md)
+  #   command: "claude -p --model {model} ..."   # any agent: prompt on stdin, JSON array on stdout
+  #   max_age_days: 7        # a cached verdict with unchanged evidence is reused this long
+  #   stale_days: 21         # no activity this long and no blocker: the model may say stale
+  # The models come from `models:` below: mechanical/routine first, directed/analysis for the unclear ones.
 
 # ─── Inbox ────────────────────────────────────────────────────────────
 # Everything that needs a person waits in work/inbox/ until it is done.

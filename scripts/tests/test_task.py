@@ -150,3 +150,118 @@ def test_note_keeps_crlf_line_endings(repo):
     assert run(repo, "note", "alpha", "new").returncode == 0
     data = p.read_bytes()
     assert b"\n" not in data.replace(b"\r\n", b"")
+
+
+# ---------------------------------------------------------------- close: the scripted 3-step close
+
+import datetime as _dt
+import json as _json
+
+BLOCKED = (
+    "---\n"
+    "slug: alpha\n"
+    "status: doing\n"
+    "priority: P1\n"
+    "blocked_by: >-\n"
+    "  waiting on F: review of example-org/x#49\n"
+    "blocked_since: 2026-09-20\n"
+    "created: 2026-09-01\n"
+    "last_updated: 2026-09-01\n"
+    "---\n\n# Alpha\n\nbody\n"
+)
+
+
+def _log_with_today(repo):
+    today = _dt.date.today()
+    log = repo / "work" / "log.md"
+    log.write_text(
+        "# Week\n\n"
+        f"## Mon {today:%d.%m}\n\n"
+        "| Timestamp | Glyph | Context | What |\n|---|---|---|---|\n"
+        f"| {today:%Y-%m-%d} 07:00 | 💻 | other | earlier row |\n", encoding="utf-8")
+    return log
+
+
+def test_close_moves_the_task_sets_the_fields_regenerates_the_board_and_logs_a_row(repo):
+    (repo / "work/tasks/alpha/STATUS.md").write_text(BLOCKED, encoding="utf-8")
+    log = _log_with_today(repo)
+    r = run(repo, "close", "alpha", "--reason", "example-org/x#49 closed as completed", "--json")
+    assert r.returncode == 0, r.stderr
+    today = _dt.date.today()
+    dest = repo / "work" / "done" / f"{today:%Y-%m}" / "alpha"
+    assert not (repo / "work/tasks/alpha").exists()
+    text = (dest / "STATUS.md").read_text(encoding="utf-8")
+    assert "status: done\n" in text and f'closed: "{today.isoformat()}"\n' in text
+    assert "blocked_by" not in text and "waiting on F" not in text and "blocked_since" not in text
+    assert "outcome:" not in text
+    assert f"- {today.isoformat()}: Closed: example-org/x#49 closed as completed" in text
+    board = (repo / "work" / "board.md").read_text(encoding="utf-8")
+    assert "alpha" in board
+    rows = [ln for ln in log.read_text(encoding="utf-8").splitlines() if ln.startswith(f"| {today:%Y-%m-%d}")]
+    assert len(rows) == 2 and rows[0].endswith("earlier row |")
+    assert "| alpha |" in rows[1] and "closed" in rows[1] and "x#49" in rows[1]
+    out = _json.loads(r.stdout)
+    assert out["slug"] == "alpha" and out["moved_to"] == f"work/done/{today:%Y-%m}/alpha"
+    assert out["outcome"] is None
+
+
+def test_close_declined_sets_the_outcome(repo):
+    _log_with_today(repo)
+    r = run(repo, "close", "alpha", "--declined", "--reason", "moot")
+    assert r.returncode == 0, r.stderr
+    today = _dt.date.today()
+    text = (repo / "work" / "done" / f"{today:%Y-%m}" / "alpha" / "STATUS.md").read_text(encoding="utf-8")
+    assert "status: done\n" in text and "outcome: declined\n" in text
+    assert "Declined: moot" in text
+
+
+def test_close_without_a_log_creates_one_with_todays_block(repo):
+    r = run(repo, "close", "alpha")
+    assert r.returncode == 0, r.stderr
+    text = (repo / "work" / "log.md").read_text(encoding="utf-8")
+    today = _dt.date.today()
+    assert f"{today:%d.%m}" in text and f"| {today:%Y-%m-%d}" in text and "| alpha |" in text
+
+
+def test_close_refuses_streams_unknown_and_already_closed_tasks_without_writing(repo):
+    before = (repo / "work/streams/river/STATUS.md").read_text(encoding="utf-8")
+    r = run(repo, "close", "river")
+    assert r.returncode == 1 and "stream" in r.stderr
+    assert (repo / "work/streams/river/STATUS.md").read_text(encoding="utf-8") == before
+    r = run(repo, "close", "ghost")
+    assert r.returncode == 1 and "ghost" in r.stderr
+    done = repo / "work" / "done" / "2026-09" / "old"
+    done.mkdir(parents=True)
+    (done / "STATUS.md").write_text(STATUS.replace("alpha", "old").replace("doing", "done"), encoding="utf-8")
+    r = run(repo, "close", "old")
+    assert r.returncode == 1 and "already" in r.stderr
+    assert not (repo / "work" / "board.md").exists() and not (repo / "work" / "log.md").exists()
+
+
+def test_a_failed_move_leaves_the_task_byte_identical_and_a_retry_closes_it_once(repo):
+    import os
+    p = repo / "work/tasks/alpha/STATUS.md"
+    p.write_text(BLOCKED, encoding="utf-8")
+    before = p.read_bytes()
+    month = repo / "work" / "done" / f"{_dt.date.today():%Y-%m}"
+    month.mkdir(parents=True)
+    os.chmod(month, 0o555)
+    try:
+        r = run(repo, "close", "alpha", "--reason", "done")
+        assert r.returncode == 1 and "Traceback" not in r.stderr
+        assert p.read_bytes() == before
+    finally:
+        os.chmod(month, 0o755)
+    r = run(repo, "close", "alpha", "--reason", "done")
+    assert r.returncode == 0, r.stderr
+    text = (month / "alpha" / "STATUS.md").read_text(encoding="utf-8")
+    assert text.count("Closed: done") == 1
+
+
+def test_a_failing_log_step_is_a_warning_after_the_move(repo):
+    (repo / "work" / "log.md").mkdir(parents=True)     # a directory: the row cannot be written
+    r = run(repo, "close", "alpha", "--json")
+    assert r.returncode == 0 and "Traceback" not in r.stderr
+    out = _json.loads(r.stdout)
+    assert out["warnings"] and "log" in out["warnings"][0]
+    assert (repo / "work" / "done" / f"{_dt.date.today():%Y-%m}" / "alpha" / "STATUS.md").is_file()

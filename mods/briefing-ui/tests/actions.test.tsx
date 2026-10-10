@@ -5,7 +5,7 @@ import { approvable, cardProps, collect, item, openCard, tab, world } from './wo
 const LANGS = ['de', 'en'] as const
 const WIDE = { columns: 140, rows: 60 }
 
-const APPROVE_ALL = { de: 'alle 4 freigeben', en: 'approve all 4' }
+const APPROVE_ALL = { de: 'Alle 4 freigeben', en: 'Approve all 4' }
 const APPROVE_ASK = { de: 'Wirklich alle 4 freigeben?', en: 'Approve all 4?' }
 const PLAN = {
   de: { agenda: 'Termine:', tabs: 'Agenten-Tabs, die auf mich warten:', state: 'wartet' },
@@ -24,7 +24,7 @@ for (const lang of LANGS) {
       items: [1, 2, 3, 4, 5, 6].map(approvable) }] }) })
     const ui = await $.ui.mount({ plugin: 'briefing-ui', surface: 'terminal', component: 'CommandOutput',
       props: cardProps(await openCard($, w)), viewport: WIDE })
-    expect((await ui.find({ type: 'Button', key: 'approve-all' }))?.props.label).toBe(`${APPROVE_ALL[lang]} `)
+    expect((await ui.find({ type: 'Button', key: 'approve-all' }))?.props.label).toBe(APPROVE_ALL[lang])
     await ui.press({ key: 'approve-all' })
     expect(await ui.find({ type: 'Text', text: APPROVE_ASK[lang] })).toBeDefined()
     expect(await ui.find({ type: 'Button', key: 'approve-all' })).toBeUndefined()
@@ -44,7 +44,7 @@ test('approve all, Yes: approves exactly the visible rows, never one beyond the 
   const ui = await $.ui.mount({ plugin: 'briefing-ui', surface: 'terminal', component: 'CommandOutput',
     props: cardProps(await openCard($, w)), viewport: WIDE })
   // shown: 1, free, done, 2; approvable among them: 1 and 2
-  expect((await ui.find({ type: 'Button', key: 'approve-all' }))?.props.label).toBe('approve all 2 ')
+  expect((await ui.find({ type: 'Button', key: 'approve-all' }))?.props.label).toBe('Approve all 2')
   await ui.press({ key: 'approve-all' })
   await ui.press({ key: 'approve-yes' })
   expect(approvals(w.calls)).toEqual([
@@ -104,10 +104,10 @@ const TASK_PAGE = { id: 'tasks', title: 'Tasks', sections: [{ id: 'tasks', kind:
       mark: null, priority: 'P1', state: 'doing',
       lines: [{ kind: 'origin', text: 'asked in the acme sync' }, { kind: 'step', text: 'write the rollout note' }] }] }] }
 const START = {
-  de: { do: 'Mach du', tab: 'als Tab hier', area: 'im Bereich acme', ws: 'im eigenen Workspace', step: 'Schritt: ',
-    state: 'in Arbeit' },
-  en: { do: 'Do it', tab: 'as a tab here', area: 'in area acme', ws: 'in its own workspace', step: 'Step: ',
-    state: 'doing' },
+  de: { do: 'Agent übernimmt', tab: 'Agent starten: hier', area: 'Agent starten: Bereich acme',
+    ws: 'Agent starten: eigener Workspace', step: 'Schritt: ', state: 'in Arbeit', areaNote: 'im Bereich acme' },
+  en: { do: 'Agent takes it', tab: 'Start agent: here', area: 'Start agent: area acme',
+    ws: 'Start agent: own workspace', step: 'Step: ', state: 'doing', areaNote: 'in area acme' },
 }
 const launches = (calls: string[][]) => calls.filter(argv => argv[1] === 'scripts/workplace.py' && argv[2] === 'launch')
 const flag = (argv: string[], name: string) => argv[argv.indexOf(name) + 1]
@@ -147,7 +147,7 @@ for (const lang of LANGS) {
     await ui.press({ key: 'pgb-tasks' })
     await ui.press({ key: 'px-tasks-0' })
     await ui.press({ key: 'ts-area-task:alpha' })
-    expect(w.toasts.join('\n')).toContain(START[lang].area)
+    expect(w.toasts.join('\n')).toContain(START[lang].areaNote)
   })
 }
 
@@ -169,7 +169,7 @@ test('an opened task with a running agent tab offers the tab, not a second start
     props: cardProps(await openCard($, w)), viewport: WIDE })
   await ui.press({ key: 'pgb-tasks' })
   await ui.press({ key: 'px-tasks-0' })
-  expect((await ui.find({ type: 'Button', key: 'ta-hin-task:alpha' }))?.props.label).toBe('Go to tab')
+  expect((await ui.find({ type: 'Button', key: 'ta-hin-task:alpha' }))?.props.label).toBe('Show tab')
   expect(await ui.find({ type: 'Button', key: 'go-surface:12' })).toBeDefined()
   expect(await ui.find({ type: 'Button', key: 'ts-tab-task:alpha' })).toBeUndefined()
 })

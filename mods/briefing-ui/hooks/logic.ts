@@ -1,5 +1,5 @@
 import type {
-  Bucket, Info, InfoPage, Mark, Row, SectionId, Tab, TabSeen, TaskInfo, Team, TeamRun, UiConfig, View,
+  Bucket, Chip, Info, InfoPage, Mark, OvFilter, OvSort, Review, ReviewMeta, Row, SectionId, Tab, TabSeen, TaskInfo, Team, TeamRun, UiConfig, View,
 } from '../types'
 import { T } from './text'
 
@@ -270,7 +270,153 @@ export function parseTasks(out: string): TaskInfo[] {
     stale: t.stale === true,
     age: typeof t.age === 'number' ? t.age : 0,
     type: asTextOrNull(t.type),
+    isStream: t.kind === 'streams',
   }))
+}
+
+const VERDICTS = ['close', 'continue', 'waiting', 'stale', 'unclear'] as const
+
+function toReview(slug: string, r: Record<string, unknown>, cached: boolean): Review {
+  const verdict = VERDICTS.find(v => v === r.verdict) ?? 'unclear'
+  const sig = (r.signals && typeof r.signals === 'object' ? r.signals : {}) as Record<string, unknown>
+  const previous = asTextOrNull(r.previous_verdict ?? r.previous)
+  const chips = (Array.isArray(r.chips) ? r.chips : []).filter(c => c && typeof c === 'object' && 'kind' in c) as Chip[]
+  return { slug, verdict, reason: asText(r.reason), confidence: asText(r.confidence), model: asTextOrNull(r.model),
+    cached, kept: r.kept === true, resolved: r.resolved === true, unblocked: sig.blocker_resolved === true,
+    closedRefs: Array.isArray(sig.closed_refs) ? sig.closed_refs.map(asText) : [],
+    title: asText(r.title), priority: asTextOrNull(r.priority),
+    days: typeof r.days_since_activity === 'number' ? r.days_since_activity : null, chips, previous,
+    changed: r.changed === true || (r.changed === undefined && previous !== null && previous !== verdict) }
+}
+
+/** The answer of `task.py review --json`: one recommendation per task, what it cost, which models answered. */
+export function parseReview(out: string): { reviews: Record<string, Review>; count: number; toClose: number
+  costUsd: number; costKnown: boolean; models: string[]; mismatch: string[]; meta: ReviewMeta } {
+  const raw = JSON.parse(out) as Record<string, unknown>
+  const tasks = (Array.isArray(raw.tasks) ? raw.tasks : []) as Record<string, unknown>[]
+  const reviews: Record<string, Review> = {}
+  for (const t of tasks) if (t && t.slug) reviews[asText(t.slug)] = toReview(asText(t.slug), t, t.cached === true)
+  const mismatch = (Array.isArray(raw.model_mismatch) ? raw.model_mismatch : []) as Record<string, unknown>[]
+  return {
+    reviews, count: tasks.length,
+    toClose: Object.values(reviews).filter(r => (r.verdict === 'close' || r.resolved) && !r.kept).length,
+    costUsd: typeof raw.cost_usd === 'number' ? raw.cost_usd : 0,
+    costKnown: raw.cost_known !== false,
+    models: Array.isArray(raw.models_used) ? raw.models_used.map(asText) : [],
+    mismatch: mismatch.map(m => `${asText(m.requested)} → ${(Array.isArray(m.used) ? m.used.map(asText) : []).join(', ')}`),
+    meta: {
+      at: asText(raw.reviewed_at), durationSec: typeof raw.duration_sec === 'number' ? raw.duration_sec : null,
+      costUsd: typeof raw.cost_usd === 'number' ? raw.cost_usd : 0, costKnown: raw.cost_known !== false,
+      models: Array.isArray(raw.models_used) ? raw.models_used.map(asText) : [], count: tasks.length,
+      escalateUsd: typeof raw.escalate_call_usd === 'number' ? raw.escalate_call_usd : 0.021,
+    },
+  }
+}
+
+/** The last whole run that task.py review keeps in its cache file (`last`), for the overview; null without one. */
+export function parseReviewLast(text: string): ReturnType<typeof parseReview> | null {
+  try {
+    const raw = JSON.parse(text) as { last?: unknown }
+    return raw.last && typeof raw.last === 'object' ? parseReview(JSON.stringify(raw.last)) : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * A button label starts with a capital: the first letter after any leading symbols ("⟳ neu" → "⟳ Neu").
+ * A label that starts with a digit stays as it is, and so does a checkbox ("[x]").
+ */
+export function capFirst(label: string): string {
+  if (/^\[[ x]\]$/.test(label)) return label
+  const m = /^([^\p{L}\p{N}]*)(\p{L})/u.exec(label)
+  return m ? `${m[1]}${m[2]!.toLocaleUpperCase()}${label.slice(m[0].length)}` : label
+}
+
+// ---------------------------------------------------------------- review overview
+
+/** Close candidates first, then what may be dropped, what waits, what nobody could place, what goes on */
+export const VERDICT_ORDER = ['close', 'stale', 'waiting', 'unclear', 'continue'] as const
+export type Verdict = typeof VERDICT_ORDER[number]
+/** The strip and the filter chips read from done to unsure: close, stale, waiting, continue, unclear */
+export const STRIP_ORDER: readonly Verdict[] = ['close', 'stale', 'waiting', 'continue', 'unclear']
+
+/** A resolved own issue says close whatever the model said; a kept one goes on. */
+export function effectiveVerdict(r: Review): Verdict {
+  return r.kept ? 'continue' : r.resolved ? 'close' : r.verdict
+}
+
+export function ovCounts(list: Review[]): Record<OvFilter, number> {
+  const out: Record<OvFilter, number> = { all: list.length, close: 0, stale: 0, waiting: 0, continue: 0, unclear: 0,
+    changed: 0 }
+  for (const r of list) {
+    out[effectiveVerdict(r)] += 1
+    if (r.changed) out.changed += 1
+  }
+  return out
+}
+
+export function ovFilter(list: Review[], f: OvFilter): Review[] {
+  return f === 'all' ? list : f === 'changed' ? list.filter(r => r.changed) : list.filter(r => effectiveVerdict(r) === f)
+}
+
+function prioOf(r: Review): number {
+  const m = r.priority ? /^P(\d)$/.exec(r.priority) : null
+  return m ? Number(m[1]) : 4
+}
+
+/** verdict: grouped, then priority, then slug · priority: then verdict · activity: the quietest first, unknown last */
+export function ovSort(list: Review[], sort: OvSort): Review[] {
+  const v = (r: Review) => VERDICT_ORDER.indexOf(effectiveVerdict(r))
+  const slug = (a: Review, b: Review) => a.slug.localeCompare(b.slug)
+  const by = sort === 'priority' ? (a: Review, b: Review) => prioOf(a) - prioOf(b) || v(a) - v(b) || slug(a, b)
+    : sort === 'activity' ? (a: Review, b: Review) => (b.days ?? -1) - (a.days ?? -1) || v(a) - v(b) || slug(a, b)
+      : (a: Review, b: Review) => v(a) - v(b) || prioOf(a) - prioOf(b) || slug(a, b)
+  return [...list].sort(by)
+}
+
+export function confDots(confidence: string): string {
+  return confidence === 'high' ? '●●●' : confidence === 'medium' ? '●●○' : confidence === 'low' ? '●○○' : '○○○'
+}
+
+/** The verdict counts as cells of a bar `width` wide: proportional, every verdict present gets at least one. */
+export function barParts(counts: Record<string, number>, width: number, order: readonly Verdict[] = STRIP_ORDER):
+  { verdict: Verdict; count: number; cells: number }[] {
+  const present = order.filter(v => (counts[v] ?? 0) > 0)
+  const total = present.reduce((n, v) => n + (counts[v] ?? 0), 0)
+  if (!total) return []
+  const parts = present.map(v => ({ verdict: v, count: counts[v] ?? 0,
+    cells: Math.max(1, Math.round((counts[v] ?? 0) / total * width)) }))
+  // rounding may miss the width by a cell or two: the largest part gives or takes them
+  const diff = width - parts.reduce((n, p) => n + p.cells, 0)
+  const big = parts.reduce((a, b) => (b.cells > a.cells ? b : a))
+  big.cells = Math.max(1, big.cells + diff)
+  return parts
+}
+
+/** Whole minutes from an ISO local time to now; 0 when it cannot be read */
+export function minutesSince(at: string, now: number): number {
+  const then = Date.parse(at)
+  return Number.isFinite(then) ? Math.max(0, Math.round((now - then) / 60000)) : 0
+}
+
+/** The cache file of `task.py review` (.bridge/task-review.json): the last verdicts, without asking a model. */
+export function parseReviewCache(text: string): Record<string, Review> {
+  try {
+    const raw = JSON.parse(text) as { tasks?: Record<string, Record<string, unknown>> }
+    const out: Record<string, Review> = {}
+    for (const [slug, r] of Object.entries(raw.tasks ?? {})) if (r && typeof r === 'object') out[slug] = toReview(slug, r, true)
+    return out
+  } catch {
+    return {}
+  }
+}
+
+/** claude-haiku-5-5 → Haiku 5.5; anything else stays as it is */
+export function modelShort(id: string | null): string {
+  if (!id) return '?'
+  const m = /^claude-([a-z]+)-(\d+)-(\d+)(?:-\d{8})?$/.exec(id)
+  return m ? `${m[1]!.charAt(0).toUpperCase()}${m[1]!.slice(1)} ${m[2]}.${m[3]}` : id
 }
 
 export function parseTeams(out: string): Team[] {

@@ -601,7 +601,8 @@ def task_rows(root: Path, cfg: dict, today: dt.date) -> list:
                      "area_aliases": list(area.get("aliases") or []),
                      "priority": t.get("priority"), "type": t.get("type"), "status": t.get("status"),
                      "score": score, "age": age,
-                     "blocked_by": t.get("blocked_by"), "stale": age > limits["stale_days"]})
+                     "blocked_by": t.get("blocked_by"), "stale": age > limits["stale_days"],
+                     "kind": t["kind"]})
     rank = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
     return sorted(rows, key=lambda r: (rank.get(r["priority"] or "", 4), -r["score"], r["slug"]))
 

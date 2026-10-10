@@ -6,7 +6,7 @@ const LANGS = ['de', 'en'] as const
 const WIDE = { columns: 140, rows: 60 }
 
 const PLAN = { de: 'Plan für heute', en: 'Plan my day' }
-const RELOAD = { de: '⟳ neu', en: '⟳ reload' }
+const RELOAD = { de: '⟳ Neu', en: '⟳ Reload' }
 const OFF = {
   de: 'briefing-ui ist aus: briefing.claude_code_ui.enabled in bridge-config.yaml auf true setzen.',
   en: 'briefing-ui is off: set briefing.claude_code_ui.enabled to true in bridge-config.yaml.',

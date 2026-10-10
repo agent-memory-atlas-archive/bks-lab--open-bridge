@@ -1,7 +1,7 @@
 ---
 summary: "Task Management concept: log/board/tasks lifecycle, status enum, KIND-as-folder — the human-readable companion to AGENTS.md § Task Management."
 type: guide
-last_updated: 2026-08-22
+last_updated: 2026-10-09
 related:
   - AGENTS.md
   - docs/structure.md
@@ -128,6 +128,16 @@ Closing or reclassifying a task is three steps, in order:
 2. **Regenerate `board.md`** from the dirs via `scripts/gen-board.py` (it is
    generated, never hand-edited).
 3. **Append a `log.md` row** with a timestamp.
+
+`python3 scripts/task.py close <slug> [--reason TEXT] [--declined] [--json]` does
+all three for a finite task: it sets `status: done` and `closed: "YYYY-MM-DD"`
+(plus `outcome: declined` with `--declined`), drops `blocked_by` and
+`blocked_since`, adds a dated note with the reason, moves the folder to
+`work/done/YYYY-MM/<slug>/` (a plain move: committing is yours), regenerates the
+board and writes one row into today's day block. It refuses a stream (streams
+never close), an unknown slug and a task already under `work/done/`. The
+briefing dashboard's Done button runs it; `task.py review` recommends which
+tasks are finished ([`briefing-dashboard.md`](briefing-dashboard.md)).
 
 ## Log format — one file per period, daily blocks
 
