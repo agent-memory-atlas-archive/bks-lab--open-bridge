@@ -99,6 +99,7 @@
         cardProtocol: 'A2A protocol',
         cardEndpoint: 'Endpoint',
         cardModes: 'I/O',
+        cardVersion: 'Agent version',
         cardSkills: 'Skills',
         cardExamplesHint: 'Try one:',
         cardStreaming: 'Streaming',
@@ -133,6 +134,7 @@
         cardProtocol: 'A2A-Protokoll',
         cardEndpoint: 'Endpunkt',
         cardModes: 'I/O',
+        cardVersion: 'Agent-Version',
         cardSkills: 'Skills',
         cardExamplesHint: 'Probier eine:',
         cardStreaming: 'Streaming',
@@ -833,8 +835,13 @@
       ifaces.forEach(function (i) { if (i && typeof i.protocolBinding === 'string') badges.appendChild(mkEl('span', 'obw-card-badge', i.protocolBinding)); });
       if (card.capabilities && card.capabilities.streaming) badges.appendChild(mkEl('span', 'obw-card-badge', t.cardStreaming));
       if (card.capabilities && card.capabilities.pushNotifications) badges.appendChild(mkEl('span', 'obw-card-badge', t.cardPush));
-      if (card.version) badges.appendChild(mkEl('span', 'obw-card-badge', 'v' + String(card.version)));
+      // The A2A protocol version lives on the interface (A2A v1.0); the card's own
+      // `version` is the agent's version. A bare "v1.0.0" badge under the protocol
+      // heading read as the protocol version, so the two are shown apart.
+      var protoVersion = String((ifaces[0] && ifaces[0].protocolVersion) || card.protocolVersion || '').trim();
+      if (protoVersion) badges.appendChild(mkEl('span', 'obw-card-badge', 'A2A ' + protoVersion));
       if (badges.childNodes.length) proto.appendChild(badges);
+      if (card.version) proto.appendChild(metaLine(t.cardVersion, String(card.version)));
 
       var inModes = Array.isArray(card.defaultInputModes) ? card.defaultInputModes.join(', ') : '';
       var outModes = Array.isArray(card.defaultOutputModes) ? card.defaultOutputModes.join(', ') : '';
